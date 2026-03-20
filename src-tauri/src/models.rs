@@ -62,6 +62,7 @@ pub struct Package {
     pub manager: ManagerType,
     pub installed: bool,
     pub outdated: bool,
+    pub is_gui: bool,  // 是否是 GUI 应用（cask）
     pub description: Option<String>,
 }
 

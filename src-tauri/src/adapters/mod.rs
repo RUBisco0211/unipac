@@ -27,21 +27,24 @@ pub trait PackageAdapter: Send + Sync {
     /// 列出已安装的包
     async fn list_packages(&self) -> Result<Vec<Package>, String>;
 
-    /// 安装包
-    async fn install_package(&self, name: &str, options: Option<&HashMap<String, String>>)
-        -> Result<ActionResult, String>;
-
-    /// 卸载包
-    async fn uninstall_package(
+    /// 安装包（支持多个）
+    async fn install_packages(
         &self,
-        name: &str,
+        names: &[&str],
         options: Option<&HashMap<String, String>>,
     ) -> Result<ActionResult, String>;
 
-    /// 升级包
-    async fn upgrade_package(
+    /// 卸载包（支持多个）
+    async fn uninstall_packages(
         &self,
-        name: &str,
+        names: &[&str],
+        options: Option<&HashMap<String, String>>,
+    ) -> Result<ActionResult, String>;
+
+    /// 升级包（支持多个）
+    async fn upgrade_packages(
+        &self,
+        names: &[&str],
         options: Option<&HashMap<String, String>>,
     ) -> Result<ActionResult, String>;
 

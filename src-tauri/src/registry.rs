@@ -92,37 +92,67 @@ impl ManagerRegistry {
         Ok(all_packages)
     }
 
-    /// 安装包
+    /// 安装包（单个）
     pub async fn install_package(
         &self,
         manager_id: &str,
         name: &str,
         options: Option<&HashMap<String, String>>,
     ) -> Result<ActionResult, String> {
-        let adapter = self.get_adapter(manager_id)?;
-        adapter.install_package(name, options).await
+        self.install_packages(manager_id, &[name], options).await
     }
 
-    /// 卸载包
+    /// 安装包（多个）
+    pub async fn install_packages(
+        &self,
+        manager_id: &str,
+        names: &[&str],
+        options: Option<&HashMap<String, String>>,
+    ) -> Result<ActionResult, String> {
+        let adapter = self.get_adapter(manager_id)?;
+        adapter.install_packages(names, options).await
+    }
+
+    /// 卸载包（单个）
     pub async fn uninstall_package(
         &self,
         manager_id: &str,
         name: &str,
         options: Option<&HashMap<String, String>>,
     ) -> Result<ActionResult, String> {
-        let adapter = self.get_adapter(manager_id)?;
-        adapter.uninstall_package(name, options).await
+        self.uninstall_packages(manager_id, &[name], options).await
     }
 
-    /// 升级包
+    /// 卸载包（多个）
+    pub async fn uninstall_packages(
+        &self,
+        manager_id: &str,
+        names: &[&str],
+        options: Option<&HashMap<String, String>>,
+    ) -> Result<ActionResult, String> {
+        let adapter = self.get_adapter(manager_id)?;
+        adapter.uninstall_packages(names, options).await
+    }
+
+    /// 升级包（单个）
     pub async fn upgrade_package(
         &self,
         manager_id: &str,
         name: &str,
         options: Option<&HashMap<String, String>>,
     ) -> Result<ActionResult, String> {
+        self.upgrade_packages(manager_id, &[name], options).await
+    }
+
+    /// 升级包（多个）
+    pub async fn upgrade_packages(
+        &self,
+        manager_id: &str,
+        names: &[&str],
+        options: Option<&HashMap<String, String>>,
+    ) -> Result<ActionResult, String> {
         let adapter = self.get_adapter(manager_id)?;
-        adapter.upgrade_package(name, options).await
+        adapter.upgrade_packages(names, options).await
     }
 
     /// 搜索包（并发搜索）
