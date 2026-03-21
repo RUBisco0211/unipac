@@ -3,10 +3,10 @@ import { managerLabelMap } from '@/lib/format'
 import type { ManagerType } from '@/model/types'
 
 defineProps<{
-  manager: ManagerType
+    manager: ManagerType
 }>()
 </script>
 
 <template>
-  <Tag :value="managerLabelMap[manager]" severity="info" rounded />
+    <Tag :value="managerLabelMap[manager]" severity="info" rounded />
 </template>

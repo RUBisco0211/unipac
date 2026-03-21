@@ -6,37 +6,37 @@ import SettingsPage from '@/pages/Settings.vue'
 import { Package, Search, Settings } from 'lucide-vue-next'
 
 const router = createRouter({
-  history: createWebHistory(),
-  routes: [
-    {
-      path: '/',
-      redirect: '/packages',
-      component: MainLayout,
-      children: [
+    history: createWebHistory(),
+    routes: [
         {
-          path: 'packages',
-          component: PackagesPage,
-          meta: {
-            icon: Package,
-          },
+            path: '/',
+            redirect: '/packages',
+            component: MainLayout,
+            children: [
+                {
+                    path: 'packages',
+                    component: PackagesPage,
+                    meta: {
+                        icon: Package,
+                    },
+                },
+                {
+                    path: 'search',
+                    component: SearchPage,
+                    meta: {
+                        icon: Search,
+                    },
+                },
+                {
+                    path: 'settings',
+                    component: SettingsPage,
+                    meta: {
+                        icon: Settings,
+                    },
+                },
+            ],
         },
-        {
-          path: 'search',
-          component: SearchPage,
-          meta: {
-            icon: Search,
-          },
-        },
-        {
-          path: 'settings',
-          component: SettingsPage,
-          meta: {
-            icon: Settings,
-          },
-        },
-      ],
-    },
-  ],
+    ],
 })
 
 export default router
