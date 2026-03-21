@@ -1,0 +1,5 @@
+[alias]
+test-tauri = "test --manifest-path src-tauri/Cargo.toml"
+test-adapters = "test --manifest-path src-tauri/Cargo.toml adapters::"
+test-adapters-unit = "test --manifest-path src-tauri/Cargo.toml adapters:: -- --skip install_uninstall --skip outdated_detection"
+test-brew-integration = "test --manifest-path src-tauri/Cargo.toml brew::tests:: -- --ignored"
