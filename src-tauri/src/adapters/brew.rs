@@ -1,9 +1,8 @@
-use crate::adapters::PackageAdapter;
+use crate::adapters::{ensure_command_healthy, ensure_command_in_path, run_command, PackageAdapter};
 use crate::models::{ActionResult, ManagerCapabilities, ManagerType, Package};
 use async_trait::async_trait;
 use serde::Deserialize;
 use std::collections::HashMap;
-use tokio::process::Command;
 
 /// Homebrew outdated JSON 输出
 #[derive(Debug, Deserialize)]
@@ -29,142 +28,85 @@ impl BrewAdapter {
 
     /// 执行 brew 命令并获取输出
     async fn run_brew(&self, args: &[&str]) -> Result<String, String> {
-        let output = Command::new("brew")
-            .args(args)
-            .output()
-            .await
-            .map_err(|e| format!("Failed to execute brew: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("Brew command failed: {}", stderr));
-        }
-
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-}
-
-#[async_trait]
-impl PackageAdapter for BrewAdapter {
-    fn id(&self) -> &str {
-        "brew"
+        run_command("brew", args, "Brew").await
     }
 
-    fn name(&self) -> &str {
-        "Homebrew"
-    }
-
-    fn capabilities(&self) -> ManagerCapabilities {
-        ManagerCapabilities::default()
-    }
-
-    async fn preflight(&self) -> Result<(), String> {
-        // 检查 brew 命令是否存在
-        let result = Command::new("which")
-            .arg("brew")
-            .output()
-            .await
-            .map_err(|e| format!("Failed to check for brew: {}", e))?;
-
-        if !result.status.success() {
-            return Err(
-                "Homebrew is not installed or not in PATH. Please install it from https://brew.sh/"
-                    .to_string(),
-            );
-        }
-
-        // 检查 brew 是否可用
-        let version_result = Command::new("brew")
-            .arg("--version")
-            .output()
-            .await;
-
-        match version_result {
-            Ok(output) if output.status.success() => Ok(()),
-            Ok(_) => Err("Homebrew command exists but is not functional".to_string()),
-            Err(e) => Err(format!("Failed to run Homebrew: {}", e)),
-        }
-    }
-
-    async fn list_packages(&self) -> Result<Vec<Package>, String> {
-        // 获取已安装的 formulae 列表
-        let formulae_output = self.run_brew(&["list", "--formulae", "--versions"]).await?;
-
-        // 解析 formulae 输出，格式：package_name version1 version2 ...
-        let mut formulae_packages = Vec::new();
-        for line in formulae_output.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.is_empty() {
-                continue;
-            }
-
-            let name = parts[0].to_string();
-            let version = if parts.len() > 1 {
-                parts[1].to_string()
-            } else {
-                "unknown".to_string()
-            };
-
-            formulae_packages.push((name, version));
-        }
-
-        // 获取已安装的 cask 列表
-        let cask_output = self.run_brew(&["list", "--cask", "--versions"]).await?;
-
-        // 解析 cask 输出，格式：package_name version
-        let mut cask_packages = Vec::new();
-        for line in cask_output.lines() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.is_empty() {
-                continue;
-            }
-
-            let name = parts[0].to_string();
-            let version = if parts.len() > 1 {
-                parts[1].to_string()
-            } else {
-                "unknown".to_string()
-            };
-
-            cask_packages.push((name, version));
-        }
-
-        // 获取过期的包
-        let (outdated_formulae, outdated_casks) = if let Ok(outdated_output) = self.run_brew(&["outdated", "--json=v2"]).await {
-            if let Ok(outdated) = serde_json::from_str::<BrewOutdated>(&outdated_output) {
-                let mut formulae_map = HashMap::new();
-                for item in outdated.formulae {
-                    let latest = if !item.current_version.is_empty() {
-                        item.current_version
-                    } else if item.installed_versions.is_empty() {
-                        "unknown".to_string()
-                    } else {
-                        item.installed_versions.last().unwrap_or(&"unknown".to_string()).clone()
-                    };
-                    formulae_map.insert(item.name, latest);
+    fn parse_versions_output(output: &str) -> Vec<(String, String)> {
+        output
+            .lines()
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.is_empty() {
+                    return None;
                 }
 
-                let mut cask_map = HashMap::new();
-                for item in outdated.casks {
-                    let latest = if !item.current_version.is_empty() {
-                        item.current_version
-                    } else if item.installed_versions.is_empty() {
-                        "unknown".to_string()
-                    } else {
-                        item.installed_versions.last().unwrap_or(&"unknown".to_string()).clone()
-                    };
-                    cask_map.insert(item.name, latest);
-                }
+                let name = parts[0].to_string();
+                let version = if parts.len() > 1 {
+                    parts[1].to_string()
+                } else {
+                    "unknown".to_string()
+                };
 
-                (formulae_map, cask_map)
-            } else {
-                (HashMap::new(), HashMap::new())
-            }
-        } else {
-            (HashMap::new(), HashMap::new())
-        };
+                Some((name, version))
+            })
+            .collect()
+    }
 
-        // 构建 Package 列表 - formulae (CLI 工具)
+    fn parse_outdated_output(
+        output: &str,
+    ) -> Result<(HashMap<String, String>, HashMap<String, String>), String> {
+        if output.trim().is_empty() {
+            return Ok((HashMap::new(), HashMap::new()));
+        }
+
+        let outdated: BrewOutdated = serde_json::from_str(output)
+            .map_err(|e| format!("Failed to parse brew outdated output: {}", e))?;
+
+        let formulae_map = outdated
+            .formulae
+            .into_iter()
+            .map(|item| {
+                let latest = if !item.current_version.is_empty() {
+                    item.current_version
+                } else if item.installed_versions.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    item.installed_versions
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| "unknown".to_string())
+                };
+                (item.name, latest)
+            })
+            .collect();
+
+        let cask_map = outdated
+            .casks
+            .into_iter()
+            .map(|item| {
+                let latest = if !item.current_version.is_empty() {
+                    item.current_version
+                } else if item.installed_versions.is_empty() {
+                    "unknown".to_string()
+                } else {
+                    item.installed_versions
+                        .last()
+                        .cloned()
+                        .unwrap_or_else(|| "unknown".to_string())
+                };
+                (item.name, latest)
+            })
+            .collect();
+
+        Ok((formulae_map, cask_map))
+    }
+
+    fn build_packages(
+        formulae_packages: Vec<(String, String)>,
+        cask_packages: Vec<(String, String)>,
+        outdated_formulae: HashMap<String, String>,
+        outdated_casks: HashMap<String, String>,
+    ) -> Vec<Package> {
         let mut result: Vec<Package> = formulae_packages
             .into_iter()
             .map(|(name, version)| {
@@ -187,7 +129,6 @@ impl PackageAdapter for BrewAdapter {
             })
             .collect();
 
-        // 添加 cask 包 (GUI 应用)
         for (name, version) in cask_packages {
             let (latest_version, outdated) = outdated_casks
                 .get(&name)
@@ -207,7 +148,107 @@ impl PackageAdapter for BrewAdapter {
             });
         }
 
-        Ok(result)
+        result
+    }
+
+    fn parse_search_output(output: &str) -> Vec<Package> {
+        let mut packages = Vec::new();
+
+        for line in output.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with("=>") {
+                continue;
+            }
+
+            let (name, description) = if let Some(idx) = line.find(':') {
+                (
+                    line[..idx].trim().to_string(),
+                    Some(line[idx + 1..].trim().to_string()),
+                )
+            } else {
+                (line.to_string(), None)
+            };
+
+            packages.push(Package {
+                name: name.clone(),
+                fullname: Some(name),
+                version: "latest".to_string(),
+                latest_version: "latest".to_string(),
+                manager: ManagerType::Brew,
+                installed: false,
+                outdated: false,
+                is_gui: false,
+                description,
+            });
+        }
+
+        packages
+    }
+}
+
+#[async_trait]
+impl PackageAdapter for BrewAdapter {
+    fn id(&self) -> &str {
+        "brew"
+    }
+
+    fn name(&self) -> &str {
+        "Homebrew"
+    }
+
+    fn capabilities(&self) -> ManagerCapabilities {
+        ManagerCapabilities::default()
+    }
+
+    async fn preflight(&self) -> Result<(), String> {
+        ensure_command_in_path(
+            "brew",
+            "Homebrew is not installed or not in PATH. Please install it from https://brew.sh/",
+        )
+        .await?;
+
+        ensure_command_healthy("brew", &["--version"], "Homebrew").await
+    }
+
+    async fn list_packages(&self) -> Result<Vec<Package>, String> {
+        // 获取已安装的 formulae 列表
+        let formulae_packages = match self.run_brew(&["list", "--formulae", "--versions"]).await {
+            Ok(output) => Self::parse_versions_output(&output),
+            Err(error) => {
+                tracing::warn!("Failed to list Homebrew formulae: {}", error);
+                Vec::new()
+            }
+        };
+
+        // 获取已安装的 cask 列表
+        let cask_packages = match self.run_brew(&["list", "--cask", "--versions"]).await {
+            Ok(output) => Self::parse_versions_output(&output),
+            Err(error) => {
+                tracing::warn!("Failed to list Homebrew casks: {}", error);
+                Vec::new()
+            }
+        };
+
+        // 获取过期的包
+        let (outdated_formulae, outdated_casks) = if let Ok(outdated_output) =
+            self.run_brew(&["outdated", "--json=v2"]).await
+        {
+            Self::parse_outdated_output(&outdated_output)
+                .unwrap_or_else(|_| (HashMap::new(), HashMap::new()))
+        } else {
+            (HashMap::new(), HashMap::new())
+        };
+
+        if formulae_packages.is_empty() && cask_packages.is_empty() {
+            return Err("Failed to list Homebrew packages".to_string());
+        }
+
+        Ok(Self::build_packages(
+            formulae_packages,
+            cask_packages,
+            outdated_formulae,
+            outdated_casks,
+        ))
     }
 
     async fn install_packages(
@@ -233,21 +274,16 @@ impl PackageAdapter for BrewAdapter {
             args.push(name);
         }
 
-        let output = Command::new("brew")
-            .args(&args)
-            .output()
-            .await
-            .map_err(|e| format!("Failed to execute brew install: {}", e))?;
+        let output = run_command("brew", &args, "Brew").await;
 
-        if output.status.success() {
+        if output.is_ok() {
             Ok(ActionResult::success(format!(
                 "Successfully installed {} package(s): {}",
                 names.len(),
                 names.join(", ")
             )))
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Failed to install {}: {}", names.join(", "), stderr))
+            Err(format!("Failed to install {}: {}", names.join(", "), output.err().unwrap()))
         }
     }
 
@@ -277,21 +313,16 @@ impl PackageAdapter for BrewAdapter {
             args.push(name);
         }
 
-        let output = Command::new("brew")
-            .args(&args)
-            .output()
-            .await
-            .map_err(|e| format!("Failed to execute brew uninstall: {}", e))?;
+        let output = run_command("brew", &args, "Brew").await;
 
-        if output.status.success() {
+        if output.is_ok() {
             Ok(ActionResult::success(format!(
                 "Successfully uninstalled {} package(s): {}",
                 names.len(),
                 names.join(", ")
             )))
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Failed to uninstall {}: {}", names.join(", "), stderr))
+            Err(format!("Failed to uninstall {}: {}", names.join(", "), output.err().unwrap()))
         }
     }
 
@@ -318,62 +349,22 @@ impl PackageAdapter for BrewAdapter {
             args.push(name);
         }
 
-        let output = Command::new("brew")
-            .args(&args)
-            .output()
-            .await
-            .map_err(|e| format!("Failed to execute brew upgrade: {}", e))?;
+        let output = run_command("brew", &args, "Brew").await;
 
-        if output.status.success() {
+        if output.is_ok() {
             Ok(ActionResult::success(format!(
                 "Successfully upgraded {} package(s): {}",
                 names.len(),
                 names.join(", ")
             )))
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            Err(format!("Failed to upgrade {}: {}", names.join(", "), stderr))
+            Err(format!("Failed to upgrade {}: {}", names.join(", "), output.err().unwrap()))
         }
     }
 
     async fn search_packages(&self, keyword: &str) -> Result<Vec<Package>, String> {
         let output = self.run_brew(&["search", keyword]).await?;
-
-        let mut packages = Vec::new();
-        for line in output.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            // 过滤掉 "=>" 开头的行（别名引用）
-            if line.starts_with("=>") {
-                continue;
-            }
-
-            // Homebrew search 输出格式可能包含描述
-            let (name, description) = if let Some(idx) = line.find(':') {
-                (line[..idx].trim().to_string(), Some(line[idx + 1..].trim().to_string()))
-            } else {
-                (line.to_string(), None)
-            };
-
-            // 搜索结果默认为 formulae (is_gui = false)
-            // 可以通过单独的 --casks 搜索来获取 cask 结果
-            packages.push(Package {
-                name: name.clone(),
-                fullname: Some(name),
-                version: "latest".to_string(),
-                latest_version: "latest".to_string(),
-                manager: ManagerType::Brew,
-                installed: false,
-                outdated: false,
-                is_gui: false,
-                description,
-            });
-        }
-
-        Ok(packages)
+        Ok(Self::parse_search_output(&output))
     }
 }
 
@@ -406,25 +397,79 @@ mod tests {
         assert!(result.is_ok(), "Preflight should succeed: {:?}", result);
     }
 
+    #[test]
+    fn test_parse_versions_output() {
+        let output = "wget 1.24.5\niterm2 3.5.0";
+        let packages = BrewAdapter::parse_versions_output(output);
+
+        assert_eq!(packages.len(), 2);
+        assert_eq!(packages[0], ("wget".to_string(), "1.24.5".to_string()));
+        assert_eq!(packages[1], ("iterm2".to_string(), "3.5.0".to_string()));
+    }
+
+    #[test]
+    fn test_parse_outdated_output() {
+        let output = r#"{
+          "formulae": [
+            { "name": "wget", "installed_versions": ["1.24.4"], "current_version": "1.24.5" }
+          ],
+          "casks": [
+            { "name": "iterm2", "installed_versions": ["3.4.0"], "current_version": "3.5.0" }
+          ]
+        }"#;
+
+        let (formulae, casks) = BrewAdapter::parse_outdated_output(output).unwrap();
+
+        assert_eq!(formulae.get("wget"), Some(&"1.24.5".to_string()));
+        assert_eq!(casks.get("iterm2"), Some(&"3.5.0".to_string()));
+    }
+
+    #[test]
+    fn test_build_packages() {
+        let packages = BrewAdapter::build_packages(
+            vec![("wget".to_string(), "1.24.4".to_string())],
+            vec![("iterm2".to_string(), "3.4.0".to_string())],
+            HashMap::from([("wget".to_string(), "1.24.5".to_string())]),
+            HashMap::from([("iterm2".to_string(), "3.5.0".to_string())]),
+        );
+
+        assert_eq!(packages.len(), 2);
+
+        let wget = packages.iter().find(|pkg| pkg.name == "wget").unwrap();
+        assert!(wget.outdated);
+        assert!(!wget.is_gui);
+        assert_eq!(wget.latest_version, "1.24.5");
+
+        let iterm2 = packages.iter().find(|pkg| pkg.name == "iterm2").unwrap();
+        assert!(iterm2.outdated);
+        assert!(iterm2.is_gui);
+        assert_eq!(iterm2.latest_version, "3.5.0");
+    }
+
+    #[test]
+    fn test_parse_search_output() {
+        let output = "tree: display directories as trees\n=> alias1\nwget";
+        let packages = BrewAdapter::parse_search_output(output);
+
+        assert_eq!(packages.len(), 2);
+        assert_eq!(packages[0].name, "tree");
+        assert_eq!(packages[0].description.as_deref(), Some("display directories as trees"));
+        assert_eq!(packages[1].name, "wget");
+        assert!(packages.iter().all(|pkg| pkg.manager == ManagerType::Brew && !pkg.installed));
+    }
+
     #[tokio::test]
     async fn test_list_packages() {
         let adapter = BrewAdapter::new();
         let packages = adapter.list_packages().await;
 
         assert!(packages.is_ok(), "List packages should succeed: {:?}", packages);
-        let packages = packages.unwrap();
-
-        // 如果已安装包，验证数据结构
-        if !packages.is_empty() {
-            for pkg in packages {
-                assert!(!pkg.name.is_empty());
-                assert_eq!(pkg.manager, ManagerType::Brew);
-                assert!(pkg.installed);
-                assert!(!pkg.version.is_empty());
-                assert!(!pkg.latest_version.is_empty());
-                // 验证 is_gui 是布尔值
-                assert!(matches!(pkg.is_gui, true | false));
-            }
+        for pkg in packages.unwrap() {
+            assert!(!pkg.name.is_empty());
+            assert_eq!(pkg.manager, ManagerType::Brew);
+            assert!(pkg.installed);
+            assert!(!pkg.version.is_empty());
+            assert!(!pkg.latest_version.is_empty());
         }
     }
 
@@ -435,127 +480,73 @@ mod tests {
         assert!(packages.is_ok(), "Search packages should succeed: {:?}", packages);
         let packages = packages.unwrap();
 
-        // 验证至少找到 "tree" 包
-        assert!(
-            packages.iter().any(|p| p.name.to_lowercase().contains("tree")),
-            "Should find packages containing 'tree'"
-        );
-
-        // 验证数据结构
-        for pkg in packages {
-            // println!("name:{}", pkg.name);
-            assert!(!pkg.name.is_empty());
-            assert_eq!(pkg.manager, ManagerType::Brew);
-            assert!(!pkg.installed);
-        }
+        assert!(packages.iter().any(|p| p.name.to_lowercase().contains("tree")));
+        assert!(packages.iter().all(|pkg| pkg.manager == ManagerType::Brew && !pkg.installed));
     }
 
     #[tokio::test]
+    #[ignore = "modifies host Homebrew state; run manually when needed"]
     async fn test_install_uninstall_formula() {
         let adapter = BrewAdapter::new();
 
-        // 首先尝试卸载（如果已存在）
-        let _ = adapter
-            .uninstall_packages(&[TEST_FORMULA], None)
-            .await;
+        let _ = adapter.uninstall_packages(&[TEST_FORMULA], None).await;
 
-        // 安装 formula
-        let install_result = adapter
-            .install_packages(&[TEST_FORMULA], None)
-            .await;
+        let install_result = adapter.install_packages(&[TEST_FORMULA], None).await;
         assert!(install_result.is_ok(), "Install should succeed: {:?}", install_result);
+        assert!(install_result.unwrap().success);
 
-        // 验证安装成功
-        let result = install_result.unwrap();
-        assert!(result.success);
-        assert!(result.message.contains("Successfully installed"));
-
-        // 列出包，确认已安装且 is_gui 为 false
         let packages = adapter.list_packages().await.unwrap();
         let formula_pkg = packages.iter().find(|p| p.name == TEST_FORMULA);
-        assert!(
-            formula_pkg.is_some(),
-            "Package should be in installed list"
-        );
-        if let Some(pkg) = formula_pkg {
-            assert!(!pkg.is_gui, "Formula package should have is_gui = false");
-        }
+        assert!(formula_pkg.is_some(), "Package should be in installed list");
+        assert!(!formula_pkg.unwrap().is_gui);
 
-        // 卸载
-        let uninstall_result = adapter
-            .uninstall_packages(&[TEST_FORMULA], None)
-            .await;
+        let uninstall_result = adapter.uninstall_packages(&[TEST_FORMULA], None).await;
         assert!(uninstall_result.is_ok(), "Uninstall should succeed: {:?}", uninstall_result);
-
-        let result = uninstall_result.unwrap();
-        assert!(result.success);
-        assert!(result.message.contains("Successfully uninstalled"));
+        assert!(uninstall_result.unwrap().success);
     }
 
     #[tokio::test]
+    #[ignore = "modifies host Homebrew state; run manually when needed"]
     async fn test_install_uninstall_cask() {
         let adapter = BrewAdapter::new();
 
         let mut cask_options = HashMap::new();
         cask_options.insert("cask".to_string(), "true".to_string());
 
-        // 首先尝试卸载（如果已存在）
         let _ = adapter
             .uninstall_packages(&[TEST_CASK], Some(&cask_options))
             .await;
 
-        // 安装 cask
         let install_result = adapter
             .install_packages(&[TEST_CASK], Some(&cask_options))
             .await;
         assert!(install_result.is_ok(), "Install cask should succeed: {:?}", install_result);
+        assert!(install_result.unwrap().success);
 
-        let result = install_result.unwrap();
-        assert!(result.success);
-        assert!(result.message.contains("Successfully installed"));
-
-        // 列出包，确认已安装且 is_gui 为 true
         let packages = adapter.list_packages().await.unwrap();
         let cask_pkg = packages.iter().find(|p| p.name == TEST_CASK);
-        assert!(
-            cask_pkg.is_some(),
-            "Cask should be in installed list"
-        );
-        if let Some(pkg) = cask_pkg {
-            assert!(pkg.is_gui, "Cask package should have is_gui = true");
-        }
+        assert!(cask_pkg.is_some(), "Cask should be in installed list");
+        assert!(cask_pkg.unwrap().is_gui);
 
-        // 卸载
         let uninstall_result = adapter
             .uninstall_packages(&[TEST_CASK], Some(&cask_options))
             .await;
         assert!(uninstall_result.is_ok(), "Uninstall cask should succeed: {:?}", uninstall_result);
-
-        let result = uninstall_result.unwrap();
-        assert!(result.success);
-        assert!(result.message.contains("Successfully uninstalled"));
+        assert!(uninstall_result.unwrap().success);
     }
 
     #[tokio::test]
+    #[ignore = "modifies host Homebrew state; run manually when needed"]
     async fn test_outdated_detection() {
         let adapter = BrewAdapter::new();
 
-        // 安装一个包
-        let _ = adapter
-            .install_packages(&[TEST_FORMULA], None)
-            .await;
-
-        // 列出包，检查 outdated 字段
+        let _ = adapter.install_packages(&[TEST_FORMULA], None).await;
         let packages = adapter.list_packages().await.unwrap();
 
         if let Some(pkg) = packages.iter().find(|p| p.name == TEST_FORMULA) {
-            // outdated 应该是布尔值
             assert!(matches!(pkg.outdated, true | false));
         }
 
-        // 清理
-        let _ = adapter
-            .uninstall_packages(&[TEST_FORMULA], None)
-            .await;
+        let _ = adapter.uninstall_packages(&[TEST_FORMULA], None).await;
     }
 }

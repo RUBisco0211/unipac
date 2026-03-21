@@ -1,5 +1,6 @@
 use crate::models::{ActionResult, ManagerCapabilities, Package};
 use std::collections::HashMap;
+use tokio::process::Command;
 
 /// 包管理器适配器 Trait
 #[async_trait::async_trait]
@@ -58,3 +59,49 @@ pub mod brew;
 pub mod npm;
 pub mod pip;
 pub mod cargo;
+
+pub(crate) async fn run_command(binary: &str, args: &[&str], label: &str) -> Result<String, String> {
+    let output = Command::new(binary)
+        .args(args)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute {}: {}", label, e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("{} command failed: {}", label, stderr.trim()));
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub(crate) async fn ensure_command_in_path(
+    binary: &str,
+    missing_message: impl Into<String>,
+) -> Result<(), String> {
+    let result = Command::new("which")
+        .arg(binary)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to check for {}: {}", binary, e))?;
+
+    if result.status.success() {
+        Ok(())
+    } else {
+        Err(missing_message.into())
+    }
+}
+
+pub(crate) async fn ensure_command_healthy(
+    binary: &str,
+    version_args: &[&str],
+    label: &str,
+) -> Result<(), String> {
+    let result = Command::new(binary).args(version_args).output().await;
+
+    match result {
+        Ok(output) if output.status.success() => Ok(()),
+        Ok(_) => Err(format!("{} command exists but is not functional", label)),
+        Err(error) => Err(format!("Failed to run {}: {}", label, error)),
+    }
+}
