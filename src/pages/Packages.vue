@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Search, ArrowUpCircle, Trash2, RefreshCcw, RefreshCcwIcon } from 'lucide-vue-next'
+import { Search, ArrowUpCircle, Trash2, RefreshCcwIcon } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import PackagesDataTable from '@/components/packages/PackagesDataTable.vue'
 import { createPackageColumns } from '@/components/packages/packages-columns'
@@ -13,7 +13,8 @@ import { ensureManagersLoaded, useManagers } from '@/composables/useManagers'
 import {
     batchUninstallPackages,
     batchUpgradePackages,
-    listInstalledPackages,
+    loadCachedPackages,
+    reloadPackages,
     uninstallPackage,
     upgradePackage,
 } from '@/lib/api'
@@ -75,7 +76,7 @@ async function loadPackages() {
     startLoadingBar()
 
     try {
-        packages.value = await listInstalledPackages()
+        packages.value = await reloadPackages()
         rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
@@ -85,6 +86,19 @@ async function loadPackages() {
         loading.value = false
         finishLoadingBar()
     }
+}
+
+async function loadPackagesOnMount() {
+    // 先加载缓存数据，快速显示
+    try {
+        packages.value = await loadCachedPackages()
+        rowSelection.value = {}
+    } catch (error) {
+        // 缓存加载失败是正常的（首次启动），忽略错误
+    }
+
+    // 异步刷新数据
+    void loadPackages()
 }
 
 async function handleBulkUpgrade() {
@@ -103,7 +117,9 @@ async function handleBulkUpgrade() {
         toast.success(t('packages.operationCompleted'), {
             description: result.message,
         })
-        await loadPackages()
+        // 操作成功后重新加载数据
+        packages.value = await reloadPackages()
+        rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
             description: t('packages.bulkUpdateError', { error: String(error) }),
@@ -131,7 +147,9 @@ async function handleBulkUninstall() {
         toast.success(t('packages.operationCompleted'), {
             description: result.message,
         })
-        await loadPackages()
+        // 操作成功后重新加载数据
+        packages.value = await reloadPackages()
+        rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
             description: t('packages.bulkRemoveError', { error: String(error) }),
@@ -144,6 +162,7 @@ async function handleBulkUninstall() {
 
 async function handleUpgrade(pkg: Package) {
     actionLoading.value = `upgrade:${pkg.manager}:${pkg.name}`
+    startLoadingBar()
 
     try {
         const result = await upgradePackage(pkg.manager, pkg.name)
@@ -151,18 +170,22 @@ async function handleUpgrade(pkg: Package) {
         toast.success(t('packages.operationCompleted'), {
             description: result.message,
         })
-        await loadPackages()
+        // 操作成功后重新加载数据
+        packages.value = await reloadPackages()
+        rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
             description: t('packages.upgradeError', { name: pkg.name, error: String(error) }),
         })
     } finally {
         actionLoading.value = null
+        finishLoadingBar()
     }
 }
 
 async function handleUninstall(pkg: Package) {
     actionLoading.value = `uninstall:${pkg.manager}:${pkg.name}`
+    startLoadingBar()
 
     try {
         const result = await uninstallPackage(pkg.manager, pkg.name)
@@ -170,7 +193,9 @@ async function handleUninstall(pkg: Package) {
         toast.success(t('packages.operationCompleted'), {
             description: result.message,
         })
-        await loadPackages()
+        // 操作成功后重新加载数据
+        packages.value = await reloadPackages()
+        rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
             description: t('packages.uninstallError', {
@@ -180,12 +205,13 @@ async function handleUninstall(pkg: Package) {
         })
     } finally {
         actionLoading.value = null
+        finishLoadingBar()
     }
 }
 
 onMounted(() => {
     void ensureManagersLoaded()
-    void loadPackages()
+    void loadPackagesOnMount()
 })
 </script>
 

@@ -7,6 +7,14 @@ export function listManagers() {
     return invoke<ManagerInfo[]>('list_managers')
 }
 
+export function loadCachedPackages() {
+    return invoke<Package[]>('load_cached_packages')
+}
+
+export function reloadPackages() {
+    return invoke<Package[]>('reload_packages')
+}
+
 export function listInstalledPackages() {
     return invoke<Package[]>('list_installed_packages')
 }

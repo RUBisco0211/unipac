@@ -110,20 +110,30 @@ impl PackageAdapter for CargoAdapter {
     async fn install_packages(
         &self,
         names: &[&str],
-        _options: Option<&HashMap<String, String>>,
+        options: Option<&HashMap<String, String>>,
     ) -> Result<ActionResult, String> {
         if names.is_empty() {
             return Err("No packages specified for installation".to_string());
         }
 
-        let mut args = vec!["install"];
+        let mut args: Vec<String> = vec!["install".to_string()];
+
+        // 检查是否指定了版本
+        let version = options.and_then(|opts| opts.get("version"));
 
         // 添加所有包名
         for name in names {
-            args.push(name);
+            args.push(name.to_string());
         }
 
-        let output = run_command("cargo", &args, "cargo").await;
+        // 如果指定了版本，添加 --version 参数
+        if let Some(ver) = version {
+            args.push("--version".to_string());
+            args.push(ver.clone());
+        }
+
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command("cargo", &args_ref, "cargo").await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(

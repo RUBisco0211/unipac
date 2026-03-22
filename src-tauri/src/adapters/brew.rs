@@ -260,21 +260,29 @@ impl PackageAdapter for BrewAdapter {
             return Err("No packages specified for installation".to_string());
         }
 
-        let mut args = vec!["install"];
+        let mut args: Vec<String> = vec!["install".to_string()];
 
         // 解析选项
         if let Some(opts) = options {
             if opts.get("cask").map_or(false, |v| v == "true") {
-                args.push("--cask");
+                args.push("--cask".to_string());
             }
         }
 
+        // 检查是否指定了版本
+        let version = options.and_then(|opts| opts.get("version"));
+
         // 添加所有包名
         for name in names {
-            args.push(name);
+            if let Some(ver) = version {
+                args.push(format!("{}@{}", name, ver));
+            } else {
+                args.push(name.to_string());
+            }
         }
 
-        let output = run_command("brew", &args, "Brew").await;
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command("brew", &args_ref, "Brew").await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(
@@ -296,24 +304,25 @@ impl PackageAdapter for BrewAdapter {
             return Err("No packages specified for uninstallation".to_string());
         }
 
-        let mut args = vec!["uninstall"];
+        let mut args: Vec<String> = vec!["uninstall".to_string()];
 
         // 解析选项
         if let Some(opts) = options {
             if opts.get("cask").map_or(false, |v| v == "true") {
-                args.push("--cask");
+                args.push("--cask".to_string());
             }
             if opts.get("zap").map_or(false, |v| v == "true") {
-                args.push("--zap");
+                args.push("--zap".to_string());
             }
         }
 
         // 添加所有包名
         for name in names {
-            args.push(name);
+            args.push(name.to_string());
         }
 
-        let output = run_command("brew", &args, "Brew").await;
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command("brew", &args_ref, "Brew").await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(
@@ -335,21 +344,22 @@ impl PackageAdapter for BrewAdapter {
             return Err("No packages specified for upgrade".to_string());
         }
 
-        let mut args = vec!["upgrade"];
+        let mut args: Vec<String> = vec!["upgrade".to_string()];
 
         // 解析选项
         if let Some(opts) = options {
             if opts.get("cask").map_or(false, |v| v == "true") {
-                args.push("--cask");
+                args.push("--cask".to_string());
             }
         }
 
         // 添加所有包名
         for name in names {
-            args.push(name);
+            args.push(name.to_string());
         }
 
-        let output = run_command("brew", &args, "Brew").await;
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command("brew", &args_ref, "Brew").await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(

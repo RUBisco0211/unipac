@@ -163,26 +163,34 @@ impl PackageAdapter for PipAdapter {
             return Err("No packages specified for installation".to_string());
         }
 
-        let mut args = vec!["install"];
+        let mut args: Vec<String> = vec!["install".to_string()];
 
         // 解析选项
         if let Some(opts) = options {
             if opts.get("user").map_or(false, |v| v == "true") {
-                args.push("--user");
+                args.push("--user".to_string());
             }
             if let Some(index_url) = opts.get("index_url") {
-                args.push("--index-url");
-                args.push(index_url);
+                args.push("--index-url".to_string());
+                args.push(index_url.clone());
             }
         }
+
+        // 检查是否指定了版本
+        let version = options.and_then(|opts| opts.get("version"));
 
         // 添加所有包名
         for name in names {
-            args.push(name);
+            if let Some(ver) = version {
+                args.push(format!("{}=={}", name, ver));
+            } else {
+                args.push(name.to_string());
+            }
         }
 
         let cmd = self.get_pip_command().await?;
-        let output = run_command(&cmd, &args, &cmd).await;
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command(&cmd, &args_ref, &cmd).await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(

@@ -1,8 +1,10 @@
 mod adapters;
+mod cache;
 mod logging;
 mod models;
 mod registry;
 
+use cache::PackageCache;
 use models::{ActionResult, ManagerInfo, Package, PackageTarget};
 use registry::ManagerRegistry;
 use std::collections::HashMap;
@@ -13,6 +15,7 @@ use tauri::Manager;
 #[derive(Clone)]
 pub struct AppState {
     pub registry: Arc<ManagerRegistry>,
+    pub cache: Arc<PackageCache>,
 }
 
 /// 获取所有包管理器信息
@@ -21,7 +24,29 @@ async fn list_managers(state: tauri::State<'_, AppState>) -> Result<Vec<ManagerI
     state.registry.list_managers().await
 }
 
-/// 列出所有已安装包
+/// 列出所有已安装包（直接从缓存读取，快速加载）
+#[tauri::command]
+async fn load_cached_packages(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Package>, String> {
+    state.cache.load_packages().await
+}
+
+/// 列出所有已安装包（扫描并更新缓存后返回）
+#[tauri::command]
+async fn reload_packages(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Package>, String> {
+    // 扫描并获取最新数据
+    let packages = state.registry.list_installed_packages().await?;
+
+    // 更新缓存
+    state.cache.update_cache(&packages).await?;
+
+    Ok(packages)
+}
+
+/// 列出所有已安装包（保留原接口用于兼容）
 #[tauri::command]
 async fn list_installed_packages(
     state: tauri::State<'_, AppState>,
@@ -119,7 +144,13 @@ pub fn run() {
             // 在 Tokio runtime 中阻塞初始化注册表
             let registry = tauri::async_runtime::block_on(ManagerRegistry::new());
             let registry = Arc::new(registry);
-            let app_state = AppState { registry };
+
+            // 初始化缓存
+            let cache = PackageCache::new()
+                .map_err(|e| format!("Failed to initialize package cache: {}", e))?;
+            let cache = Arc::new(cache);
+
+            let app_state = AppState { registry, cache };
 
             app.manage(app_state);
 
@@ -127,6 +158,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_managers,
+            load_cached_packages,
+            reload_packages,
             list_installed_packages,
             install_package,
             uninstall_package,

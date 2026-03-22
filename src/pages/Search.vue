@@ -14,6 +14,7 @@ import { installPackage, searchPackages } from '@/lib/api'
 import type { Package } from '@/model/types'
 
 const searchQuery = ref('')
+const versionInput = ref('')
 const isSearching = ref(false)
 const hasSearched = ref(false)
 const installingKey = ref<string | null>(null)
@@ -57,7 +58,8 @@ async function handleInstall(pkg: Package) {
     installingKey.value = `install:${pkg.manager}:${pkg.name}`
 
     try {
-        const result = await installPackage(pkg.manager, pkg.name)
+        const options = versionInput.value.trim() ? { version: versionInput.value.trim() } : undefined
+        const result = await installPackage(pkg.manager, pkg.name, options)
         if (!result.success) throw new Error(result.message)
         toast.success(t('search.startedTitle'), {
             description: result.message,

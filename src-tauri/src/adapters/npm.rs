@@ -164,22 +164,30 @@ impl PackageAdapter for NpmAdapter {
             return Err("No packages specified for installation".to_string());
         }
 
-        let mut args = vec!["install", "-g"];
+        let mut args: Vec<String> = vec!["install".to_string(), "-g".to_string()];
 
         // 解析选项
         if let Some(opts) = options {
             if let Some(registry) = opts.get("registry") {
-                args.push("--registry");
-                args.push(registry);
+                args.push("--registry".to_string());
+                args.push(registry.clone());
             }
         }
 
+        // 检查是否指定了版本
+        let version = options.and_then(|opts| opts.get("version"));
+
         // 添加所有包名
         for name in names {
-            args.push(name);
+            if let Some(ver) = version {
+                args.push(format!("{}@{}", name, ver));
+            } else {
+                args.push(name.to_string());
+            }
         }
 
-        let output = run_command("npm", &args, "npm").await;
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command("npm", &args_ref, "npm").await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(
@@ -201,14 +209,15 @@ impl PackageAdapter for NpmAdapter {
             return Err("No packages specified for uninstallation".to_string());
         }
 
-        let mut args = vec!["uninstall", "-g"];
+        let mut args: Vec<String> = vec!["uninstall".to_string(), "-g".to_string()];
 
         // 添加所有包名
         for name in names {
-            args.push(name);
+            args.push(name.to_string());
         }
 
-        let output = run_command("npm", &args, "npm").await;
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let output = run_command("npm", &args_ref, "npm").await;
 
         if output.is_ok() {
             Ok(ActionResult::success(format!(
