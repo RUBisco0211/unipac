@@ -66,9 +66,7 @@ onMounted(() => {
                 <div class="mb-8">
                     <h2 class="theme-text text-base font-semibold mb-1">Package Managers</h2>
                     <p class="theme-text-muted text-sm mb-4">
-                        Live status from the Rust registry. {{ enabledCount }}/{{
-                            managers.length
-                        }}
+                        Live status from the Rust registry. {{ enabledCount }}/{{ managers.length }}
                         managers are currently enabled.
                     </p>
 

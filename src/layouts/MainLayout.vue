@@ -52,7 +52,7 @@ onBeforeUnmount(() => {
 
 <template>
     <div class="theme-app flex flex-col h-screen w-full font-sans overflow-hidden">
-        <title-bar type="hidden" />
+        <title-bar type="system" />
         <div class="flex flex-1 overflow-hidden">
             <!-- Sidebar -->
             <aside
@@ -76,12 +76,12 @@ onBeforeUnmount(() => {
                             class="h-4 w-4 shrink-0"
                             :class="isCollapsed ? '' : 'mr-3'"
                         />
-                        <span v-if="!isCollapsed" class="truncate">{{ item.name }}</span>
+                        <span v-if="!isCollapsed" class="truncate">{{ item.meta?.title }}</span>
                         <span
                             v-else
                             class="pointer-events-none absolute left-full top-1/2 z-20 ml-3 -translate-y-1/2 whitespace-nowrap rounded-md border theme-panel theme-border px-2 py-1 text-xs opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100"
                         >
-                            {{ item.name }}
+                            {{ item.meta?.title }}
                         </span>
                     </router-link>
                 </nav>

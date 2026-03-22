@@ -10,20 +10,31 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [
-      {
-          "title": "unipac",
-          "width": 1200,
-          "height": 800,
-          "minWidth": 800,
-          "minHeight": 600,
-          "titleBarStyle": "Transparent",
-          "transparent": true
+      "macOSPrivateApi": true,
+      "windows": [
+          {
+              "title": "unipac",
+              "width": 1200,
+              "height": 800,
+              "minWidth": 800,
+              "minHeight": 600,
+              "resizable": true,
+              "transparent": true,
+              "center": true,
+              "titleBarStyle": "Overlay",
+              "hiddenTitle": true,
+              "windowEffects": {
+                  "effects": ["hudWindow"],
+                  "radius": 12
+              },
+              "trafficLightPosition": { "x": 16, "y": 26 },
+              "acceptFirstMouse": true,
+              "shadow": true
+          }
+      ],
+      "security": {
+          "csp": null
       }
-    ],
-    "security": {
-      "csp": null
-    }
   },
   "bundle": {
     "active": true,

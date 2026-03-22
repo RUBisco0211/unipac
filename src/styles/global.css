@@ -1,11 +1,5 @@
 @import 'tailwindcss';
 
-html,
-body {
-    border-radius: 20px !important;
-    overflow: hidden !important;
-}
-
 :root {
     font-family: 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
     --color-bg-app: #ffffff;
@@ -115,11 +109,14 @@ html,
 body,
 #app {
     min-height: 100%;
+    border-radius: 12px !important;
+    overflow: hidden !important;
 }
 
 body {
     margin: 0;
     background: var(--color-bg-app);
+    /* background-color: rgba(var(--color-bg-app), 0.5); */
     color: var(--color-text);
 }
 
