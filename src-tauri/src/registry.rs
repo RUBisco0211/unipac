@@ -1,5 +1,5 @@
 use crate::adapters::{brew::BrewAdapter, cargo::CargoAdapter, npm::NpmAdapter, pip::PipAdapter, PackageAdapter};
-use crate::models::{ActionResult, ManagerInfo, Package};
+use crate::models::{ActionResult, ManagerInfo, Package, PackageTarget};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -155,6 +155,28 @@ impl ManagerRegistry {
         adapter.upgrade_packages(names, options).await
     }
 
+    pub async fn batch_uninstall_packages(
+        &self,
+        packages: &[PackageTarget],
+        options: Option<&HashMap<String, String>>,
+    ) -> Result<ActionResult, String> {
+        self.run_grouped_package_action(packages, options, |registry, manager_id, names, options| async move {
+            registry.uninstall_packages(manager_id, &names, options).await
+        })
+        .await
+    }
+
+    pub async fn batch_upgrade_packages(
+        &self,
+        packages: &[PackageTarget],
+        options: Option<&HashMap<String, String>>,
+    ) -> Result<ActionResult, String> {
+        self.run_grouped_package_action(packages, options, |registry, manager_id, names, options| async move {
+            registry.upgrade_packages(manager_id, &names, options).await
+        })
+        .await
+    }
+
     /// 搜索包（并发搜索）
     pub async fn search_packages(&self, keyword: &str) -> Result<Vec<Package>, String> {
         let mut all_results = Vec::new();
@@ -192,5 +214,44 @@ impl ManagerRegistry {
             .get(manager_id)
             .cloned()
             .ok_or_else(|| format!("Package manager '{}' not found", manager_id))
+    }
+
+    async fn run_grouped_package_action<'a, F, Fut>(
+        &'a self,
+        packages: &'a [PackageTarget],
+        options: Option<&'a HashMap<String, String>>,
+        action: F,
+    ) -> Result<ActionResult, String>
+    where
+        F: Fn(&'a Self, &'a str, Vec<&'a str>, Option<&'a HashMap<String, String>>) -> Fut,
+        Fut: std::future::Future<Output = Result<ActionResult, String>>,
+    {
+        if packages.is_empty() {
+            return Ok(ActionResult::success("No packages selected"));
+        }
+
+        let mut grouped: HashMap<&str, Vec<&str>> = HashMap::new();
+        for package in packages {
+            grouped
+                .entry(package.manager.as_str())
+                .or_default()
+                .push(package.name.as_str());
+        }
+
+        let mut total_processed = 0usize;
+        let mut summaries = Vec::new();
+
+        for (manager_id, names) in grouped {
+            let count = names.len();
+            let result = action(self, manager_id, names, options).await?;
+            total_processed += count;
+            summaries.push(format!("{}: {}", manager_id, result.message));
+        }
+
+        Ok(ActionResult::success(format!(
+            "Processed {} packages. {}",
+            total_processed,
+            summaries.join(" ")
+        )))
     }
 }

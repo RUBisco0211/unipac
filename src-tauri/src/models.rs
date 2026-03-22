@@ -89,6 +89,12 @@ impl ActionResult {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageTarget {
+    pub manager: String,
+    pub name: String,
+}
+
 /// 生命周期阶段
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

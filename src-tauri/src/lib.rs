@@ -3,7 +3,7 @@ mod logging;
 mod models;
 mod registry;
 
-use models::{ActionResult, ManagerInfo, Package};
+use models::{ActionResult, ManagerInfo, Package, PackageTarget};
 use registry::ManagerRegistry;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -71,6 +71,30 @@ async fn upgrade_package(
         .await
 }
 
+#[tauri::command]
+async fn batch_uninstall_packages(
+    state: tauri::State<'_, AppState>,
+    packages: Vec<PackageTarget>,
+    options: Option<HashMap<String, String>>,
+) -> Result<ActionResult, String> {
+    state
+        .registry
+        .batch_uninstall_packages(&packages, options.as_ref())
+        .await
+}
+
+#[tauri::command]
+async fn batch_upgrade_packages(
+    state: tauri::State<'_, AppState>,
+    packages: Vec<PackageTarget>,
+    options: Option<HashMap<String, String>>,
+) -> Result<ActionResult, String> {
+    state
+        .registry
+        .batch_upgrade_packages(&packages, options.as_ref())
+        .await
+}
+
 /// 搜索包
 #[tauri::command]
 async fn search_packages(
@@ -107,6 +131,8 @@ pub fn run() {
             install_package,
             uninstall_package,
             upgrade_package,
+            batch_uninstall_packages,
+            batch_upgrade_packages,
             search_packages,
         ])
         .run(tauri::generate_context!())
