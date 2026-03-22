@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { ActionResult, ManagerInfo, Package } from '@/model/types'
+import type { ActionResult, ManagerInfo, Package, PackageTarget } from '@/model/types'
 
 type CommandOptions = Record<string, string>
 
@@ -37,4 +37,12 @@ export function upgradePackage(
     options?: CommandOptions
 ) {
     return invoke<ActionResult>('upgrade_package', { manager, name, options })
+}
+
+export function batchUninstallPackages(packages: PackageTarget[], options?: CommandOptions) {
+    return invoke<ActionResult>('batch_uninstall_packages', { packages, options })
+}
+
+export function batchUpgradePackages(packages: PackageTarget[], options?: CommandOptions) {
+    return invoke<ActionResult>('batch_upgrade_packages', { packages, options })
 }

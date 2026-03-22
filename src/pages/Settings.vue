@@ -1,34 +1,41 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertCircle, CheckCircle2 } from 'lucide-vue-next'
-import Button from '@/components/ui/Button.vue'
+import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { listManagers } from '@/lib/api'
 import { enabledCapabilities } from '@/lib/format'
 import type { ManagerInfo } from '@/model/types'
 
 const loading = ref(false)
 const managers = ref<ManagerInfo[]>([])
-const errorMessage = ref('')
-const infoMessage = ref('')
+const { t } = useI18n()
 
 const enabledCount = computed(() => managers.value.filter(manager => manager.enabled).length)
 
+function capabilityLabel(capability: string) {
+    return t(`capabilities.${capability}`)
+}
+
 async function loadManagers() {
     loading.value = true
-    errorMessage.value = ''
 
     try {
         managers.value = await listManagers()
     } catch (error) {
-        errorMessage.value = `Failed to load package managers: ${String(error)}`
+        toast.error(t('settings.loadErrorTitle'), {
+            description: t('settings.loadError', { error: String(error) }),
+        })
     } finally {
         loading.value = false
     }
 }
 
 function saveSettings() {
-    infoMessage.value =
-        'Manager enable/disable is not persisted yet. This page now shows live backend state.'
+    toast.success(t('settings.statusTitle'), {
+        description: t('settings.saveMessage'),
+    })
 }
 
 onMounted(() => {
@@ -37,105 +44,122 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="flex-1 flex flex-col h-full">
-        <header class="theme-header h-14 flex items-center px-6 border-b shrink-0">
-            <h1 class="theme-text text-lg font-semibold">Settings</h1>
-        </header>
-        <div class="theme-app p-6 flex-1 overflow-auto">
-            <div class="max-w-3xl">
-                <div class="mb-8">
-                    <h2 class="theme-text text-base font-semibold mb-1">Appearance</h2>
-                    <p class="theme-text-muted text-sm mb-4">
-                        The current frontend theme comes from your template and local theme
-                        composable.
-                    </p>
+    <div class="h-full overflow-auto">
+        <div class="mx-auto max-w-6xl px-4 py-4 text-[13px]">
+            <section>
+                <h1 class="text-[28px] font-semibold tracking-tight">{{ t('settings.title') }}</h1>
+            </section>
 
-                    <div class="theme-panel theme-border p-4 rounded-lg border shadow-sm">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <label class="theme-text font-medium text-sm">Theme</label>
-                                <p class="theme-text-muted text-sm">
-                                    Theme switching is still controlled by the template side and not
-                                    by backend settings.
-                                </p>
-                            </div>
+            <section class="mt-7 border-b border-[hsl(var(--border)/0.6)] pb-7">
+                <div class="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px]">
+                    <div>
+                        <h2 class="text-[19px] font-semibold">{{ t('settings.registryTitle') }}</h2>
+                    </div>
+
+                    <div class="space-y-2 text-[13px]">
+                        <div
+                            class="flex items-baseline justify-between border-b border-[hsl(var(--border)/0.6)] pb-2"
+                        >
+                            <span class="text-[hsl(var(--muted-foreground))]">{{
+                                t('settings.enabled')
+                            }}</span>
+                            <span class="text-[19px] font-semibold">
+                                {{ enabledCount }}/{{ managers.length }}
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <Badge variant="secondary" class="rounded-sm">
+                                {{ t('settings.liveBackendState') }}
+                            </Badge>
                         </div>
                     </div>
                 </div>
 
-                <div class="mb-8">
-                    <h2 class="theme-text text-base font-semibold mb-1">Package Managers</h2>
-                    <p class="theme-text-muted text-sm mb-4">
-                        Live status from the Rust registry. {{ enabledCount }}/{{ managers.length }}
-                        managers are currently enabled.
-                    </p>
+                <div class="mt-5 flex gap-2">
+                    <Button variant="outline" :disabled="loading" @click="loadManagers">
+                        {{ loading ? t('common.refreshing') : t('settings.refreshManagers') }}
+                    </Button>
+                    <Button @click="saveSettings">{{ t('settings.saveSnapshot') }}</Button>
+                </div>
+            </section>
 
-                    <div
-                        v-if="errorMessage"
-                        class="theme-alert-danger mb-4 flex items-center rounded-md border px-4 py-3 text-sm"
-                    >
-                        <AlertCircle class="mr-2 h-4 w-4 shrink-0" />
-                        {{ errorMessage }}
-                    </div>
+            <section class="mt-7">
+                <h2 class="text-[19px] font-semibold">{{ t('settings.managersTitle') }}</h2>
 
-                    <div
-                        v-if="infoMessage"
-                        class="theme-alert-success mb-4 flex items-center rounded-md border px-4 py-3 text-sm"
-                    >
-                        <CheckCircle2 class="mr-2 h-4 w-4 shrink-0" />
-                        {{ infoMessage }}
-                    </div>
-
-                    <div class="space-y-4">
-                        <div
-                            v-for="manager in managers"
-                            :key="manager.id"
-                            class="theme-panel theme-border flex items-start justify-between space-x-4 p-4 rounded-lg border shadow-sm"
+                <div class="mt-5 overflow-hidden">
+                    <table class="w-full text-[12px]">
+                        <thead
+                            class="border-b border-[hsl(var(--border)/0.45)] text-left text-[hsl(var(--muted-foreground))]"
                         >
-                            <div class="flex-1">
-                                <div class="flex items-center gap-3">
-                                    <label class="theme-text font-medium text-sm">
-                                        {{ manager.name }}
-                                    </label>
-                                    <span
-                                        class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs"
-                                        :class="
-                                            manager.enabled
-                                                ? 'theme-alert-success'
-                                                : 'theme-panel-subtle theme-border theme-text-secondary'
-                                        "
+                            <tr>
+                                <th class="h-8 px-4 font-medium">
+                                    {{ t('settings.managerColumn') }}
+                                </th>
+                                <th class="h-8 px-4 font-medium">
+                                    {{ t('settings.statusColumn') }}
+                                </th>
+                                <th class="h-8 px-4 font-medium">
+                                    {{ t('settings.capabilitiesColumn') }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="manager in managers"
+                                :key="manager.id"
+                                class="border-b border-[hsl(var(--border)/0.45)] last:border-b-0"
+                            >
+                                <td class="px-4 py-2.5 align-top">
+                                    <div class="font-medium">{{ manager.name }}</div>
+                                    <div class="mt-1 text-xs text-[hsl(var(--muted-foreground))]">
+                                        id: {{ manager.id }}
+                                    </div>
+                                </td>
+                                <td class="px-4 py-2.5 align-top">
+                                    <Badge
+                                        :variant="manager.enabled ? 'default' : 'outline'"
+                                        class="rounded-sm"
                                     >
-                                        {{ manager.enabled ? 'Enabled' : 'Disabled' }}
+                                        {{
+                                            manager.enabled
+                                                ? t('settings.enabledState')
+                                                : t('settings.disabledState')
+                                        }}
+                                    </Badge>
+                                </td>
+                                <td class="px-4 py-2.5 align-top">
+                                    <div
+                                        v-if="enabledCapabilities(manager.capabilities).length"
+                                        class="flex flex-wrap gap-2"
+                                    >
+                                        <Badge
+                                            v-for="capability in enabledCapabilities(
+                                                manager.capabilities
+                                            )"
+                                            :key="capability"
+                                            variant="secondary"
+                                            class="rounded-sm"
+                                        >
+                                            {{ capabilityLabel(capability) }}
+                                        </Badge>
+                                    </div>
+                                    <span v-else class="text-[hsl(var(--muted-foreground))]">
+                                        {{ t('settings.noCapabilities') }}
                                     </span>
-                                </div>
-                                <p class="theme-text-muted mt-1 text-sm">id: {{ manager.id }}</p>
-                                <p class="theme-text-muted mt-2 text-sm">
-                                    capabilities:
-                                    {{
-                                        enabledCapabilities(manager.capabilities).join(', ') ||
-                                        'none'
-                                    }}
-                                </p>
-                            </div>
-                        </div>
-                        <div
-                            v-if="!loading && managers.length === 0"
-                            class="theme-text-muted theme-border p-6 rounded-lg border border-dashed text-sm"
-                        >
-                            No package managers are currently registered.
-                        </div>
-                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="!loading && managers.length === 0">
+                                <td
+                                    colspan="3"
+                                    class="px-4 py-7 text-center text-[hsl(var(--muted-foreground))]"
+                                >
+                                    {{ t('settings.noManagers') }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-
-                <div class="theme-border pt-4 border-t flex justify-end">
-                    <div class="flex gap-2">
-                        <Button variant="outline" :disabled="loading" @click="loadManagers"
-                            >Refresh</Button
-                        >
-                        <Button @click="saveSettings">Save Changes</Button>
-                    </div>
-                </div>
-            </div>
+            </section>
         </div>
     </div>
 </template>

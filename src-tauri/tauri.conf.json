@@ -27,7 +27,7 @@
                   "effects": ["hudWindow"],
                   "radius": 12
               },
-              "trafficLightPosition": { "x": 16, "y": 26 },
+              "trafficLightPosition": { "x": 16, "y": 20 },
               "acceptFirstMouse": true,
               "shadow": true
           }

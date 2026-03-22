@@ -7,6 +7,16 @@ export const managerLabelMap: Record<ManagerType, string> = {
     cargo: 'cargo',
 }
 
+export function getManagerHue(managerId: string) {
+    let hash = 0
+
+    for (let index = 0; index < managerId.length; index += 1) {
+        hash = (hash * 31 + managerId.charCodeAt(index)) % 360
+    }
+
+    return (hash + 360) % 360
+}
+
 export function countInstalledSummary(packages: Package[]) {
     return {
         total: packages.length,

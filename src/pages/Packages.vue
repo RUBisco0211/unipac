@@ -1,76 +1,161 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Search, RefreshCw, Trash2, ArrowUpCircle, AlertCircle } from 'lucide-vue-next'
-import Button from '@/components/ui/Button.vue'
-import Input from '@/components/ui/Input.vue'
-import Badge from '@/components/ui/Badge.vue'
-import { listInstalledPackages, uninstallPackage, upgradePackage } from '@/lib/api'
-import { countInstalledSummary, managerLabelMap } from '@/lib/format'
-import type { ManagerType, Package } from '@/model/types'
+import { useI18n } from 'vue-i18n'
+import { Search, ArrowUpCircle, Trash2, RefreshCcw, RefreshCcwIcon } from 'lucide-vue-next'
+import { toast } from 'vue-sonner'
+import PackagesDataTable from '@/components/packages/PackagesDataTable.vue'
+import { createPackageColumns } from '@/components/packages/packages-columns'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { finishLoadingBar, startLoadingBar } from '@/composables/useLoadingBar'
+import { ensureManagersLoaded, useManagers } from '@/composables/useManagers'
+import {
+    batchUninstallPackages,
+    batchUpgradePackages,
+    listInstalledPackages,
+    uninstallPackage,
+    upgradePackage,
+} from '@/lib/api'
+import type { ManagerType, Package, PackageTarget } from '@/model/types'
+import type { RowSelectionState } from '@tanstack/vue-table'
 
 const searchQuery = ref('')
 const filterManager = ref<ManagerType | 'all'>('all')
 const loading = ref(false)
 const actionLoading = ref<string | null>(null)
-const errorMessage = ref('')
-const feedbackMessage = ref('')
 const packages = ref<Package[]>([])
-
-const summary = computed(() => countInstalledSummary(packages.value))
+const rowSelection = ref<RowSelectionState>({})
+const { t, locale } = useI18n()
+const { enabledManagers, managerNameMap } = useManagers()
 
 const filteredPackages = computed(() => {
     const query = searchQuery.value.trim().toLowerCase()
 
     return packages.value.filter(pkg => {
-        const matchesSearch =
-            query.length === 0 ||
+        const matchesManager = filterManager.value === 'all' || filterManager.value === pkg.manager
+        const matchesQuery =
+            !query ||
             pkg.name.toLowerCase().includes(query) ||
-            pkg.description?.toLowerCase().includes(query) ||
-            pkg.fullname?.toLowerCase().includes(query)
-        const matchesManager = filterManager.value === 'all' || pkg.manager === filterManager.value
+            pkg.fullname?.toLowerCase().includes(query) ||
+            pkg.description?.toLowerCase().includes(query)
 
-        return matchesSearch && matchesManager
+        return matchesManager && matchesQuery
     })
 })
 
-const getManagerColor = (manager: ManagerType) => {
-    const colors: Record<ManagerType, string> = {
-        npm: 'manager-badge-npm',
-        brew: 'manager-badge-brew',
-        pip: 'manager-badge-pip',
-        cargo: 'manager-badge-cargo',
-    }
+const columns = computed(() => {
+    locale.value
+    return createPackageColumns({
+        mode: 'installed',
+        loadingKey: actionLoading.value,
+        managerLabels: managerNameMap.value,
+        selectable: true,
+        onUpgrade: pkg => {
+            void handleUpgrade(pkg)
+        },
+        onUninstall: pkg => {
+            void handleUninstall(pkg)
+        },
+    })
+})
 
-    return colors[manager]
-}
+const selectedPackages = computed(() => {
+    const selectedIds = new Set(
+        Object.keys(rowSelection.value).filter(key => rowSelection.value[key])
+    )
+    return filteredPackages.value.filter(pkg => selectedIds.has(`${pkg.manager}:${pkg.name}`))
+})
+
+const hasSelectedPackages = computed(() => selectedPackages.value.length > 0)
+const hasSelectedOutdatedPackages = computed(() => selectedPackages.value.some(pkg => pkg.outdated))
 
 async function loadPackages() {
     loading.value = true
-    errorMessage.value = ''
+    startLoadingBar()
 
     try {
         packages.value = await listInstalledPackages()
+        rowSelection.value = {}
     } catch (error) {
-        errorMessage.value = `Failed to load installed packages: ${String(error)}`
+        toast.error(t('packages.requestFailed'), {
+            description: t('packages.loadError', { error: String(error) }),
+        })
     } finally {
         loading.value = false
+        finishLoadingBar()
+    }
+}
+
+async function handleBulkUpgrade() {
+    const targets: PackageTarget[] = selectedPackages.value
+        .filter(pkg => pkg.outdated)
+        .map(pkg => ({ manager: pkg.manager, name: pkg.name }))
+
+    if (!targets.length) return
+
+    actionLoading.value = 'bulk-upgrade'
+    startLoadingBar()
+
+    try {
+        const result = await batchUpgradePackages(targets)
+        if (!result.success) throw new Error(result.message)
+        toast.success(t('packages.operationCompleted'), {
+            description: result.message,
+        })
+        await loadPackages()
+    } catch (error) {
+        toast.error(t('packages.requestFailed'), {
+            description: t('packages.bulkUpdateError', { error: String(error) }),
+        })
+    } finally {
+        actionLoading.value = null
+        finishLoadingBar()
+    }
+}
+
+async function handleBulkUninstall() {
+    const targets: PackageTarget[] = selectedPackages.value.map(pkg => ({
+        manager: pkg.manager,
+        name: pkg.name,
+    }))
+
+    if (!targets.length) return
+
+    actionLoading.value = 'bulk-uninstall'
+    startLoadingBar()
+
+    try {
+        const result = await batchUninstallPackages(targets)
+        if (!result.success) throw new Error(result.message)
+        toast.success(t('packages.operationCompleted'), {
+            description: result.message,
+        })
+        await loadPackages()
+    } catch (error) {
+        toast.error(t('packages.requestFailed'), {
+            description: t('packages.bulkRemoveError', { error: String(error) }),
+        })
+    } finally {
+        actionLoading.value = null
+        finishLoadingBar()
     }
 }
 
 async function handleUpgrade(pkg: Package) {
     actionLoading.value = `upgrade:${pkg.manager}:${pkg.name}`
-    feedbackMessage.value = ''
-    errorMessage.value = ''
 
     try {
         const result = await upgradePackage(pkg.manager, pkg.name)
-        if (!result.success) {
-            throw new Error(result.message)
-        }
-        feedbackMessage.value = result.message
+        if (!result.success) throw new Error(result.message)
+        toast.success(t('packages.operationCompleted'), {
+            description: result.message,
+        })
         await loadPackages()
     } catch (error) {
-        errorMessage.value = `Failed to upgrade ${pkg.name}: ${String(error)}`
+        toast.error(t('packages.requestFailed'), {
+            description: t('packages.upgradeError', { name: pkg.name, error: String(error) }),
+        })
     } finally {
         actionLoading.value = null
     }
@@ -78,171 +163,116 @@ async function handleUpgrade(pkg: Package) {
 
 async function handleUninstall(pkg: Package) {
     actionLoading.value = `uninstall:${pkg.manager}:${pkg.name}`
-    feedbackMessage.value = ''
-    errorMessage.value = ''
 
     try {
         const result = await uninstallPackage(pkg.manager, pkg.name)
-        if (!result.success) {
-            throw new Error(result.message)
-        }
-        feedbackMessage.value = result.message
+        if (!result.success) throw new Error(result.message)
+        toast.success(t('packages.operationCompleted'), {
+            description: result.message,
+        })
         await loadPackages()
     } catch (error) {
-        errorMessage.value = `Failed to uninstall ${pkg.name}: ${String(error)}`
+        toast.error(t('packages.requestFailed'), {
+            description: t('packages.uninstallError', {
+                name: pkg.name,
+                error: String(error),
+            }),
+        })
     } finally {
         actionLoading.value = null
     }
 }
 
 onMounted(() => {
+    void ensureManagersLoaded()
     void loadPackages()
 })
 </script>
 
 <template>
-    <div class="flex-1 flex flex-col h-full">
-        <header class="theme-header h-14 flex items-center justify-between px-6 border-b shrink-0">
-            <h1 class="theme-text text-lg font-semibold">Installed Packages</h1>
-        </header>
-        <div class="theme-app p-6 flex-1 overflow-auto">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div class="theme-panel-subtle rounded-md border p-4">
-                    <p class="theme-text-muted text-sm">Total Packages</p>
-                    <p class="theme-text mt-2 text-2xl font-semibold">{{ summary.total }}</p>
-                </div>
-                <div class="theme-panel-subtle rounded-md border p-4">
-                    <p class="theme-text-muted text-sm">GUI Apps</p>
-                    <p class="theme-text mt-2 text-2xl font-semibold">{{ summary.gui }}</p>
-                </div>
-                <div class="theme-panel-subtle rounded-md border p-4">
-                    <p class="theme-text-muted text-sm">Outdated</p>
-                    <p class="theme-text mt-2 text-2xl font-semibold">{{ summary.outdated }}</p>
-                </div>
-            </div>
+    <div class="h-full overflow-auto">
+        <div class="mx-auto max-w-6xl px-4 py-4 text-[13px]">
+            <section>
+                <h1 class="text-[28px] font-semibold tracking-tight">{{ t('packages.title') }}</h1>
+            </section>
 
-            <div class="flex items-center justify-between mb-6 space-x-4">
-                <div class="flex items-center space-x-2 flex-1 max-w-md">
-                    <div class="relative flex-1">
-                        <Search class="theme-text-muted absolute left-2.5 top-2.5 h-4 w-4" />
-                        <Input
-                            v-model="searchQuery"
-                            placeholder="Search local packages..."
-                            class="pl-9"
-                        />
-                    </div>
-                    <select
-                        v-model="filterManager"
-                        class="theme-panel theme-border theme-text h-9 rounded-md border px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--color-focus)]"
+            <section class="mt-7">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    <div
+                        class="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:justify-start"
                     >
-                        <option value="all">All Managers</option>
-                        <option value="npm">npm</option>
-                        <option value="brew">Homebrew</option>
-                        <option value="pip">pip</option>
-                        <option value="cargo">cargo</option>
-                    </select>
-                </div>
-                <Button variant="outline" :disabled="loading" @click="loadPackages">
-                    <RefreshCw class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" />
-                    Refresh
-                </Button>
-            </div>
+                        <div class="relative w-full sm:max-w-sm">
+                            <Search
+                                class="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+                            />
+                            <Input
+                                v-model="searchQuery"
+                                class="h-9 rounded-md pl-9 text-[13px]"
+                                :placeholder="t('packages.searchPlaceholder')"
+                            />
+                        </div>
 
-            <div
-                v-if="errorMessage"
-                class="theme-alert-danger mb-4 flex items-center rounded-md border px-4 py-3 text-sm"
-            >
-                <AlertCircle class="mr-2 h-4 w-4 shrink-0" />
-                {{ errorMessage }}
-            </div>
-
-            <div
-                v-if="feedbackMessage"
-                class="theme-alert-success mb-4 rounded-md border px-4 py-3 text-sm"
-            >
-                {{ feedbackMessage }}
-            </div>
-
-            <div class="theme-panel theme-border rounded-md border shadow-sm">
-                <table class="w-full text-sm text-left">
-                    <thead
-                        class="theme-text-muted theme-panel-subtle theme-border border-b text-xs"
-                    >
-                        <tr>
-                            <th class="h-10 px-4 font-medium align-middle">Name</th>
-                            <th class="h-10 px-4 font-medium align-middle">Version</th>
-                            <th class="h-10 px-4 font-medium align-middle">Latest</th>
-                            <th class="h-10 px-4 font-medium align-middle">Type</th>
-                            <th class="h-10 px-4 font-medium align-middle">Manager</th>
-                            <th class="h-10 px-4 font-medium align-middle text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="pkg in filteredPackages"
-                            :key="`${pkg.manager}-${pkg.name}`"
-                            class="theme-border theme-panel-hover border-b last:border-0 transition-colors"
+                        <select
+                            v-model="filterManager"
+                            class="flex h-9 rounded-md border border-[hsl(var(--input))] bg-transparent px-3 text-[13px] outline-none focus-visible:border-[hsl(var(--ring))] focus-visible:ring-[3px] focus-visible:ring-[hsl(var(--ring)/0.2)]"
                         >
-                            <td class="p-4 align-middle">
-                                <div class="theme-text font-medium">{{ pkg.name }}</div>
-                                <div v-if="pkg.description" class="theme-text-muted mt-1 text-xs">
-                                    {{ pkg.description }}
-                                </div>
-                            </td>
-                            <td class="theme-text-secondary p-4 align-middle">{{ pkg.version }}</td>
-                            <td class="p-4 align-middle">
-                                <span
-                                    :class="
-                                        pkg.version === pkg.latest_version
-                                            ? 'theme-text-secondary'
-                                            : 'theme-warning-text font-medium'
-                                    "
-                                >
-                                    {{ pkg.latest_version }}
-                                </span>
-                            </td>
-                            <td class="p-4 align-middle">
-                                <Badge variant="outline" class="text-xs font-normal">
-                                    {{ pkg.is_gui ? 'GUI' : 'CLI' }}
-                                </Badge>
-                            </td>
-                            <td class="p-4 align-middle">
-                                <Badge variant="outline" :class="getManagerColor(pkg.manager)">
-                                    {{ managerLabelMap[pkg.manager] }}
-                                </Badge>
-                            </td>
-                            <td class="p-4 align-middle text-right space-x-2 whitespace-nowrap">
-                                <Button
-                                    v-if="pkg.outdated"
-                                    variant="outline"
-                                    size="sm"
-                                    class="h-8"
-                                    :disabled="actionLoading !== null"
-                                    @click="handleUpgrade(pkg)"
-                                >
-                                    <ArrowUpCircle class="w-3.5 h-3.5 mr-1.5" />
-                                    Update
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    class="h-8 text-[var(--color-danger-text)] hover:bg-[var(--color-danger-bg)]"
-                                    :disabled="actionLoading !== null"
-                                    @click="handleUninstall(pkg)"
-                                >
-                                    <Trash2 class="w-3.5 h-3.5 mr-1.5" />
-                                    Uninstall
-                                </Button>
-                            </td>
-                        </tr>
-                        <tr v-if="filteredPackages.length === 0">
-                            <td colspan="6" class="theme-text-muted p-8 text-center">
-                                {{ loading ? 'Loading packages...' : 'No packages found.' }}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+                            <option value="all">{{ t('packages.allManagers') }}</option>
+                            <option
+                                v-for="manager in enabledManagers"
+                                :key="manager.id"
+                                :value="manager.id"
+                            >
+                                {{ manager.name }}
+                            </option>
+                        </select>
+
+                        <Button variant="outline" :disabled="loading" @click="loadPackages" class="justify-right">
+                            <RefreshCcwIcon class="size-4" :class="{'animate-spin':loading}" />
+                            {{ loading ? t('common.refreshing') : t('common.refresh') }}
+                        </Button>
+                        <Button
+                            class="justify-right"
+                            v-if="hasSelectedPackages"
+                            variant="outline"
+                            :disabled="!hasSelectedOutdatedPackages || actionLoading !== null"
+                            @click="handleBulkUpgrade"
+                        >
+                            <ArrowUpCircle class="size-4" />
+                            {{ t('packages.bulkUpdate') }}
+                        </Button>
+                        <Button
+                            v-if="hasSelectedPackages"
+                            variant="destructive"
+                            class="justify-right"
+                            :disabled="actionLoading !== null"
+                            @click="handleBulkUninstall"
+                        >
+                            <Trash2 class="size-4" />
+                            {{ t('packages.bulkRemove') }}
+                        </Button>
+                    </div>
+                </div>
+
+                <div class="mt-3 flex flex-wrap gap-2">
+                    <Badge variant="outline" class="rounded-sm">
+                        {{ t('common.visibleCount', { count: filteredPackages.length }) }}
+                    </Badge>
+                    <Badge v-if="hasSelectedPackages" variant="outline" class="rounded-sm">
+                        {{ t('common.selectedCount', { count: selectedPackages.length }) }}
+                    </Badge>
+                </div>
+
+                <div class="mt-5">
+                    <PackagesDataTable
+                        :columns="columns"
+                        :data="filteredPackages"
+                        v-model:row-selection="rowSelection"
+                        :empty-text="
+                            loading ? t('packages.loadingPackages') : t('packages.noPackagesFound')
+                        "
+                    />
+                </div>
+            </section>
         </div>
     </div>
 </template>

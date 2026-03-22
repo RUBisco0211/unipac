@@ -1,216 +1,109 @@
 @import 'tailwindcss';
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-    font-family: 'IBM Plex Sans', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-    --color-bg-app: #ffffff;
-    --color-bg-subtle: rgba(244, 244, 245, 0.72);
-    --color-bg-panel: #ffffff;
-    --color-bg-panel-hover: rgba(244, 244, 245, 0.72);
-    --color-bg-sidebar: rgba(250, 250, 250, 0.72);
-    --color-bg-elevated: #fafafa;
-    --color-border: #e4e4e7;
-    --color-border-strong: #d4d4d8;
-    --color-text: #09090b;
-    --color-text-secondary: #52525b;
-    --color-text-muted: #71717a;
-    --color-text-inverted: #fafafa;
-    --color-focus: #18181b;
+    --background: 36 33% 98%;
+    --foreground: 24 16% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 16% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 16% 12%;
+    --primary: 21 79% 46%;
+    --primary-foreground: 36 100% 98%;
+    --secondary: 36 29% 93%;
+    --secondary-foreground: 24 16% 12%;
+    --muted: 36 24% 94%;
+    --muted-foreground: 23 10% 42%;
+    --accent: 31 65% 89%;
+    --accent-foreground: 24 16% 12%;
+    --destructive: 8 72% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 30 12% 84%;
+    --input: 30 12% 84%;
+    --ring: 21 79% 46%;
+    --radius: 0.75rem;
+    --sidebar: 30 43% 97%;
+    --sidebar-foreground: 24 16% 12%;
+    --sidebar-accent: 32 52% 91%;
+    --sidebar-accent-foreground: 24 16% 12%;
+    --sidebar-border: 30 16% 86%;
+    --sidebar-ring: 21 79% 46%;
+    --manager-badge-saturation: 68%;
+    --manager-badge-lightness: 42%;
+    --manager-badge-bg-alpha: 0.12;
+    --manager-badge-border-alpha: 0.22;
+}
 
-    --color-success-bg: #ecfdf5;
-    --color-success-border: #a7f3d0;
-    --color-success-text: #047857;
-    --color-danger-bg: #fef2f2;
-    --color-danger-border: #fecaca;
-    --color-danger-text: #b91c1c;
-    --color-warning-text: #d97706;
-
-    --color-button-primary-bg: #18181b;
-    --color-button-primary-bg-hover: rgba(24, 24, 27, 0.9);
-    --color-button-primary-text: #fafafa;
-    --color-button-outline-bg: #ffffff;
-    --color-button-outline-bg-hover: #f4f4f5;
-    --color-button-outline-text: #18181b;
-    --color-button-secondary-bg: #f4f4f5;
-    --color-button-secondary-bg-hover: rgba(244, 244, 245, 0.8);
-    --color-button-secondary-text: #18181b;
-    --color-button-destructive-bg: #ef4444;
-    --color-button-destructive-bg-hover: rgba(239, 68, 68, 0.9);
-    --color-button-destructive-text: #fafafa;
-
-    --manager-npm-bg: #fee2e2;
-    --manager-npm-border: #fecaca;
-    --manager-npm-text: #991b1b;
-    --manager-brew-bg: #ffedd5;
-    --manager-brew-border: #fed7aa;
-    --manager-brew-text: #9a3412;
-    --manager-pip-bg: #dbeafe;
-    --manager-pip-border: #bfdbfe;
-    --manager-pip-text: #1d4ed8;
-    --manager-cargo-bg: #fef3c7;
-    --manager-cargo-border: #fde68a;
-    --manager-cargo-text: #92400e;
+.dark {
+    --background: 24 22% 8%;
+    --foreground: 36 30% 96%;
+    --card: 24 18% 10%;
+    --card-foreground: 36 30% 96%;
+    --popover: 24 18% 10%;
+    --popover-foreground: 36 30% 96%;
+    --primary: 27 92% 61%;
+    --primary-foreground: 24 22% 8%;
+    --secondary: 23 12% 18%;
+    --secondary-foreground: 36 30% 96%;
+    --muted: 23 12% 16%;
+    --muted-foreground: 27 10% 65%;
+    --accent: 24 20% 18%;
+    --accent-foreground: 36 30% 96%;
+    --destructive: 5 75% 55%;
+    --destructive-foreground: 36 30% 96%;
+    --border: 24 10% 22%;
+    --input: 24 10% 22%;
+    --ring: 27 92% 61%;
+    --sidebar: 24 20% 10%;
+    --sidebar-foreground: 36 30% 96%;
+    --sidebar-accent: 23 15% 16%;
+    --sidebar-accent-foreground: 36 30% 96%;
+    --sidebar-border: 24 10% 22%;
+    --sidebar-ring: 27 92% 61%;
+    --manager-badge-saturation: 72%;
+    --manager-badge-lightness: 68%;
+    --manager-badge-bg-alpha: 0.16;
+    --manager-badge-border-alpha: 0.28;
 }
 
 * {
     box-sizing: border-box;
 }
 
-.dark {
-    --color-bg-app: #09090b;
-    --color-bg-subtle: rgba(39, 39, 42, 0.7);
-    --color-bg-panel: #09090b;
-    --color-bg-panel-hover: rgba(39, 39, 42, 0.6);
-    --color-bg-sidebar: rgba(24, 24, 27, 0.72);
-    --color-bg-elevated: #18181b;
-    --color-border: #27272a;
-    --color-border-strong: #3f3f46;
-    --color-text: #fafafa;
-    --color-text-secondary: #a1a1aa;
-    --color-text-muted: #71717a;
-    --color-text-inverted: #09090b;
-    --color-focus: #d4d4d8;
-
-    --color-success-bg: rgba(6, 78, 59, 0.35);
-    --color-success-border: rgba(6, 95, 70, 0.6);
-    --color-success-text: #6ee7b7;
-    --color-danger-bg: rgba(127, 29, 29, 0.35);
-    --color-danger-border: rgba(127, 29, 29, 0.6);
-    --color-danger-text: #fca5a5;
-    --color-warning-text: #fbbf24;
-
-    --color-button-primary-bg: #fafafa;
-    --color-button-primary-bg-hover: rgba(250, 250, 250, 0.9);
-    --color-button-primary-text: #18181b;
-    --color-button-outline-bg: #09090b;
-    --color-button-outline-bg-hover: #27272a;
-    --color-button-outline-text: #fafafa;
-    --color-button-secondary-bg: #27272a;
-    --color-button-secondary-bg-hover: rgba(39, 39, 42, 0.8);
-    --color-button-secondary-text: #fafafa;
-    --color-button-destructive-bg: #7f1d1d;
-    --color-button-destructive-bg-hover: rgba(127, 29, 29, 0.9);
-    --color-button-destructive-text: #fafafa;
-
-    --manager-npm-bg: rgba(127, 29, 29, 0.3);
-    --manager-npm-border: rgba(127, 29, 29, 0.5);
-    --manager-npm-text: #fca5a5;
-    --manager-brew-bg: rgba(154, 52, 18, 0.3);
-    --manager-brew-border: rgba(154, 52, 18, 0.5);
-    --manager-brew-text: #fdba74;
-    --manager-pip-bg: rgba(30, 64, 175, 0.3);
-    --manager-pip-border: rgba(30, 64, 175, 0.5);
-    --manager-pip-text: #93c5fd;
-    --manager-cargo-bg: rgba(146, 64, 14, 0.3);
-    --manager-cargo-border: rgba(146, 64, 14, 0.5);
-    --manager-cargo-text: #fcd34d;
-}
-
 html,
 body,
 #app {
     min-height: 100%;
-    border-radius: 12px !important;
-    overflow: hidden !important;
+    overflow: hidden;
 }
 
 body {
     margin: 0;
-    background: var(--color-bg-app);
-    /* background-color: rgba(var(--color-bg-app), 0.5); */
-    color: var(--color-text);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
 }
 
 a {
     color: inherit;
+    text-decoration: none;
 }
 
-@layer utilities {
-    .theme-app {
-        background: var(--color-bg-app);
-        color: var(--color-text);
-    }
+button,
+input,
+select {
+    font: inherit;
+}
 
-    .theme-sidebar {
-        background: var(--color-bg-sidebar);
-        border-color: var(--color-border);
-    }
-
-    .theme-panel {
-        background: var(--color-bg-panel);
-        border-color: var(--color-border);
-    }
-
-    .theme-panel-subtle {
-        background: var(--color-bg-subtle);
-        border-color: var(--color-border);
-    }
-
-    .theme-panel-hover:hover {
-        background: var(--color-bg-panel-hover);
-    }
-
-    .theme-header {
-        background: var(--color-bg-panel);
-        border-color: var(--color-border);
-    }
-
-    .theme-border {
-        border-color: var(--color-border);
-    }
-
-    .theme-border-strong {
-        border-color: var(--color-border-strong);
-    }
-
-    .theme-text {
-        color: var(--color-text);
-    }
-
-    .theme-text-secondary {
-        color: var(--color-text-secondary);
-    }
-
-    .theme-text-muted {
-        color: var(--color-text-muted);
-    }
-
-    .theme-warning-text {
-        color: var(--color-warning-text);
-    }
-
-    .theme-alert-danger {
-        background: var(--color-danger-bg);
-        border-color: var(--color-danger-border);
-        color: var(--color-danger-text);
-    }
-
-    .theme-alert-success {
-        background: var(--color-success-bg);
-        border-color: var(--color-success-border);
-        color: var(--color-success-text);
-    }
-
-    .manager-badge-npm {
-        background: var(--manager-npm-bg);
-        border-color: var(--manager-npm-border);
-        color: var(--manager-npm-text);
-    }
-
-    .manager-badge-brew {
-        background: var(--manager-brew-bg);
-        border-color: var(--manager-brew-border);
-        color: var(--manager-brew-text);
-    }
-
-    .manager-badge-pip {
-        background: var(--manager-pip-bg);
-        border-color: var(--manager-pip-border);
-        color: var(--manager-pip-text);
-    }
-
-    .manager-badge-cargo {
-        background: var(--manager-cargo-bg);
-        border-color: var(--manager-cargo-border);
-        color: var(--manager-cargo-text);
-    }
+.manager-badge {
+    border-color: hsl(
+        var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness) /
+            var(--manager-badge-border-alpha)
+    );
+    background: hsl(
+        var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness) /
+            var(--manager-badge-bg-alpha)
+    );
+    color: hsl(var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness));
 }

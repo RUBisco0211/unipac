@@ -18,7 +18,9 @@ const router = createRouter({
                     component: PackagesPage,
                     meta: {
                         icon: Package,
-                        title: 'Packages',
+                        titleKey: 'nav.packages',
+                        keepAlive: true,
+                        position: 'top',
                     },
                 },
                 {
@@ -26,7 +28,9 @@ const router = createRouter({
                     component: SearchPage,
                     meta: {
                         icon: Search,
-                        title: 'Search',
+                        titleKey: 'nav.search',
+                        keepAlive: true,
+                        position: 'top',
                     },
                 },
                 {
@@ -34,7 +38,9 @@ const router = createRouter({
                     component: SettingsPage,
                     meta: {
                         icon: Settings,
-                        title: 'Settings',
+                        titleKey: 'nav.settings',
+                        keepAlive: true,
+                        position: 'bottom',
                     },
                 },
             ],

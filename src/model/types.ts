@@ -1,4 +1,4 @@
-export type ManagerType = 'brew' | 'npm' | 'pip' | 'cargo'
+export type ManagerType = string
 
 export interface ManagerCapabilities {
     search: boolean
@@ -30,4 +30,9 @@ export interface Package {
 export interface ActionResult {
     success: boolean
     message: string
+}
+
+export interface PackageTarget {
+    manager: ManagerType
+    name: string
 }
