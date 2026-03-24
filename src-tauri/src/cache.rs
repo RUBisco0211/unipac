@@ -46,13 +46,14 @@ impl PackageCache {
         Ok(data_dir.join("unipac").join("packages.db"))
     }
 
-    /// 从缓存加载所有包
+    /// 从缓存加载所有包（按 name 排序）
     pub async fn load_packages(&self) -> Result<Vec<Package>, String> {
         let conn = self.conn.lock().await;
         let mut stmt = conn
             .prepare(
                 "SELECT name, fullname, version, latest_version, manager, installed, outdated, is_gui, description
-                 FROM packages",
+                 FROM packages
+                 ORDER BY name ASC",
             )
             .map_err(|e| format!("Failed to prepare statement: {}", e))?;
 
@@ -86,8 +87,8 @@ impl PackageCache {
         Ok(packages)
     }
 
-    /// 更新缓存（全量替换）
-    pub async fn update_cache(&self, packages: &[Package]) -> Result<(), String> {
+    /// 增量更新缓存（只更新新增或变化的包）
+    pub async fn update_packages(&self, packages: &[Package]) -> Result<(), String> {
         let conn = self.conn.lock().await;
 
         // 开启事务
@@ -95,16 +96,20 @@ impl PackageCache {
             .unchecked_transaction()
             .map_err(|e| format!("Failed to start transaction: {}", e))?;
 
-        // 清空现有数据
-        tx.execute("DELETE FROM packages", [])
-            .map_err(|e| format!("Failed to clear packages: {}", e))?;
-
-        // 插入新数据
+        // 使用 INSERT OR REPLACE 来更新包
         {
             let mut stmt = tx
                 .prepare(
                     "INSERT INTO packages (name, fullname, version, latest_version, manager, installed, outdated, is_gui, description)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                     ON CONFLICT(name, manager) DO UPDATE SET
+                        fullname = excluded.fullname,
+                        version = excluded.version,
+                        latest_version = excluded.latest_version,
+                        installed = excluded.installed,
+                        outdated = excluded.outdated,
+                        is_gui = excluded.is_gui,
+                        description = excluded.description",
                 )
                 .map_err(|e| format!("Failed to prepare insert statement: {}", e))?;
 
@@ -120,7 +125,7 @@ impl PackageCache {
                     pkg.is_gui as i32,
                     pkg.description,
                 ])
-                .map_err(|e| format!("Failed to insert package '{}': {}", pkg.name, e))?;
+                .map_err(|e| format!("Failed to upsert package '{}': {}", pkg.name, e))?;
             }
         }
 

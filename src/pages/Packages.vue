@@ -76,7 +76,8 @@ async function loadPackages() {
     startLoadingBar()
 
     try {
-        packages.value = await reloadPackages()
+        await reloadPackages()
+        packages.value = await loadCachedPackages()
         rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
@@ -118,7 +119,8 @@ async function handleBulkUpgrade() {
             description: result.message,
         })
         // 操作成功后重新加载数据
-        packages.value = await reloadPackages()
+        await reloadPackages()
+        packages.value = await loadCachedPackages()
         rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
@@ -148,7 +150,8 @@ async function handleBulkUninstall() {
             description: result.message,
         })
         // 操作成功后重新加载数据
-        packages.value = await reloadPackages()
+        await reloadPackages()
+        packages.value = await loadCachedPackages()
         rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
@@ -171,7 +174,8 @@ async function handleUpgrade(pkg: Package) {
             description: result.message,
         })
         // 操作成功后重新加载数据
-        packages.value = await reloadPackages()
+        await reloadPackages()
+        packages.value = await loadCachedPackages()
         rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
@@ -194,7 +198,8 @@ async function handleUninstall(pkg: Package) {
             description: result.message,
         })
         // 操作成功后重新加载数据
-        packages.value = await reloadPackages()
+        await reloadPackages()
+        packages.value = await loadCachedPackages()
         rowSelection.value = {}
     } catch (error) {
         toast.error(t('packages.requestFailed'), {
@@ -252,8 +257,13 @@ onMounted(() => {
                             </option>
                         </select>
 
-                        <Button variant="outline" :disabled="loading" @click="loadPackages" class="justify-right">
-                            <RefreshCcwIcon class="size-4" :class="{'animate-spin':loading}" />
+                        <Button
+                            variant="outline"
+                            :disabled="loading"
+                            @click="loadPackages"
+                            class="justify-right"
+                        >
+                            <RefreshCcwIcon class="size-4" :class="{ 'animate-spin': loading }" />
                             {{ loading ? t('common.refreshing') : t('common.refresh') }}
                         </Button>
                         <Button

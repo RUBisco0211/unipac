@@ -49,7 +49,7 @@ onBeforeUnmount(() => {
 <template>
     <TooltipProvider>
         <div
-            class="flex h-screen flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+            class="flex select-none h-screen flex-col overflow-hidden bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
         >
             <TitleBar type="system" :collapsed="isCollapsed" @toggle-sidebar="toggleSidebar" />
 

@@ -18,6 +18,29 @@ struct BrewOutdatedItem {
     current_version: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct BrewInfoResponse {
+    formulae: Vec<BrewFormulaInfo>,
+    casks: Vec<BrewCaskInfo>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrewFormulaInfo {
+    versions: BrewFormulaVersions,
+    versioned_formulae: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrewFormulaVersions {
+    stable: Option<String>,
+    head: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrewCaskInfo {
+    version: Option<String>,
+}
+
 /// Homebrew 适配器
 pub struct BrewAdapter;
 
@@ -183,6 +206,47 @@ impl BrewAdapter {
         }
 
         packages
+    }
+
+    fn parse_info_versions_output(output: &str) -> Result<Vec<String>, String> {
+        let info: BrewInfoResponse = serde_json::from_str(output)
+            .map_err(|e| format!("Failed to parse brew info output: {}", e))?;
+
+        let mut versions = Vec::new();
+
+        if let Some(formula) = info.formulae.into_iter().next() {
+            if let Some(stable) = formula.versions.stable {
+                versions.push(stable);
+            }
+
+            if let Some(head) = formula.versions.head {
+                versions.push(head);
+            }
+
+            versions.extend(
+                formula
+                    .versioned_formulae
+                    .into_iter()
+                    .filter_map(|entry| entry.split('@').nth(1).map(|version| version.to_string())),
+            );
+        }
+
+        if versions.is_empty() {
+            if let Some(cask) = info.casks.into_iter().next() {
+                if let Some(version) = cask.version {
+                    versions.push(version);
+                }
+            }
+        }
+
+        versions.sort();
+        versions.dedup();
+
+        if versions.is_empty() {
+            return Err("No versions found".to_string());
+        }
+
+        Ok(versions)
     }
 }
 
@@ -375,6 +439,11 @@ impl PackageAdapter for BrewAdapter {
     async fn search_packages(&self, keyword: &str) -> Result<Vec<Package>, String> {
         let output = self.run_brew(&["search", keyword]).await?;
         Ok(Self::parse_search_output(&output))
+    }
+
+    async fn get_package_versions(&self, name: &str) -> Result<Vec<String>, String> {
+        let output = self.run_brew(&["info", "--json=v2", name]).await?;
+        Self::parse_info_versions_output(&output)
     }
 }
 

@@ -208,6 +208,12 @@ impl ManagerRegistry {
         Ok(all_results)
     }
 
+    /// 获取包的可用版本列表
+    pub async fn get_package_versions(&self, manager_id: &str, name: &str) -> Result<Vec<String>, String> {
+        let adapter = self.get_adapter(manager_id)?;
+        adapter.get_package_versions(name).await
+    }
+
     /// 获取指定管理器的适配器
     fn get_adapter(&self, manager_id: &str) -> Result<Arc<dyn PackageAdapter>, String> {
         self.adapters

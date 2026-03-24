@@ -14,7 +14,6 @@ import { installPackage, searchPackages } from '@/lib/api'
 import type { Package } from '@/model/types'
 
 const searchQuery = ref('')
-const versionInput = ref('')
 const isSearching = ref(false)
 const hasSearched = ref(false)
 const installingKey = ref<string | null>(null)
@@ -28,8 +27,8 @@ const columns = computed(() => {
         mode: 'search',
         loadingKey: installingKey.value,
         managerLabels: managerNameMap.value,
-        onInstall: pkg => {
-            void handleInstall(pkg)
+        onInstall: (pkg, version) => {
+            void handleInstall(pkg, version)
         },
     })
 })
@@ -54,11 +53,11 @@ async function handleSearch() {
     }
 }
 
-async function handleInstall(pkg: Package) {
+async function handleInstall(pkg: Package, version?: string) {
     installingKey.value = `install:${pkg.manager}:${pkg.name}`
 
     try {
-        const options = versionInput.value.trim() ? { version: versionInput.value.trim() } : undefined
+        const options = version ? { version } : undefined
         const result = await installPackage(pkg.manager, pkg.name, options)
         if (!result.success) throw new Error(result.message)
         toast.success(t('search.startedTitle'), {
@@ -83,7 +82,7 @@ void ensureManagersLoaded()
                 <h1 class="text-[28px] font-semibold tracking-tight">{{ t('search.title') }}</h1>
             </section>
 
-            <section class="mt-7 border-b border-[hsl(var(--border)/0.6)] pb-7">
+            <section class="mt-7 border-[hsl(var(--border)/0.6)] pb-7">
                 <form class="flex flex-col gap-3 sm:flex-row" @submit.prevent="handleSearch">
                     <div class="relative flex-1">
                         <Search

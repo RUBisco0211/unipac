@@ -114,7 +114,7 @@ onBeforeUnmount(() => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    class="size-8 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))] disabled:text-[hsl(var(--muted-foreground)/0.45)] disabled:hover:bg-transparent"
+                    class="size-6 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))] disabled:text-[hsl(var(--muted-foreground)/0.45)] disabled:hover:bg-transparent"
                     :disabled="!canGoBack"
                     @click="goBack"
                 >
@@ -124,7 +124,7 @@ onBeforeUnmount(() => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    class="size-8 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))] disabled:text-[hsl(var(--muted-foreground)/0.45)] disabled:hover:bg-transparent"
+                    class="size-6 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))] disabled:text-[hsl(var(--muted-foreground)/0.45)] disabled:hover:bg-transparent"
                     :disabled="!canGoForward"
                     @click="goForward"
                 >
@@ -134,7 +134,7 @@ onBeforeUnmount(() => {
                 <Button
                     variant="ghost"
                     size="icon"
-                    class="size-8 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
+                    class="size-6 rounded-md text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent))] hover:text-[hsl(var(--foreground))]"
                     @click="emit('toggle-sidebar')"
                 >
                     <PanelLeftOpen v-if="props.collapsed" class="size-4" />

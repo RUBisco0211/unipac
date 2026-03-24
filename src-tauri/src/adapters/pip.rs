@@ -128,7 +128,7 @@ impl PackageAdapter for PipAdapter {
     }
 
     fn name(&self) -> &str {
-        "pip (global)"
+        "pip"
     }
 
     fn capabilities(&self) -> ManagerCapabilities {
@@ -288,6 +288,34 @@ impl PackageAdapter for PipAdapter {
             Ok(output) => Ok(Self::parse_search_output(&output)),
             Err(_) => Ok(Vec::new()),
         }
+    }
+
+    async fn get_package_versions(&self, name: &str) -> Result<Vec<String>, String> {
+        // pip index versions <package>
+        let output = self.run_pip(&["index", "versions", name]).await?;
+
+        // 解析输出，格式为：
+        // package-name (version)
+        // package-name (version)
+        let versions: Vec<String> = output
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if line.is_empty() {
+                    return None;
+                }
+
+                // 格式: package-name (version)
+                let version_part = line.split('(').last()?.trim_end_matches(')');
+                Some(version_part.to_string())
+            })
+            .collect();
+
+        if versions.is_empty() {
+            return Err(format!("No versions found for package '{}'", name));
+        }
+
+        Ok(versions)
     }
 }
 

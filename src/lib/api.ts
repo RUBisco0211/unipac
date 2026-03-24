@@ -12,15 +12,16 @@ export function loadCachedPackages() {
 }
 
 export function reloadPackages() {
-    return invoke<Package[]>('reload_packages')
+    return invoke<void>('reload_packages')
 }
 
-export function listInstalledPackages() {
-    return invoke<Package[]>('list_installed_packages')
-}
 
 export function searchPackages(keyword: string) {
     return invoke<Package[]>('search_packages', { keyword })
+}
+
+export function getPackageVersions(manager: Package['manager'], name: string) {
+    return invoke<string[]>('get_package_versions', { manager, name })
 }
 
 export function installPackage(

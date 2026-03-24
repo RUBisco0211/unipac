@@ -76,6 +76,26 @@ impl CargoAdapter {
             })
             .collect()
     }
+
+    fn parse_versions_output(output: &str, name: &str) -> Vec<String> {
+        output
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if line.is_empty() {
+                    return None;
+                }
+
+                let (left, _) = line.split_once('#').unwrap_or((line, ""));
+                let (pkg_name, version) = left.split_once('=')?;
+                if pkg_name.trim() != name {
+                    return None;
+                }
+
+                Some(version.trim().trim_matches('"').to_string())
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -85,7 +105,7 @@ impl PackageAdapter for CargoAdapter {
     }
 
     fn name(&self) -> &str {
-        "Cargo"
+        "cargo"
     }
 
     fn capabilities(&self) -> ManagerCapabilities {
@@ -204,6 +224,17 @@ impl PackageAdapter for CargoAdapter {
         let output = self.run_cargo(&["search", keyword, "--limit", "10"]).await?;
         Ok(Self::parse_search_output(&output))
     }
+
+    async fn get_package_versions(&self, name: &str) -> Result<Vec<String>, String> {
+        let output = self.run_cargo(&["search", name, "--limit", "1"]).await?;
+        let versions = Self::parse_versions_output(&output, name);
+
+        if versions.is_empty() {
+            return Err(format!("No versions found for package '{}'", name));
+        }
+
+        Ok(versions)
+    }
 }
 
 #[cfg(test)]
@@ -253,5 +284,15 @@ bat = "0.24.0" # a cat clone with wings"#;
         assert_eq!(packages[0].version, "14.1.1");
         assert_eq!(packages[0].manager, ManagerType::Cargo);
         assert!(!packages[0].installed);
+    }
+
+    #[test]
+    fn test_parse_versions_output() {
+        let output = r#"ripgrep = "14.1.1" # recursively searches directories for a regex pattern
+bat = "0.24.0" # a cat clone with wings"#;
+
+        let versions = CargoAdapter::parse_versions_output(output, "ripgrep");
+
+        assert_eq!(versions, vec!["14.1.1".to_string()]);
     }
 }

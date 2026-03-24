@@ -53,6 +53,11 @@ pub trait PackageAdapter: Send + Sync {
     async fn search_packages(&self, _keyword: &str) -> Result<Vec<Package>, String> {
         Ok(Vec::new())
     }
+
+    /// 获取包的可用版本列表
+    async fn get_package_versions(&self, _name: &str) -> Result<Vec<String>, String> {
+        Ok(Vec::new())
+    }
 }
 
 pub mod brew;

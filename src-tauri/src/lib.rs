@@ -36,22 +36,14 @@ async fn load_cached_packages(
 #[tauri::command]
 async fn reload_packages(
     state: tauri::State<'_, AppState>,
-) -> Result<Vec<Package>, String> {
+) -> Result<(), String> {
     // 扫描并获取最新数据
     let packages = state.registry.list_installed_packages().await?;
 
-    // 更新缓存
-    state.cache.update_cache(&packages).await?;
+    // 增量更新缓存
+    state.cache.update_packages(&packages).await?;
 
-    Ok(packages)
-}
-
-/// 列出所有已安装包（保留原接口用于兼容）
-#[tauri::command]
-async fn list_installed_packages(
-    state: tauri::State<'_, AppState>,
-) -> Result<Vec<Package>, String> {
-    state.registry.list_installed_packages().await
+    Ok(())
 }
 
 /// 安装包
@@ -129,6 +121,16 @@ async fn search_packages(
     state.registry.search_packages(&keyword).await
 }
 
+/// 获取包的可用版本列表
+#[tauri::command]
+async fn get_package_versions(
+    state: tauri::State<'_, AppState>,
+    manager: String,
+    name: String,
+) -> Result<Vec<String>, String> {
+    state.registry.get_package_versions(&manager, &name).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // 初始化日志系统
@@ -160,13 +162,13 @@ pub fn run() {
             list_managers,
             load_cached_packages,
             reload_packages,
-            list_installed_packages,
             install_package,
             uninstall_package,
             upgrade_package,
             batch_uninstall_packages,
             batch_upgrade_packages,
             search_packages,
+            get_package_versions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

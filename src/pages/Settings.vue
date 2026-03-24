@@ -32,12 +32,6 @@ async function loadManagers() {
     }
 }
 
-function saveSettings() {
-    toast.success(t('settings.statusTitle'), {
-        description: t('settings.saveMessage'),
-    })
-}
-
 onMounted(() => {
     void loadManagers()
 })
@@ -67,11 +61,6 @@ onMounted(() => {
                                 {{ enabledCount }}/{{ managers.length }}
                             </span>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <Badge variant="secondary" class="rounded-sm">
-                                {{ t('settings.liveBackendState') }}
-                            </Badge>
-                        </div>
                     </div>
                 </div>
 
@@ -79,7 +68,6 @@ onMounted(() => {
                     <Button variant="outline" :disabled="loading" @click="loadManagers">
                         {{ loading ? t('common.refreshing') : t('settings.refreshManagers') }}
                     </Button>
-                    <Button @click="saveSettings">{{ t('settings.saveSnapshot') }}</Button>
                 </div>
             </section>
 

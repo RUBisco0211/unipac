@@ -126,7 +126,7 @@ impl PackageAdapter for NpmAdapter {
     }
 
     fn name(&self) -> &str {
-        "npm (global)"
+        "npm"
     }
 
     fn capabilities(&self) -> ManagerCapabilities {
@@ -271,6 +271,14 @@ impl PackageAdapter for NpmAdapter {
         // npm search <keyword> --json
         let search_output = self.run_npm(&["search", keyword, "--json"]).await?;
         Self::parse_search_output(&search_output)
+    }
+
+    async fn get_package_versions(&self, name: &str) -> Result<Vec<String>, String> {
+        // npm view <package> versions --json
+        let output = self.run_npm(&["view", name, "versions", "--json"]).await?;
+        let versions: Vec<String> = serde_json::from_str(&output)
+            .map_err(|e| format!("Failed to parse npm versions output: {}", e))?;
+        Ok(versions)
     }
 }
 

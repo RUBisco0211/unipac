@@ -1,11 +1,12 @@
 import type { ColumnDef } from '@tanstack/vue-table'
-import { ArrowUpCircle, Download, GitBranch, Package as PackageIcon, Tag, Trash2 } from 'lucide-vue-next'
+import { ArrowUpCircle, GitBranch, Package as PackageIcon, Tag, Trash2 } from 'lucide-vue-next'
 import { h } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { i18n } from '@/i18n'
 import { getManagerHue, managerLabelMap } from '@/lib/format'
 import type { Package } from '@/model/types'
+import VersionSelectButton from '@/components/packages/VersionSelectButton.vue'
 
 type ColumnActions = {
     mode: 'installed' | 'search'
@@ -14,7 +15,7 @@ type ColumnActions = {
     selectable?: boolean
     onUpgrade?: (pkg: Package) => void
     onUninstall?: (pkg: Package) => void
-    onInstall?: (pkg: Package) => void
+    onInstall?: (pkg: Package, version?: string) => void
 }
 
 export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>[] {
@@ -52,7 +53,7 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
             header: t('table.package'),
             cell: ({ row }) =>
                 h('div', { class: 'flex items-center gap-1' }, [
-                    h(PackageIcon, {class:'size-4'}),
+                    h(PackageIcon, { class: 'size-4' }),
                     h('div', { class: 'space-y-1' }, [
                         h(
                             'div',
@@ -133,27 +134,17 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
             header: () => h('div', { class: 'text-right' }, t('table.actions')),
             cell: ({ row }) => {
                 const pkg = row.original
-                const installKey = `install:${pkg.manager}:${pkg.name}`
                 const upgradeKey = `upgrade:${pkg.manager}:${pkg.name}`
                 const uninstallKey = `uninstall:${pkg.manager}:${pkg.name}`
 
                 if (actions.mode === 'search') {
                     return h('div', { class: 'flex justify-end' }, [
-                        h(
-                            Button,
-                            {
-                                size: 'sm',
-                                variant: 'ghost',
-                                disabled: actions.loadingKey !== null,
-                                onClick: () => actions.onInstall?.(pkg),
-                            },
-                            () => [
-                                h(Download, { class: 'size-4' }),
-                                actions.loadingKey === installKey
-                                    ? t('actions.installing')
-                                    : t('actions.install'),
-                            ]
-                        ),
+                        h(VersionSelectButton, {
+                            package: pkg,
+                            disabled: actions.loadingKey !== null,
+                            loadingKey: actions.loadingKey,
+                            onInstall: actions.onInstall!,
+                        }),
                     ])
                 }
 
