@@ -1,4 +1,4 @@
-# UniPac
+# [Work In Progress] UniPac 
 
 Unipac 是一个用于统一管理 MacOS 上全局包管理器的桌面应用程序。整合了包括`Homebrew`、`npm`、`pip`、`cargo` 在内等软件包管理器，提供一致的用户操作体验。
 
