@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
+	"unipac-wails/backend/adapters"
 	"unipac-wails/backend/core/manager"
 	"unipac-wails/backend/util"
 
@@ -15,10 +17,10 @@ type Registry struct {
 	adapters map[string]manager.Adapter
 }
 
-var Reg *Registry
+var Instance *Registry
 
-func InitRegistry(ctx context.Context) {
-	Reg = newRegistry(ctx)
+func Init(ctx context.Context) {
+	Instance = newRegistry(ctx)
 }
 
 func newRegistry(ctx context.Context) *Registry {
@@ -27,9 +29,17 @@ func newRegistry(ctx context.Context) *Registry {
 		ctx:      ctx,
 	}
 
+	// get all implemented manager adapters' constructor
+	constructors := adapters.GetAdapterConstructors()
+	for _, constructor := range constructors {
+		reg.register(constructor(ctx))
+	}
+
 	return &reg
 }
 
+// add the adapter into registry even when the manager is not available
+// but should mark it as not enabled
 func (reg *Registry) register(adp manager.Adapter) {
 	if err := adp.Preflight(); err != nil {
 		slog.ErrorContext(
@@ -47,8 +57,7 @@ func (reg *Registry) register(adp manager.Adapter) {
 	reg.adapters[adp.Info().ID] = adp
 }
 
-// GetManagers returns the list of registered managers
-func (reg *Registry) GetManagers() []manager.Info {
+func (reg *Registry) ListManagers() []manager.Info {
 	return lo.Map(lo.Values(reg.adapters), func(adp manager.Adapter, _ int) manager.Info {
 		return *adp.Info()
 	})
@@ -62,13 +71,36 @@ func (reg *Registry) getAdapter(id string) (manager.Adapter, error) {
 	return adp, nil
 }
 
-// GetInstalledPackages returns the list of all installed packages across all registered managers
+func (reg *Registry) getEnabledAdapter(id string) (manager.Adapter, error) {
+	adp, err := reg.getAdapter(id)
+	if err != nil {
+		return nil, err
+	}
+	if !adp.Info().Enabled {
+		return nil, fmt.Errorf("manager is not enabled: %s", id)
+	}
+	return adp, nil
+}
+
+func (reg *Registry) requireCapability(id string, check func(manager.Capabilities) bool, capability string) (manager.Adapter, error) {
+	adp, err := reg.getEnabledAdapter(id)
+	if err != nil {
+		return nil, err
+	}
+	if !check(adp.Info().Capabilities) {
+		return nil, fmt.Errorf("manager %s does not support %s", id, capability)
+	}
+	return adp, nil
+}
+
+// GetInstalledPackages returns the list of all installed packages across all registered adapters
 func (reg *Registry) GetInstalledPackages() ([]manager.Package, error) {
-	collectTasks := make([]util.CollectTask[manager.Package], 0, len(reg.adapters))
+	collectTasks := make([]util.Collector[manager.Package], 0, len(reg.adapters))
 	for _, adp := range reg.adapters {
-		if !adp.Info().Enabled {
+		if !adp.Info().Capabilities.ListInstalled || !adp.Info().Enabled {
 			continue
 		}
+		adp := adp
 		collectTasks = append(collectTasks, func() ([]manager.Package, error) {
 			pkgs, err := adp.ListInstalled()
 			if err != nil {
@@ -77,5 +109,166 @@ func (reg *Registry) GetInstalledPackages() ([]manager.Package, error) {
 			return pkgs, nil
 		})
 	}
-	return util.RunParallel(reg.ctx, collectTasks...)
+	pkgs, err := util.CollectParallel(reg.ctx, collectTasks...)
+	if err != nil {
+		return pkgs, err
+	}
+	return reg.mergeOutdatedPackages(pkgs), nil
+}
+
+func (reg *Registry) mergeOutdatedPackages(pkgs []manager.Package) []manager.Package {
+	index := make(map[string]int, len(pkgs))
+	for i, pkg := range pkgs {
+		index[packageKey(pkg.Manager, pkg.Name)] = i
+	}
+
+	for _, adp := range reg.adapters {
+		if !adp.Info().Enabled || !adp.Info().Capabilities.ListOutdated {
+			continue
+		}
+		outdated, err := adp.ListOutdated()
+		if err != nil {
+			slog.ErrorContext(reg.ctx, "Failed to list outdated packages", "manager", adp.Info().Name, "error", err)
+			continue
+		}
+		for _, item := range outdated {
+			item.Manager = adp.Info().ID
+			item.Installed = true
+			item.Outdated = true
+			key := packageKey(item.Manager, item.Name)
+			if pos, ok := index[key]; ok {
+				if item.LatestVersion != "" {
+					pkgs[pos].LatestVersion = item.LatestVersion
+				}
+				if item.Version != "" {
+					pkgs[pos].Version = item.Version
+				}
+				pkgs[pos].Outdated = true
+			} else {
+				index[key] = len(pkgs)
+				pkgs = append(pkgs, item)
+			}
+		}
+	}
+	return pkgs
+}
+
+func (reg *Registry) SearchPackages(keyword string) ([]manager.Package, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return []manager.Package{}, nil
+	}
+
+	collectTasks := make([]util.Collector[manager.Package], 0, len(reg.adapters))
+	for _, adp := range reg.adapters {
+		if !adp.Info().Enabled || !adp.Info().Capabilities.Search {
+			continue
+		}
+		adp := adp
+		collectTasks = append(collectTasks, func() ([]manager.Package, error) {
+			pkgs, err := adp.Search(keyword)
+			if err != nil {
+				slog.ErrorContext(reg.ctx, "Failed to search packages", "manager", adp.Info().Name, "error", err)
+				return nil, nil
+			}
+			return pkgs, nil
+		})
+	}
+	return util.CollectParallel(reg.ctx, collectTasks...)
+}
+
+func (reg *Registry) GetPackageInfo(managerID string, pkg manager.Package) (string, error) {
+	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
+		return cap.GetPackageInfo
+	}, "package info")
+	if err != nil {
+		return "", err
+	}
+	pkg.Manager = managerID
+	return adp.GetPackageInfo(pkg)
+}
+
+func (reg *Registry) ListPackageVersions(managerID string, pkg manager.Package) ([]string, error) {
+	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
+		return cap.ListVersions
+	}, "version lookup")
+	if err != nil {
+		return nil, err
+	}
+	pkg.Manager = managerID
+	return adp.ListVersions(pkg)
+}
+
+func (reg *Registry) InstallPackages(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
+		return cap.Install
+	}, "install")
+	if err != nil {
+		return manager.ErrorResult(err.Error()), nil
+	}
+	return adp.Install(normalizeTargets(managerID, pkgs), opt)
+}
+
+func (reg *Registry) UninstallPackages(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
+		return cap.Uninstall
+	}, "uninstall")
+	if err != nil {
+		return manager.ErrorResult(err.Error()), nil
+	}
+	return adp.Uninstall(normalizeTargets(managerID, pkgs), opt)
+}
+
+func (reg *Registry) UpdatePackages(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
+		return cap.Update
+	}, "update")
+	if err != nil {
+		return manager.ErrorResult(err.Error()), nil
+	}
+	return adp.Update(normalizeTargets(managerID, pkgs), opt)
+}
+
+func (reg *Registry) BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	return reg.runGroupedAction(pkgs, opt, reg.UninstallPackages)
+}
+
+func (reg *Registry) BatchUpdatePackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	return reg.runGroupedAction(pkgs, opt, reg.UpdatePackages)
+}
+
+type groupedAction func(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
+
+func (reg *Registry) runGroupedAction(pkgs []manager.Package, opt manager.ActionOptions, action groupedAction) (manager.ActionResult, error) {
+	groups := lo.GroupBy(pkgs, func(pkg manager.Package) string {
+		return pkg.Manager
+	})
+
+	messages := make([]string, 0, len(groups))
+	for managerID, group := range groups {
+		result, err := action(managerID, group, opt)
+		if err != nil {
+			return result, err
+		}
+		if !result.Success {
+			return result, nil
+		}
+		if result.Message != "" {
+			messages = append(messages, result.Message)
+		}
+	}
+	return manager.SuccessResult(strings.Join(messages, "\n")), nil
+}
+
+func normalizeTargets(managerID string, pkgs []manager.Package) []manager.Package {
+	normalized := make([]manager.Package, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		pkg.Manager = managerID
+		normalized = append(normalized, pkg)
+	}
+	return normalized
+}
+
+func packageKey(managerID string, name string) string {
+	return managerID + ":" + name
 }

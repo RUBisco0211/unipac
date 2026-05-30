@@ -1,4 +1,4 @@
-package core
+package manager
 
 type Package struct {
 	Name          string `json:"name,omitempty" db:"name"`

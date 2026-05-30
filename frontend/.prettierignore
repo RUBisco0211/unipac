@@ -1,0 +1,31 @@
+# Dependencies
+node_modules
+pnpm-lock.yaml
+.pnpm-store
+
+# Build outputs
+dist
+dist-ssr
+src-tauri/target
+
+# Cache
+.cache
+.cargo
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lock files
+package-lock.json
+yarn.lock
+
+# Config files
+.prettierrc
+.prettierignore

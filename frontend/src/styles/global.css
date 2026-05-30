@@ -1,0 +1,109 @@
+@import 'tailwindcss';
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+    --background: 36 33% 98%;
+    --foreground: 24 16% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 16% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 24 16% 12%;
+    --primary: 21 79% 46%;
+    --primary-foreground: 36 100% 98%;
+    --secondary: 36 29% 93%;
+    --secondary-foreground: 24 16% 12%;
+    --muted: 36 24% 94%;
+    --muted-foreground: 23 10% 42%;
+    --accent: 31 65% 89%;
+    --accent-foreground: 24 16% 12%;
+    --destructive: 8 72% 52%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 30 12% 84%;
+    --input: 30 12% 84%;
+    --ring: 21 79% 46%;
+    --radius: 0.75rem;
+    --sidebar: 30 43% 97%;
+    --sidebar-foreground: 24 16% 12%;
+    --sidebar-accent: 32 52% 91%;
+    --sidebar-accent-foreground: 24 16% 12%;
+    --sidebar-border: 30 16% 86%;
+    --sidebar-ring: 21 79% 46%;
+    --manager-badge-saturation: 68%;
+    --manager-badge-lightness: 42%;
+    --manager-badge-bg-alpha: 0.12;
+    --manager-badge-border-alpha: 0.22;
+}
+
+.dark {
+    --background: 24 22% 8%;
+    --foreground: 36 30% 96%;
+    --card: 24 18% 10%;
+    --card-foreground: 36 30% 96%;
+    --popover: 24 18% 10%;
+    --popover-foreground: 36 30% 96%;
+    --primary: 27 92% 61%;
+    --primary-foreground: 24 22% 8%;
+    --secondary: 23 12% 18%;
+    --secondary-foreground: 36 30% 96%;
+    --muted: 23 12% 16%;
+    --muted-foreground: 27 10% 65%;
+    --accent: 24 20% 18%;
+    --accent-foreground: 36 30% 96%;
+    --destructive: 5 75% 55%;
+    --destructive-foreground: 36 30% 96%;
+    --border: 24 10% 22%;
+    --input: 24 10% 22%;
+    --ring: 27 92% 61%;
+    --sidebar: 24 20% 10%;
+    --sidebar-foreground: 36 30% 96%;
+    --sidebar-accent: 23 15% 16%;
+    --sidebar-accent-foreground: 36 30% 96%;
+    --sidebar-border: 24 10% 22%;
+    --sidebar-ring: 27 92% 61%;
+    --manager-badge-saturation: 72%;
+    --manager-badge-lightness: 68%;
+    --manager-badge-bg-alpha: 0.16;
+    --manager-badge-border-alpha: 0.28;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+    min-height: 100%;
+    overflow: hidden;
+}
+
+body {
+    margin: 0;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button,
+input,
+select {
+    font: inherit;
+}
+
+.manager-badge {
+    border-color: hsl(
+        var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness) /
+            var(--manager-badge-border-alpha)
+    );
+    background: hsl(
+        var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness) /
+            var(--manager-badge-bg-alpha)
+    );
+    color: hsl(var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness));
+}
