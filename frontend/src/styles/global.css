@@ -107,3 +107,25 @@ select {
     );
     color: hsl(var(--manager-hue) var(--manager-badge-saturation) var(--manager-badge-lightness));
 }
+
+[data-sonner-toaster] {
+    z-index: 90;
+    text-align: left;
+}
+
+[data-sonner-toast].unipac-toast {
+    border-radius: 8px;
+    border-color: hsl(var(--border));
+    background: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+    box-shadow:
+        0 18px 42px hsl(24 20% 8% / 0.16),
+        0 2px 10px hsl(24 20% 8% / 0.08);
+    font-size: 13px;
+}
+
+.unipac-toast-description {
+    color: hsl(var(--muted-foreground));
+    font-size: 12px;
+    line-height: 1.45;
+}

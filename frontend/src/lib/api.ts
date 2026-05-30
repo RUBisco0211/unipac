@@ -46,6 +46,20 @@ function normalizePackage(pkg: manager.Package): Package {
     }
 }
 
+function toBackendPackage(pkg: Package | PackageTarget): manager.Package {
+    return {
+        name: pkg.name,
+        manager: pkg.manager,
+        version: 'version' in pkg ? pkg.version : '',
+        latest_version: 'latest_version' in pkg ? pkg.latest_version : '',
+        fullname: 'fullname' in pkg ? pkg.fullname : undefined,
+        description: 'description' in pkg ? pkg.description : undefined,
+        installed: 'installed' in pkg ? pkg.installed : true,
+        outdated: 'outdated' in pkg ? pkg.outdated : false,
+        is_gui: 'is_gui' in pkg ? pkg.is_gui : false,
+    }
+}
+
 function unsupported(feature: string): never {
     throw new Error(`${feature} is not exposed by the Wails backend yet`)
 }
@@ -84,11 +98,10 @@ export async function installPackage(
 }
 
 export async function uninstallPackage(
-    managerId: Package['manager'],
-    name: string,
+    pkg: Package,
     _options?: CommandOptions
 ): Promise<ActionResult> {
-    const result = await UninstallPackage(managerId, name, {})
+    const result = await UninstallPackage(toBackendPackage(pkg), {})
     return { success: Boolean(result.success), message: result.message ?? '' }
 }
 
@@ -102,10 +115,10 @@ export async function upgradePackage(
 }
 
 export async function batchUninstallPackages(
-    packages: PackageTarget[],
+    packages: Package[],
     _options?: CommandOptions
 ): Promise<ActionResult> {
-    const targets = packages.map(p => ({ manager: p.manager, name: p.name, installed: false, outdated: false, is_gui: false }))
+    const targets = packages.map(toBackendPackage)
     const result = await BatchUninstallPackages(targets, {})
     return { success: Boolean(result.success), message: result.message ?? '' }
 }

@@ -22,7 +22,7 @@ export function ListPackageVersions(arg1:string,arg2:string):Promise<Array<strin
 
 export function SearchPackages(arg1:string):Promise<Array<manager.Package>>;
 
-export function UninstallPackage(arg1:string,arg2:string,arg3:manager.ActionOptions):Promise<manager.ActionResult>;
+export function UninstallPackage(arg1:manager.Package,arg2:manager.ActionOptions):Promise<manager.ActionResult>;
 
 export function UpdateCache():Promise<void>;
 

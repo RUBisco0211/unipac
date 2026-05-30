@@ -42,8 +42,8 @@ export function SearchPackages(arg1) {
   return window['go']['main']['App']['SearchPackages'](arg1);
 }
 
-export function UninstallPackage(arg1, arg2, arg3) {
-  return window['go']['main']['App']['UninstallPackage'](arg1, arg2, arg3);
+export function UninstallPackage(arg1, arg2) {
+  return window['go']['main']['App']['UninstallPackage'](arg1, arg2);
 }
 
 export function UpdateCache() {

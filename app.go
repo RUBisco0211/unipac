@@ -183,13 +183,13 @@ func (a *App) InstallPackage(managerID string, name string, opt manager.ActionOp
 	return result, err
 }
 
-func (a *App) UninstallPackage(managerID string, name string, opt manager.ActionOptions) (manager.ActionResult, error) {
-	slog.InfoContext(a.ctx, "uninstalling package", "manager", managerID, "package", name)
-	result, err := registry.Instance.UninstallPackages(managerID, []manager.Package{{Name: name}}, opt)
+func (a *App) UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	slog.InfoContext(a.ctx, "uninstalling package", "manager", pkg.Manager, "package", pkg.Name)
+	result, err := registry.Instance.UninstallPackages(pkg.Manager, []manager.Package{pkg}, opt)
 	if err != nil {
-		slog.ErrorContext(a.ctx, "package uninstall failed", "manager", managerID, "package", name, "error", err)
+		slog.ErrorContext(a.ctx, "package uninstall failed", "manager", pkg.Manager, "package", pkg.Name, "error", err)
 	} else {
-		slog.InfoContext(a.ctx, "package uninstall completed", "manager", managerID, "package", name, "success", result.Success)
+		slog.InfoContext(a.ctx, "package uninstall completed", "manager", pkg.Manager, "package", pkg.Name, "success", result.Success)
 	}
 	return result, err
 }

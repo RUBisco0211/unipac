@@ -143,10 +143,7 @@ async function handleBulkUpgrade() {
 }
 
 async function handleBulkUninstall() {
-    const targets: PackageTarget[] = selectedPackages.value.map(pkg => ({
-        manager: pkg.manager,
-        name: pkg.name,
-    }))
+    const targets = selectedPackages.value
 
     if (!targets.length) return
 
@@ -217,7 +214,7 @@ async function confirmUninstall() {
     startLoadingBar()
 
     try {
-        const result = await uninstallPackage(pkg.manager, pkg.name)
+        const result = await uninstallPackage(pkg)
         if (!result.success) throw new Error(result.message)
         toast.success(t('packages.operationCompleted'), {
             description: result.message,

@@ -14,11 +14,12 @@ useWailsEvent('open_settings', () => {
 <template>
     <GlobalLoadingBar />
     <Toaster
-        position="bottom-right"
+        position="top-right"
         theme="system"
         rich-colors
         close-button
-        :toast-options="{ class: 'text-[13px]' }"
+        :offset="48"
+        :toast-options="{ class: 'unipac-toast', descriptionClass: 'unipac-toast-description' }"
     />
     <router-view />
 </template>

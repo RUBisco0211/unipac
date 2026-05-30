@@ -283,7 +283,29 @@ func (a *Adapter) Install(pkgs []manager.Package, opt manager.ActionOptions) (ma
 
 // Uninstall uninstalls the specified packages using brew
 func (a *Adapter) Uninstall(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	return manager.ErrorResult("Uninstall not implemented for brew"), nil
+	formulas := make([]string, 0, len(pkgs))
+	casks := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if pkg.IsGUI {
+			casks = append(casks, pkg.Name)
+		} else {
+			formulas = append(formulas, pkg.Name)
+		}
+	}
+
+	if len(formulas) > 0 {
+		args := append([]string{"uninstall"}, formulas...)
+		if result, err := a.runAction(args, "Uninstalled Homebrew formula(s)"); err != nil || !result.Success {
+			return result, err
+		}
+	}
+	if len(casks) > 0 {
+		args := append([]string{"uninstall", "--cask"}, casks...)
+		if result, err := a.runAction(args, "Uninstalled Homebrew cask(s)"); err != nil || !result.Success {
+			return result, err
+		}
+	}
+	return manager.SuccessResult("Uninstalled Homebrew package(s)"), nil
 }
 
 // Update updates the specified packages using brew
@@ -294,4 +316,16 @@ func (a *Adapter) Update(pkgs []manager.Package, opt manager.ActionOptions) (man
 // ListVersions NOT available for Homebrew
 func (a *Adapter) ListVersions(_ manager.Package) ([]string, error) {
 	return nil, fmt.Errorf("ListVersions not available for Homebrew")
+}
+
+func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {
+	res, err := util.Run(a.ctx, a.info.ExecPath, args, nil)
+	if err != nil {
+		msg := res.Output()
+		if msg == "" {
+			msg = err.Error()
+		}
+		return manager.ErrorResult(msg), nil
+	}
+	return manager.SuccessResult(successMsg), nil
 }
