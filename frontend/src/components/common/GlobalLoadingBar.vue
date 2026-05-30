@@ -8,7 +8,7 @@ const wrapperClass = computed(() => (isLoading.value ? 'opacity-100' : 'opacity-
 
 <template>
     <div
-        class="pointer-events-none fixed inset-x-0 top-9 z-[70] h-[2px] transition-opacity duration-200"
+        class="pointer-events-none fixed inset-x-0 top-8 z-[70] h-[2px] transition-opacity duration-200"
         :class="wrapperClass"
     >
         <div class="loading-bar-track h-full w-full overflow-hidden bg-[hsl(var(--border)/0.35)]">
