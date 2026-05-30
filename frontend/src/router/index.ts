@@ -15,6 +15,7 @@ const router = createRouter({
             component: MainLayout,
             children: [
                 {
+                    name: 'packages',
                     path: 'packages',
                     component: PackagesPage,
                     meta: {
@@ -25,6 +26,7 @@ const router = createRouter({
                     },
                 },
                 {
+                    name: 'outdated',
                     path: 'outdated',
                     component: OutdatedPage,
                     meta: {
@@ -35,6 +37,7 @@ const router = createRouter({
                     },
                 },
                 {
+                    name: 'search',
                     path: 'search',
                     component: SearchPage,
                     meta: {
@@ -45,6 +48,7 @@ const router = createRouter({
                     },
                 },
                 {
+                    name: 'settings',
                     path: 'settings',
                     component: SettingsPage,
                     meta: {

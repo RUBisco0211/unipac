@@ -18,7 +18,11 @@ const { isCollapsed, toggleSidebar } = useSidebar()
                 <Sidebar :is-collapsed="isCollapsed" />
 
                 <Page>
-                    <RouterView />
+                    <RouterView v-slot="{ Component, route }">
+                        <KeepAlive>
+                            <component :is="Component" :key="route.name ?? route.path" />
+                        </KeepAlive>
+                    </RouterView>
                 </Page>
             </div>
         </div>
