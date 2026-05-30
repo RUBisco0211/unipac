@@ -1,25 +1,14 @@
 <script setup lang="ts">
 import { Toaster } from 'vue-sonner'
 import { useTheme } from '@/composables/useTheme'
-import { useWailsEvent } from './composables/useWailsEvents';
-import { useRouter } from 'vue-router';
-import { onMounted } from 'vue';
-import { GetCachedPackages } from '../wailsjs/go/main/App';
+import { useWailsEvent } from './composables/useWailsEvents'
+import { useRouter } from 'vue-router'
 const router = useRouter()
 
 useTheme()
-useWailsEvent("open_settings", () => {
-    router.push("settings")
+useWailsEvent('open_settings', () => {
+    void router.push('/settings')
 })
-onMounted(async () => {
-    try {
-        const res = await GetCachedPackages()
-        console.log(res);
-    } catch (error) {
-        console.error("Failed to get installed packages:", error)
-    } 
-})
-
 </script>
 
 <template>

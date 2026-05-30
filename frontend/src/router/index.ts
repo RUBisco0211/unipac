@@ -1,7 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import MainLayout from '@/layouts/MainLayout.vue'
 import PackagesPage from '@/pages/Packages.vue'
-import OutdatedPage from "@/pages/Outdated.vue";
+import OutdatedPage from '@/pages/Outdated.vue'
 import SearchPage from '@/pages/Search.vue'
 import SettingsPage from '@/pages/Settings.vue'
 import { Package, Settings, RefreshCcw, Search } from 'lucide-vue-next'
@@ -31,7 +31,7 @@ const router = createRouter({
                         icon: RefreshCcw,
                         titleKey: 'nav.outdated',
                         keepAlive: true,
-                        position: 'top'
+                        position: 'top',
                     },
                 },
                 {
@@ -55,6 +55,10 @@ const router = createRouter({
                     },
                 },
             ],
+        },
+        {
+            path: '/:pathMatch(.*)*',
+            redirect: '/packages',
         },
     ],
 })

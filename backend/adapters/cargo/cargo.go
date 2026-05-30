@@ -155,12 +155,11 @@ func (a Adapter) runAction(args []string, successMsg string) (manager.ActionResu
 }
 
 func cargoInstallArgs(pkgs []manager.Package, opt manager.ActionOptions) [][]string {
-	version, _ := opt.Version, opt.Version != ""
 	allArgs := make([][]string, 0, len(pkgs))
 	for _, pkg := range pkgs {
 		args := []string{"install", pkg.Name}
-		if version != "" {
-			args = append(args, "--version", version)
+		if opt.Version != "" {
+			args = append(args, "--version", opt.Version)
 		} else if pkg.Version != "" && !pkg.Installed {
 			args = append(args, "--version", pkg.Version)
 		}

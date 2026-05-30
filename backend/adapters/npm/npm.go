@@ -190,11 +190,10 @@ func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionRes
 }
 
 func npmPackageSpecs(pkgs []manager.Package, opt manager.ActionOptions) []string {
-	version, _ := opt.Version, opt.Version != ""
 	specs := make([]string, 0, len(pkgs))
 	for _, pkg := range pkgs {
-		if version != "" {
-			specs = append(specs, pkg.Name+"@"+version)
+		if opt.Version != "" {
+			specs = append(specs, pkg.Name+"@"+opt.Version)
 		} else if pkg.Version != "" && !pkg.Installed {
 			specs = append(specs, pkg.Name+"@"+pkg.Version)
 		} else {

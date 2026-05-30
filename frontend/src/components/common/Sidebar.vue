@@ -22,6 +22,10 @@ const routeItemClass = computed(() => (item: RouteRecordRaw) => {
         ? 'bg-[hsl(var(--sidebar-accent))] font-medium text-[hsl(var(--sidebar-accent-foreground))]'
         : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--accent)/0.72)] hover:text-[hsl(var(--foreground))]'
 })
+
+function routePath(item: RouteRecordRaw) {
+    return `/${String(item.path).replace(/^\/+/, '')}`
+}
 </script>
 <template>
     <aside
@@ -32,7 +36,7 @@ const routeItemClass = computed(() => (item: RouteRecordRaw) => {
             <router-link
                 v-for="item in topNavItems"
                 :key="item.path"
-                :to="item.path"
+                :to="routePath(item)"
                 class="mb-1 py-4.5 flex h-8 items-center rounded-xl px-2.5 text-[13px] transition-colors"
                 :class="routeItemClass(item)"
             >
@@ -50,7 +54,7 @@ const routeItemClass = computed(() => (item: RouteRecordRaw) => {
             <router-link
                 v-for="item in bottomNavItems"
                 :key="item.path"
-                :to="item.path"
+                :to="routePath(item)"
                 class="mb-1 flex py-4.5 h-8 items-center rounded-xl px-2.5 text-[13px] transition-colors"
                 :class="routeItemClass(item)"
             >
