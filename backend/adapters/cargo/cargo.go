@@ -25,7 +25,9 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 				DefaultCapabilities().
 				WithSearch(true).
 				WithGetPackageInfo(false).
-				WithUpdate(false),
+				WithListOutdated(false).
+				WithUpdate(false).
+				WithListVersions(false),
 		},
 	}
 }

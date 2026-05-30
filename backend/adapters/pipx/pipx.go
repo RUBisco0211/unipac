@@ -22,7 +22,9 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 			ExecName: "pipx",
 			Capabilities: *manager.
 				DefaultCapabilities().
-				WithListOutdated(false),
+				WithListOutdated(false).
+				WithSearch(false).
+				WithListVersions(false),
 		},
 	}
 }

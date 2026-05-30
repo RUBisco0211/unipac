@@ -25,7 +25,8 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 			Capabilities: *manager.
 				DefaultCapabilities().
 				WithSearch(true).
-				WithListVersions(false),
+				WithListOutdated(true).
+				WithListVersions(true),
 		},
 	}
 }
@@ -121,6 +122,7 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 			LatestVersion: formula.CurrentVersion,
 			Manager:       a.Info().ID,
 			IsGUI:         false,
+			Outdated:      true,
 		})
 	}
 
@@ -278,20 +280,26 @@ func buildSearchResults(entries []searchEntry, info pkgLookup) []manager.Package
 
 // Install installs the specified packages using brew
 func (a *Adapter) Install(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	return manager.ErrorResult("Install not implemented for brew"), nil
+	formulas, casks := splitBrewPackageNames(pkgs)
+
+	if len(formulas) > 0 {
+		args := append([]string{"install"}, formulas...)
+		if result, err := a.runAction(args, "Installed Homebrew formula(s)"); err != nil || !result.Success {
+			return result, err
+		}
+	}
+	if len(casks) > 0 {
+		args := append([]string{"install", "--cask"}, casks...)
+		if result, err := a.runAction(args, "Installed Homebrew cask(s)"); err != nil || !result.Success {
+			return result, err
+		}
+	}
+	return manager.SuccessResult("Installed Homebrew package(s)"), nil
 }
 
 // Uninstall uninstalls the specified packages using brew
 func (a *Adapter) Uninstall(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	formulas := make([]string, 0, len(pkgs))
-	casks := make([]string, 0, len(pkgs))
-	for _, pkg := range pkgs {
-		if pkg.IsGUI {
-			casks = append(casks, pkg.Name)
-		} else {
-			formulas = append(formulas, pkg.Name)
-		}
-	}
+	formulas, casks := splitBrewPackageNames(pkgs)
 
 	if len(formulas) > 0 {
 		args := append([]string{"uninstall"}, formulas...)
@@ -310,16 +318,53 @@ func (a *Adapter) Uninstall(pkgs []manager.Package, opt manager.ActionOptions) (
 
 // Update updates the specified packages using brew
 func (a *Adapter) Update(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	return manager.ErrorResult("Update not implemented for brew"), nil
+	formulas, casks := splitBrewPackageNames(pkgs)
+
+	if len(formulas) > 0 {
+		args := append([]string{"upgrade"}, formulas...)
+		if result, err := a.runAction(args, "Updated Homebrew formula(s)"); err != nil || !result.Success {
+			return result, err
+		}
+	}
+	if len(casks) > 0 {
+		args := append([]string{"upgrade", "--cask"}, casks...)
+		if result, err := a.runAction(args, "Updated Homebrew cask(s)"); err != nil || !result.Success {
+			return result, err
+		}
+	}
+	return manager.SuccessResult("Updated Homebrew package(s)"), nil
 }
 
-// ListVersions NOT available for Homebrew
-func (a *Adapter) ListVersions(_ manager.Package) ([]string, error) {
-	return nil, fmt.Errorf("ListVersions not available for Homebrew")
+// ListVersions returns Homebrew's currently available stable version for a package.
+func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
+	output, err := a.GetPackageInfo(pkg)
+	if err != nil {
+		return nil, err
+	}
+
+	if pkg.IsGUI {
+		var cask brewCaskInfo
+		if err := json.Unmarshal([]byte(output), &cask); err != nil {
+			return nil, fmt.Errorf("failed to parse brew cask info output: %w", err)
+		}
+		if cask.Version == "" {
+			return []string{}, nil
+		}
+		return []string{cask.Version}, nil
+	}
+
+	var formula brewFormulaInfo
+	if err := json.Unmarshal([]byte(output), &formula); err != nil {
+		return nil, fmt.Errorf("failed to parse brew formula info output: %w", err)
+	}
+	if formula.Versions.Stable == "" {
+		return []string{}, nil
+	}
+	return []string{formula.Versions.Stable}, nil
 }
 
 func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, args, nil)
+	res, err := util.Run(a.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1"})
 	if err != nil {
 		msg := res.Output()
 		if msg == "" {
@@ -328,4 +373,17 @@ func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionRes
 		return manager.ErrorResult(msg), nil
 	}
 	return manager.SuccessResult(successMsg), nil
+}
+
+func splitBrewPackageNames(pkgs []manager.Package) ([]string, []string) {
+	formulas := make([]string, 0, len(pkgs))
+	casks := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if pkg.IsGUI {
+			casks = append(casks, pkg.Name)
+		} else {
+			formulas = append(formulas, pkg.Name)
+		}
+	}
+	return formulas, casks
 }

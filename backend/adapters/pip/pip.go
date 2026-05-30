@@ -22,7 +22,9 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 			ExecName: "pip3",
 			Capabilities: *manager.
 				DefaultCapabilities().
-				WithListOutdated(true),
+				WithListOutdated(true).
+				WithSearch(false).
+				WithListVersions(false),
 		},
 	}
 }
