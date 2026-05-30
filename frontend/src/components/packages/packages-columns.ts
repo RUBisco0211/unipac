@@ -3,6 +3,7 @@ import { ArrowUpCircle, GitBranch, Package as PackageIcon, Tag, Trash2 } from 'l
 import { h } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { i18n } from '@/i18n'
 import { getManagerHue, managerLabelMap } from '@/lib/format'
 import type { Package } from '@/model/types'
@@ -26,6 +27,7 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
     if (actions.selectable) {
         columns.push({
             id: 'select',
+            enableSorting: false,
             header: ({ table }) =>
                 h('input', {
                     type: 'checkbox',
@@ -50,6 +52,7 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
     columns.push(
         {
             accessorKey: 'name',
+            enableSorting: true,
             header: t('table.package'),
             cell: ({ row }) =>
                 h('div', { class: 'flex items-center gap-1' }, [
@@ -74,6 +77,7 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
         },
         {
             accessorKey: 'version',
+            enableSorting: false,
             header: t('table.installed'),
             cell: ({ row }) =>
                 h('div', { class: 'flex items-center gap-1' }, [
@@ -88,6 +92,7 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
         },
         {
             accessorKey: 'latest_version',
+            enableSorting: false,
             header: t('table.latest'),
             cell: ({ row }) =>
                 h('div', { class: 'flex items-center gap-1' }, [
@@ -106,6 +111,9 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
         },
         {
             id: 'type',
+            accessorFn: row => (row.is_gui ? t('packageType.gui') : t('packageType.cli')),
+            enableSorting: true,
+            sortingFn: 'text',
             header: t('table.type'),
             cell: ({ row }) =>
                 h(Badge, { variant: 'outline', class: 'rounded-sm' }, () =>
@@ -114,6 +122,9 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
         },
         {
             id: 'manager',
+            accessorFn: row => getManagerLabel(row.manager, actions.managerLabels),
+            enableSorting: true,
+            sortingFn: 'text',
             header: t('table.manager'),
             cell: ({ row }) =>
                 h(
@@ -123,14 +134,12 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
                         class: 'manager-badge rounded-sm',
                         style: { '--manager-hue': String(getManagerHue(row.original.manager)) },
                     },
-                    () =>
-                        actions.managerLabels?.[row.original.manager] ??
-                        managerLabelMap[row.original.manager] ??
-                        row.original.manager
+                    () => getManagerLabel(row.original.manager, actions.managerLabels)
                 ),
         },
         {
             id: 'actions',
+            enableSorting: false,
             header: () => h('div', { class: 'text-right' }, t('table.actions')),
             cell: ({ row }) => {
                 const pkg = row.original
@@ -152,36 +161,45 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
                     'div',
                     { class: 'flex justify-end gap-2' },
                     [
-                        h(
-                            Button,
-                            {
-                                variant: 'ghost',
-                                size: 'sm',
-                                disabled: !row.original.outdated || actions.loadingKey !== null,
-                                onClick: () => actions.onUpgrade?.(pkg),
-                            },
-                            () => [
-                                h(ArrowUpCircle, { class: 'size-4' }),
-                                actions.loadingKey === upgradeKey
-                                    ? t('actions.updating')
-                                    : t('actions.update'),
-                            ]
+                        actionTooltip(
+                            actions.loadingKey === upgradeKey
+                                ? t('actions.updating')
+                                : t('actions.update'),
+                            h(
+                                Button,
+                                {
+                                    variant: 'ghost',
+                                    size: 'icon',
+                                    'aria-label':
+                                        actions.loadingKey === upgradeKey
+                                            ? t('actions.updating')
+                                            : t('actions.update'),
+                                    disabled:
+                                        !row.original.outdated || actions.loadingKey !== null,
+                                    onClick: () => actions.onUpgrade?.(pkg),
+                                },
+                                () => [h(ArrowUpCircle, { class: 'size-4' })]
+                            )
                         ),
-                        h(
-                            Button,
-                            {
-                                variant: 'ghost',
-                                size: 'sm',
-                                class: 'text-[hsl(var(--destructive))] hover:text-[hsl(var(--destructive))]',
-                                disabled: actions.loadingKey !== null,
-                                onClick: () => actions.onUninstall?.(pkg),
-                            },
-                            () => [
-                                h(Trash2, { class: 'size-4' }),
-                                actions.loadingKey === uninstallKey
-                                    ? t('actions.removing')
-                                    : t('actions.remove'),
-                            ]
+                        actionTooltip(
+                            actions.loadingKey === uninstallKey
+                                ? t('actions.removing')
+                                : t('actions.remove'),
+                            h(
+                                Button,
+                                {
+                                    variant: 'ghost',
+                                    size: 'icon',
+                                    'aria-label':
+                                        actions.loadingKey === uninstallKey
+                                            ? t('actions.removing')
+                                            : t('actions.remove'),
+                                    class: 'text-[hsl(var(--destructive))] hover:text-[hsl(var(--destructive))]',
+                                    disabled: actions.loadingKey !== null,
+                                    onClick: () => actions.onUninstall?.(pkg),
+                                },
+                                () => [h(Trash2, { class: 'size-4' })]
+                            )
                         ),
                     ].filter(Boolean)
                 )
@@ -190,4 +208,21 @@ export function createPackageColumns(actions: ColumnActions): ColumnDef<Package>
     )
 
     return columns
+}
+
+function getManagerLabel(manager: string, managerLabels?: Record<string, string>) {
+    return managerLabels?.[manager] ?? managerLabelMap[manager] ?? manager
+}
+
+function actionTooltip(label: string, trigger: ReturnType<typeof h>) {
+    return h(Tooltip, null, {
+        default: () => [
+            h(TooltipTrigger, null, {
+                default: () => trigger,
+            }),
+            h(TooltipContent, null, {
+                default: () => label,
+            }),
+        ],
+    })
 }

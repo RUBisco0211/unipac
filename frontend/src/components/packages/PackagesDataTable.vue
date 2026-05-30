@@ -2,10 +2,13 @@
 import {
     FlexRender,
     getCoreRowModel,
+    getSortedRowModel,
     useVueTable,
     type ColumnDef,
     type RowSelectionState,
+    type SortingState,
 } from '@tanstack/vue-table'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Package } from '@/model/types'
 import {
@@ -34,6 +37,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const sorting = ref<SortingState>([])
 
 const table = useVueTable({
     get data() {
@@ -48,12 +52,19 @@ const table = useVueTable({
         get rowSelection() {
             return props.rowSelection
         },
+        get sorting() {
+            return sorting.value
+        },
     },
     onRowSelectionChange: updater => {
         const nextValue = typeof updater === 'function' ? updater(props.rowSelection) : updater
         emit('update:rowSelection', nextValue)
     },
+    onSortingChange: updater => {
+        sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater
+    },
     getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
 })
 </script>
 
@@ -69,13 +80,43 @@ const table = useVueTable({
                     <TableHead
                         v-for="header in headerGroup.headers"
                         :key="header.id"
-                        :class="header.column.id === 'actions' ? 'text-right' : ''"
+                        :aria-sort="
+                            header.column.getIsSorted() === 'asc'
+                                ? 'ascending'
+                                : header.column.getIsSorted() === 'desc'
+                                  ? 'descending'
+                                  : undefined
+                        "
+                        :class="[
+                            header.column.id === 'actions' ? 'text-right' : '',
+                            header.column.getCanSort()
+                                ? 'cursor-pointer select-none hover:text-[hsl(var(--foreground))]'
+                                : '',
+                        ]"
+                        @click="header.column.getToggleSortingHandler()?.($event)"
                     >
-                        <FlexRender
+                        <div
                             v-if="!header.isPlaceholder"
-                            :render="header.column.columnDef.header"
-                            :props="header.getContext()"
-                        />
+                            class="inline-flex items-center gap-1"
+                            :class="header.column.id === 'actions' ? 'justify-end' : ''"
+                        >
+                            <FlexRender
+                                :render="header.column.columnDef.header"
+                                :props="header.getContext()"
+                            />
+                            <span
+                                v-if="header.column.getCanSort()"
+                                class="w-3 text-[10px] text-[hsl(var(--muted-foreground))]"
+                            >
+                                {{
+                                    header.column.getIsSorted() === 'asc'
+                                        ? '▲'
+                                        : header.column.getIsSorted() === 'desc'
+                                          ? '▼'
+                                          : ''
+                                }}
+                            </span>
+                        </div>
                     </TableHead>
                 </TableRow>
             </TableHeader>

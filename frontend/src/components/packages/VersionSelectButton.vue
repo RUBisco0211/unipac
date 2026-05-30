@@ -3,6 +3,7 @@ import { Download, Loader2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
     Dialog,
     DialogContent,
@@ -78,11 +79,23 @@ function confirmInstall(pack: Package, version?: string) {
 </script>
 
 <template>
-    <Button :disabled="disabled || isInstalling" size="sm" variant="ghost" @click="openDialog">
-        <Download v-if="!isInstalling" class="size-4" />
-        <Loader2 v-else class="size-4 animate-spin" />
-        {{ buttonText }}
-    </Button>
+    <Tooltip>
+        <TooltipTrigger>
+            <Button
+                :aria-label="buttonText"
+                :disabled="disabled || isInstalling"
+                size="icon"
+                variant="ghost"
+                @click="openDialog"
+            >
+                <Download v-if="!isInstalling" class="size-4" />
+                <Loader2 v-else class="size-4 animate-spin" />
+            </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+            {{ buttonText }}
+        </TooltipContent>
+    </Tooltip>
 
     <Dialog :open="isDialogOpen" @update:open="value => (isDialogOpen = value)">
         <DialogContent class="max-w-md p-0">
