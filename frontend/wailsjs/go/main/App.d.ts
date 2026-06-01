@@ -10,8 +10,6 @@ export function GetCachedPackages():Promise<Array<manager.Package>>;
 
 export function GetPackageInfo(arg1:string,arg2:string):Promise<string>;
 
-export function InitManagerRegistry():Promise<void>;
-
 export function InstallPackage(arg1:string,arg2:string,arg3:manager.ActionOptions):Promise<manager.ActionResult>;
 
 export function ListEnabledManagers():Promise<Array<manager.Info>>;

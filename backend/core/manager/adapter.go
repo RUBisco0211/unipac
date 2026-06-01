@@ -52,6 +52,16 @@ type Adapter interface {
 type AdapterConstructor func(ctx context.Context) Adapter
 
 func Preflight(a Adapter, ctx context.Context) error {
+	if a.Info().ExecPath != "" {
+		if err := util.CheckCommandVersion(
+			ctx,
+			a.Info().ExecPath,
+			[]string{"--version"},
+		); err == nil {
+			return nil
+		}
+	}
+
 	path, err := util.GetExecPath(a.Info().ExecName)
 	if err != nil {
 		return fmt.Errorf("%s not found: %w", a.Info().ID, err)

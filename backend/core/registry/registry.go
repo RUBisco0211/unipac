@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"unipac-wails/backend/adapters"
 	"unipac-wails/backend/core/manager"
 	"unipac-wails/backend/util"
@@ -16,29 +15,31 @@ import (
 type Registry struct {
 	ctx      context.Context
 	adapters map[string]manager.Adapter
-	mu       sync.RWMutex
 }
 
 var Instance *Registry
 
-func Init(ctx context.Context) {
-	Instance = newRegistry(ctx)
+func Init(ctx context.Context, configuredManagers map[string]manager.Info) {
+	Instance = newRegistry(ctx, configuredManagers)
 }
 
-func newRegistry(ctx context.Context) *Registry {
-	reg := &Registry{
+func newRegistry(ctx context.Context, configuredManagers map[string]manager.Info) *Registry {
+	reg := Registry{
 		adapters: make(map[string]manager.Adapter, 0),
 		ctx:      ctx,
 	}
-	Instance = reg
 
 	// get all implemented manager adapters' constructor
 	constructors := adapters.GetAdapterConstructors()
 	for _, constructor := range constructors {
-		reg.register(constructor(ctx))
+		adp := constructor(ctx)
+		if configured, ok := configuredManagers[adp.Info().ID]; ok {
+			adp.Info().ExecPath = configured.ExecPath
+		}
+		reg.register(adp)
 	}
 
-	return reg
+	return &reg
 }
 
 // add the adapter into registry even when the manager is not available
@@ -57,21 +58,16 @@ func (reg *Registry) register(adp manager.Adapter) {
 		)
 		adp.Info().Enabled = true
 	}
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
 	reg.adapters[adp.Info().ID] = adp
 }
 
 func (reg *Registry) ListManagers() []manager.Info {
-	adapters := reg.adapterSnapshot()
-	return lo.Map(adapters, func(adp manager.Adapter, _ int) manager.Info {
+	return lo.Map(lo.Values(reg.adapters), func(adp manager.Adapter, _ int) manager.Info {
 		return *adp.Info()
 	})
 }
 
 func (reg *Registry) getAdapter(id string) (manager.Adapter, error) {
-	reg.mu.RLock()
-	defer reg.mu.RUnlock()
 	adp, ok := reg.adapters[id]
 	if !ok {
 		return nil, fmt.Errorf("manager not found: %s", id)
@@ -103,9 +99,8 @@ func (reg *Registry) requireCapability(id string, check func(manager.Capabilitie
 
 // GetInstalledPackages returns the list of all installed packages across all registered adapters
 func (reg *Registry) GetInstalledPackages() ([]manager.Package, error) {
-	adapters := reg.adapterSnapshot()
-	collectTasks := make([]util.Collector[manager.Package], 0, len(adapters))
-	for _, adp := range adapters {
+	collectTasks := make([]util.Collector[manager.Package], 0, len(reg.adapters))
+	for _, adp := range reg.adapters {
 		if !adp.Info().Capabilities.ListInstalled || !adp.Info().Enabled {
 			continue
 		}
@@ -131,7 +126,7 @@ func (reg *Registry) mergeOutdatedPackages(pkgs []manager.Package) []manager.Pac
 		index[packageKey(pkg.Manager, pkg.Name)] = i
 	}
 
-	for _, adp := range reg.adapterSnapshot() {
+	for _, adp := range reg.adapters {
 		if !adp.Info().Enabled || !adp.Info().Capabilities.ListOutdated {
 			continue
 		}
@@ -168,9 +163,8 @@ func (reg *Registry) SearchPackages(keyword string) ([]manager.Package, error) {
 		return []manager.Package{}, nil
 	}
 
-	adapters := reg.adapterSnapshot()
-	collectTasks := make([]util.Collector[manager.Package], 0, len(adapters))
-	for _, adp := range adapters {
+	collectTasks := make([]util.Collector[manager.Package], 0, len(reg.adapters))
+	for _, adp := range reg.adapters {
 		if !adp.Info().Enabled || !adp.Info().Capabilities.Search {
 			continue
 		}
@@ -281,10 +275,4 @@ func normalizeTargets(managerID string, pkgs []manager.Package) []manager.Packag
 
 func packageKey(managerID string, name string) string {
 	return managerID + ":" + name
-}
-
-func (reg *Registry) adapterSnapshot() []manager.Adapter {
-	reg.mu.RLock()
-	defer reg.mu.RUnlock()
-	return lo.Values(reg.adapters)
 }

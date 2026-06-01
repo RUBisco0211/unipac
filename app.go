@@ -43,9 +43,6 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 
-	// register adapters
-	a.InitManagerRegistry()
-
 	// load config
 	if err := config.Init(); err != nil {
 		slog.ErrorContext(ctx, "Failed to load config", "error", err)
@@ -81,6 +78,19 @@ func (a *App) startup(ctx context.Context) {
 	}
 	slog.InfoContext(ctx, "Cache initialized")
 
+	// register adapters after app config, logging, and cache are ready
+	slog.InfoContext(a.ctx, "initializing manager registry")
+	registry.Init(a.ctx, config.Instance.Managers)
+	if err := config.SyncManagers(registry.Instance.ListManagers()); err != nil {
+		slog.ErrorContext(ctx, "Failed to sync manager config", "error", err)
+		_ = util.WailsDialog(ctx, util.DialogOptions{
+			Type:    wailsrt.ErrorDialog,
+			Title:   "Error",
+			Message: fmt.Sprintf("Failed to sync manager config: %s.", err.Error()),
+		})
+		panic(err)
+	}
+
 	if err := a.UpdateCache(); err != nil {
 		slog.ErrorContext(ctx, "Failed to update cache", "error", err)
 		_ = util.WailsDialog(ctx, util.DialogOptions{
@@ -94,11 +104,6 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) shutdown(_ context.Context) {
 	Cleanup()
-}
-
-func (a *App) InitManagerRegistry() {
-	slog.InfoContext(a.ctx, "initializing manager registry")
-	registry.Init(a.ctx)
 }
 
 func (a *App) ListManagers() []manager.Info {

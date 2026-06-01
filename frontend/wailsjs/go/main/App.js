@@ -18,10 +18,6 @@ export function GetPackageInfo(arg1, arg2) {
   return window['go']['main']['App']['GetPackageInfo'](arg1, arg2);
 }
 
-export function InitManagerRegistry() {
-  return window['go']['main']['App']['InitManagerRegistry']();
-}
-
 export function InstallPackage(arg1, arg2, arg3) {
   return window['go']['main']['App']['InstallPackage'](arg1, arg2, arg3);
 }

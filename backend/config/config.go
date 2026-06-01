@@ -6,7 +6,6 @@ import (
 	"os"
 	"unipac-wails/backend/cache"
 	"unipac-wails/backend/core/manager"
-	"unipac-wails/backend/core/registry"
 	"unipac-wails/backend/logging"
 	"unipac-wails/backend/util"
 
@@ -36,14 +35,9 @@ func Init() error {
 
 func defaultConfig() Config {
 	return Config{
-		Cache: cache.DefaultConfig(),
-		Log:   logging.DefaultConfig(),
-		Managers: lo.SliceToMap(
-			registry.Instance.ListManagers(),
-			func(item manager.Info) (string, manager.Info) {
-				return item.ID, item
-			},
-		),
+		Cache:    cache.DefaultConfig(),
+		Log:      logging.DefaultConfig(),
+		Managers: map[string]manager.Info{},
 	}
 }
 
@@ -66,13 +60,17 @@ func Load() (Config, error) {
 		}
 		return cfg, nil
 	}
-	cfg.Managers = lo.SliceToMap(registry.Instance.ListManagers(), func(item manager.Info) (string, manager.Info) {
+	return cfg, nil
+}
+
+func SyncManagers(managers []manager.Info) error {
+	Instance.Managers = lo.SliceToMap(managers, func(item manager.Info) (string, manager.Info) {
 		return item.ID, item
 	})
-	if err = Save(cfg); err != nil {
-		return Config{}, fmt.Errorf("failed to save config: %w", err)
+	if err := Save(Instance); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
 	}
-	return cfg, nil
+	return nil
 }
 
 // Save saves the configuration to the config file
