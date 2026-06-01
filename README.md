@@ -32,6 +32,7 @@ Current adapter targets include:
 - pip
 - pipx
 - Cargo
+- uv tool
 
 Support is intentionally uneven while the project is under active development. Some managers can list packages reliably while other actions may still be disabled or incomplete.
 
