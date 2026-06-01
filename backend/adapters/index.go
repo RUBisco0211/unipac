@@ -6,6 +6,7 @@ import (
 	"unipac-wails/backend/adapters/npm"
 	"unipac-wails/backend/adapters/pip"
 	"unipac-wails/backend/adapters/pipx"
+	"unipac-wails/backend/adapters/uvtool"
 	"unipac-wails/backend/core/manager"
 )
 
@@ -16,5 +17,6 @@ func GetAdapterConstructors() []manager.AdapterConstructor {
 		pip.NewAdapter,
 		pipx.NewAdapter,
 		cargo.NewAdapter,
+		uvtool.NewAdapter,
 	}
 }

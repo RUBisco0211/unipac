@@ -1,6 +1,6 @@
 # Package Manager Adapter Implementation Guide
 
-This document defines the backend capability boundaries and CLI implementation plan for incomplete package-manager adapters in `unipac-wails`: `npm`, `pip`, `pipx`, and `cargo`.
+This document defines the backend capability boundaries and CLI implementation plan for package-manager adapters in `unipac-wails`: `npm`, `pip`, `pipx`, `cargo`, and future adapters such as `uv tool`.
 
 Use this guide together with `.agents/ARCHITECTURE.md`. The architecture document remains the source of truth for module boundaries and dependency direction.
 
@@ -12,6 +12,7 @@ UniPac is a desktop package inventory and action tool. These adapters should man
 - `pip` manages packages in the Python environment addressed by the configured `pip` executable.
 - `pipx` manages applications installed and isolated by `pipx`.
 - `cargo` manages binaries installed with `cargo install`.
+- `uv-tool` manages Python command-line tools installed with `uv tool`.
 
 Do not scan project-local dependency files such as `package.json`, `package-lock.json`, `requirements.txt`, `pyproject.toml`, `Cargo.toml`, or `Cargo.lock` as installed system packages.
 
@@ -74,6 +75,19 @@ Use `manager.ActionOptions` for optional versions and flags. Recommended keys:
 
 Adapters should ignore unsupported optional flags rather than leaking frontend conditionals.
 
+### Batch Actions and Concurrency
+
+Some package-manager CLIs support handling multiple packages in a single command, while others only accept one package per invocation for a given action. Adapters should choose the safest native shape:
+
+- Use one command when the CLI explicitly supports multiple targets, such as `uv tool uninstall <name>...`, `uv tool upgrade <name>...`, `npm update -g <name...>`, or `brew upgrade <name...>`.
+- Use one command per package when the CLI only accepts a single package spec, such as `uv tool install <package>` or `pipx install <package>`.
+- For one-command-per-package actions, controlled concurrency is allowed. Prefer a small worker limit such as `2` or `3`, preserve context cancellation, and stop returning success if any package action fails.
+- Keep command argument construction isolated in helper functions so sequential and concurrent execution paths share the same package-spec behavior.
+- Aggregate per-package failures into a concise `manager.ErrorResult` message instead of failing silently after the first package when parallel work has already started.
+- Do not use shell interpolation for concurrency. Start each command with the shared command runner and direct argv.
+
+For first-pass implementations, sequential execution is acceptable. If the action may be slow and does not mutate shared state in an order-sensitive way, concurrency can be added behind a small helper such as `runPackageActionsConcurrently`.
+
 ## Capability Matrix
 
 Use conservative capabilities. Only advertise a capability when the implementation is reliable enough for UI exposure.
@@ -84,6 +98,7 @@ Use conservative capabilities. Only advertise a capability when the implementati
 | pip | yes | yes | yes | limited | yes | yes | yes | limited |
 | pipx | yes | limited | yes | no | yes | yes | yes | no |
 | cargo | yes | no | limited | yes | yes | yes | no | no |
+| uv-tool | yes | yes | yes | no | yes | yes | yes | no |
 
 `limited` means the operation can be implemented later if the CLI behavior is verified and parsing is stable. First implementations should usually set limited capabilities to `false`.
 
@@ -189,6 +204,87 @@ CLI plan:
 Parse installed package header lines like `crate-name v1.2.3:`. Ignore following binary lines in the first implementation. Cargo search output is line-based, so parse cautiously and skip malformed lines rather than failing the whole search.
 
 Cargo does not have a built-in universal update command for all `cargo install` packages. A future implementation may integrate an optional external tool such as `cargo-install-update`, but that must be treated as a separate dependency and preflighted explicitly.
+
+## uv tool Adapter
+
+Manage Python command-line tools installed by `uv tool`. Treat this as a separate manager from `pip` and `pipx`; it owns uv's tool environments, not arbitrary Python packages in the active interpreter.
+
+Metadata:
+
+- `ID`: `uv-tool`
+- `Name`: `uv tool`
+- `ExecName`: `uv`
+
+First-pass capabilities:
+
+- Enable `ListInstalled`, `ListOutdated`, `GetPackageInfo`, `Install`, `Uninstall`, and `Update`.
+- Disable `Search` and `ListVersions`.
+
+CLI plan:
+
+- List installed: `uv tool list --show-version-specifiers --show-paths --show-python`
+- List outdated: `uv tool list --outdated`
+- Info: use the parsed local tool record from `uv tool list --show-version-specifiers --show-paths --show-python`
+- Install: `uv tool install <name>` or `uv tool install <name>==<version>`
+- Uninstall: `uv tool uninstall <name>...`
+- Update: `uv tool upgrade <name>...`
+- Tool directory: `uv tool dir`
+- Tool executable directory: `uv tool dir --bin`
+
+Do not expose search. `uv tool` installs packages from package indexes but does not provide a search subcommand.
+
+Do not expose version lookup in the first implementation. `uv tool` does not provide a stable version-enumeration subcommand. A future implementation may add PyPI-backed version lookup, but that should be modeled as package-index metadata and verified separately.
+
+### uv tool Parsing
+
+`uv tool list` currently produces text output rather than a documented JSON format, so keep parsing isolated and well tested.
+
+Recommended parser behavior:
+
+- Return an empty package slice for `No tools installed`.
+- Parse the tool package name and installed version from the top-level tool line.
+- Parse optional detail lines for version specifier, Python version, tool environment path, and executable paths.
+- Skip malformed detail lines where possible instead of failing the whole list.
+- Keep richer local details in a small adapter-specific struct, then normalize to `manager.Package`.
+
+Recommended normalized package fields:
+
+- `Name`: uv tool package name.
+- `Version`: installed package version when parseable.
+- `Manager`: `uv-tool`.
+- `Installed`: `true` for installed list results.
+- `Outdated`: `true` for outdated list results.
+- `LatestVersion`: latest package version from `uv tool list --outdated`, when parseable.
+- `IsGUI`: `false`.
+- `Fullname`: original install spec when available.
+
+`GetPackageInfo` should return a JSON string synthesized from the local parsed record, for example:
+
+```json
+{
+  "name": "ruff",
+  "version": "0.8.0",
+  "version_specifier": "ruff==0.8.0",
+  "python": "CPython 3.12.7",
+  "tool_path": "...",
+  "executables": ["ruff"]
+}
+```
+
+### uv tool Actions
+
+Install accepts exactly one package spec per command. Implement either sequential execution or controlled concurrency:
+
+- Build specs as `<name>`, `<name>==<opt.version>`, or `<name>==<pkg.version>` when installing a search result with a specific version.
+- Run `uv tool install <spec>` once per package.
+- If concurrency is used, cap workers to a small value and aggregate failures.
+
+Uninstall and update support multiple names in one command:
+
+- `uv tool uninstall <name>...`
+- `uv tool upgrade <name>...`
+
+Use direct argv and avoid shell interpolation. Do not set `UV_TOOL_DIR` in production code, because that would redirect the user's real uv tool inventory. Tests may set `UV_TOOL_DIR` and `UV_CACHE_DIR` to temporary directories.
 
 ## Suggested Implementation Order
 
