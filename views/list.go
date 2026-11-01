@@ -38,8 +38,15 @@ type listView struct {
 	bulkOpen        bool
 	bulkTargets     []manager.Package
 
-	theme   *ui.Theme
-	flat    *ui.Theme
+	theme       *ui.Theme
+	flat        *ui.Theme
+	counts      map[string]int
+	countsTotal int
+	countsSeen  struct {
+		version int
+		query   string
+	}
+
 	rows    []manager.Package
 	applied struct {
 		version int
@@ -86,7 +93,6 @@ func (l *listView) sync() {
 }
 
 func (l *listView) rebuild() {
-	query := strings.ToLower(strings.TrimSpace(l.query))
 	l.rows = l.rows[:0]
 	for _, pkg := range l.data.rows {
 		if l.outdatedOnly && !pkg.Outdated {
@@ -95,10 +101,7 @@ func (l *listView) rebuild() {
 		if l.manager != "" && pkg.Manager != l.manager {
 			continue
 		}
-		if query != "" &&
-			!strings.Contains(strings.ToLower(pkg.Name), query) &&
-			!strings.Contains(strings.ToLower(pkg.Fullname), query) &&
-			!strings.Contains(strings.ToLower(pkg.Description), query) {
+		if !matchesQuery(pkg, l.query) {
 			continue
 		}
 		l.rows = append(l.rows, pkg)
@@ -190,6 +193,18 @@ func (l *listView) applySort() {
 	})
 }
 
+// matchesQuery reports whether a package matches the page's query, which is
+// already lower-cased and trimmed.
+func matchesQuery(pkg manager.Package, query string) bool {
+	if query == "" {
+		return true
+	}
+	query = strings.ToLower(strings.TrimSpace(query))
+	return strings.Contains(strings.ToLower(pkg.Name), query) ||
+		strings.Contains(strings.ToLower(pkg.Fullname), query) ||
+		strings.Contains(strings.ToLower(pkg.Description), query)
+}
+
 func typeLabel(isGUI bool) string {
 	if isGUI {
 		return locales.TypeGui()
@@ -214,10 +229,10 @@ func (l *listView) managerSelect(c *ui.Context) {
 	sel.Trigger.Label(locales.PackagesAllManagers()).Width(170).Children(func() {
 		components.Text(c, l.managerLabel()).SingleLine()
 	})
-	counts := l.data.managerCounts()
+	counts, total := l.managerCounts()
 	sel.Popup(func(panel ui.Element) {
 		all := sel.Item("").Label(locales.PackagesAllManagers())
-		all.Children(func() { l.managerOption(c, locales.PackagesAllManagers(), len(l.data.rows)) })
+		all.Children(func() { l.managerOption(c, locales.PackagesAllManagers(), total) })
 		for _, m := range l.data.managers {
 			if !m.Enabled {
 				continue
@@ -226,6 +241,32 @@ func (l *listView) managerSelect(c *ui.Context) {
 			item.Children(func() { l.managerOption(c, m.Name, counts[m.ID]) })
 		}
 	})
+}
+
+// managerCounts counts what each manager contributes to the page as filtered by
+// its own scope and the query, ignoring the manager filter being chosen.
+func (l *listView) managerCounts() (map[string]int, int) {
+	if l.counts != nil && l.countsSeen.version == l.data.version && l.countsSeen.query == l.query {
+		return l.counts, l.countsTotal
+	}
+	counts := make(map[string]int, len(l.data.managers))
+	total := 0
+	for _, pkg := range l.data.rows {
+		if l.outdatedOnly && !pkg.Outdated {
+			continue
+		}
+		if !matchesQuery(pkg, l.query) {
+			continue
+		}
+		counts[pkg.Manager]++
+		total++
+	}
+	l.counts, l.countsTotal = counts, total
+	l.countsSeen = struct {
+		version int
+		query   string
+	}{l.data.version, l.query}
+	return counts, total
 }
 
 // managerOption names a manager and counts the packages it holds.

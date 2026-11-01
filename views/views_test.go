@@ -127,17 +127,37 @@ func TestListViewQueryFilter(t *testing.T) {
 	}
 }
 
-func TestManagerCountsCoverTheWholeInventory(t *testing.T) {
+func TestManagerCountsFollowThePage(t *testing.T) {
 	d := fixture()
-	counts := d.managerCounts()
-	if counts["brew"] != 1 || counts["npm"] != 1 {
-		t.Fatalf("counts = %v", counts)
+
+	installed := &listView{data: d}
+	counts, total := installed.managerCounts()
+	if counts["brew"] != 1 || counts["npm"] != 1 || total != 2 {
+		t.Fatalf("installed counts = %v, total %d", counts, total)
 	}
-	// Filtering a page must not change the numbers the menu offers.
-	d.rows = append(d.rows, manager.Package{Name: "git", Manager: "brew"})
+
+	// The outdated page counts only what it can show.
+	outdated := &listView{data: d, outdatedOnly: true}
+	counts, total = outdated.managerCounts()
+	if counts["brew"] != 0 || counts["npm"] != 1 || total != 1 {
+		t.Fatalf("outdated counts = %v, total %d", counts, total)
+	}
+
+	// The query narrows them too, and the manager filter does not.
+	outdated.query = "ripgrep"
+	if _, total = outdated.managerCounts(); total != 0 {
+		t.Fatalf("outdated total after query = %d, want 0", total)
+	}
+	outdated.query = ""
+	outdated.manager = "brew"
+	if _, total = outdated.managerCounts(); total != 1 {
+		t.Fatalf("manager filter changed the counts: total %d", total)
+	}
+
+	d.rows = append(d.rows, manager.Package{Name: "git", Manager: "brew", Outdated: true})
 	d.version++
-	if got := d.managerCounts()["brew"]; got != 2 {
-		t.Fatalf("brew count = %d, want 2", got)
+	if counts, total = outdated.managerCounts(); counts["brew"] != 1 || total != 2 {
+		t.Fatalf("counts after a new row = %v, total %d", counts, total)
 	}
 }
 
