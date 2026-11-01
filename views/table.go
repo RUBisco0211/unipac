@@ -140,6 +140,16 @@ func packageFields() []ui.TableColumn {
 	}
 }
 
+// searchFields are the columns of a search result. A package found by search is
+// not installed, so there is no installed version to show.
+func searchFields() []ui.TableColumn {
+	fields := packageFields()
+	return append(fields[:1], fields[2:]...)
+}
+
+// searchFieldIndex maps a search column back to its packageFields index.
+var searchFieldIndex = []int{0, 2, 3, 4}
+
 // packageFieldCell renders field, indexing packageFields.
 func packageFieldCell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string) {
 	t := c.Theme()

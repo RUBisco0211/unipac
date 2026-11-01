@@ -66,7 +66,7 @@ func (s *searchView) chips(c *ui.Context) {
 }
 
 func (s *searchView) columns() []ui.TableColumn {
-	columns := packageFields()
+	columns := searchFields()
 	return append(columns, ui.TableColumn{
 		Title: locales.TableActions(), ID: "actions", Width: 64, Fixed: true, Align: ui.End,
 	})
@@ -108,8 +108,8 @@ func (s *searchView) body(c *ui.Context) {
 		s.table.OnSort = func() { s.applySort() }
 		components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
 			pkg := s.results[row]
-			if col < len(packageFields()) {
-				packageFieldCell(c, pkg, col, s.data.managerName)
+			if col < len(searchFieldIndex) {
+				packageFieldCell(c, pkg, searchFieldIndex[col], s.data.managerName)
 				return
 			}
 			s.rowAction(c, pkg)

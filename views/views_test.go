@@ -299,12 +299,16 @@ func TestSearchViewRendersResults(t *testing.T) {
 		data:    fixture(),
 		ran:     true,
 		query:   "rip",
-		results: []manager.Package{{Name: "ripgrep", Version: "14.1.1", Manager: "brew"}},
+		results: []manager.Package{{Name: "ripgrep", Version: "14.1.1", LatestVersion: "15.0.0", Manager: "brew"}},
 	}
 	tt := render(t, s.view, 900, 500)
-	for _, want := range []string{"ripgrep", "14.1.1", "Homebrew"} {
+	for _, want := range []string{"ripgrep", "15.0.0", "Homebrew"} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
+	}
+	// A search result is not installed, so its installed version is not shown.
+	if tt.HasText("14.1.1") {
+		t.Errorf("search results show an installed version: %v", tt.Texts())
 	}
 }
