@@ -1,0 +1,86 @@
+{
+  "@@locale": "en",
+  "navPackages": "Installed",
+  "navOutdated": "Outdated",
+  "navSearch": "Discover",
+  "navSettings": "Settings",
+  "navBack": "Back",
+  "navForward": "Forward",
+  "sidebarPackages": "Packages",
+  "sidebarApp": "App",
+  "packagesSearchPlaceholder": "Search by name or description",
+  "packagesAllManagers": "All managers",
+  "commonRefresh": "Refresh",
+  "commonRefreshing": "Refreshing…",
+  "commonCancel": "Cancel",
+  "packagesBulkUpdate": "Update selected",
+  "packagesBulkRemove": "Remove selected",
+  "packagesSelectAll": "Select all",
+  "packagesEmpty": "No packages found",
+  "packagesLoadError": "Failed to load installed packages: {error}",
+  "packagesRefreshError": "Refresh failed: {error}",
+  "outdatedEmpty": "No outdated packages",
+  "tablePackage": "Package",
+  "tableInstalled": "Installed",
+  "tableLatest": "Latest",
+  "tableType": "Type",
+  "tableManager": "Manager",
+  "tableActions": "Actions",
+  "tableNoDescription": "No description",
+  "typeGui": "GUI",
+  "typeCli": "CLI",
+  "actionsUpdate": "Update",
+  "actionsRemove": "Remove",
+  "actionsUpdating": "Updating…",
+  "actionsRemoving": "Removing…",
+  "actionSelectRow": "Select a package first",
+  "actionUnsupported": "This manager does not support that action",
+  "actionWorking": "Another action is still running",
+  "uninstallTitle": "Uninstall package?",
+  "uninstallMessage": "{name} will be removed with {manager}. This cannot be undone.",
+  "uninstallBulkTitle": "Uninstall selected packages?",
+  "uninstallBulkMessage": "{count} packages will be removed. This cannot be undone.",
+  "uninstallConfirm": "Hold to uninstall",
+  "toastRemoved": "Removed",
+  "toastUpdated": "Updated",
+  "toastInstalled": "Installed",
+  "searchField": "Search package name or keyword",
+  "searchAction": "Search",
+  "searchSearching": "Searching…",
+  "searchError": "Search failed: {error}",
+  "searchNoResults": "No packages found matching {query}",
+  "searchHint": "Start with a package name, keyword, or tool you want to install",
+  "settingsManagers": "Managers",
+  "settingsEnabled": "Available",
+  "settingsDisabled": "Not available",
+  "settingsExecutable": "Executable",
+  "settingsCapabilities": "Capabilities",
+  "settingsNoCapabilities": "No capabilities reported",
+  "capabilityList": "List",
+  "capabilityOutdated": "Outdated",
+  "capabilityInfo": "Info",
+  "capabilitySearch": "Search",
+  "capabilityInstall": "Install",
+  "capabilityUninstall": "Uninstall",
+  "capabilityUpdate": "Update",
+  "capabilityVersions": "Versions",
+  "@uninstallBulkMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "actionsInstall": "Install",
+  "commonSelectionCount": "{selected} / {total}",
+  "@commonSelectionCount": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  }
+}

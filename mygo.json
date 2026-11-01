@@ -1,0 +1,11 @@
+{
+  "name": "UniPac",
+  "identifier": "com.unipac.app",
+  "version": "0.1.0",
+  "icon": "assets/icon.png",
+  "out": "dist",
+  "i18n": {
+    "dir": "locales",
+    "source": "en"
+  }
+}
