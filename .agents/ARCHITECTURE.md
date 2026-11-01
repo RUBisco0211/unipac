@@ -123,20 +123,17 @@ No hardcoded manager list is required anywhere in the UI.
 - `List()` returns cached packages.
 - `UpdateCache()` currently deletes all rows and inserts the latest scan result.
 
-Current behavior to note:
+Current behavior:
 
-- If `UpdateCache()` receives an empty package list, it returns without clearing old cache data. Decide whether this is intentional before relying on it.
-- Cache is initialized during app startup and startup currently calls `UpdateCache()`, meaning launch can block or fail if package scanning fails. The native app must move this refresh off the UI thread.
+- If `UpdateCache()` receives an empty package list, it returns without clearing old cache data, so a failed scan never wipes a good snapshot.
+- Startup initializes the cache but does not scan. The window opens on cached rows and the first scan runs as a background job.
 
 ### Config and Logging
 
 `backend/config/config.go` loads or creates `unipac.json` under the app root. It writes default cache/log config and snapshots current manager metadata into config.
 
-`backend/logging/logging.go` initializes `slog` to stderr and app log file.
-
-Current issue:
-
-- `logging.Init` calls `LogFile.Close()` inside an error path even when `os.OpenFile` failed and `LogFile` may be nil. This should be guarded.
+`backend/logging/logging.go` initializes `slog` to stderr and app log file. It
+creates its log directory and returns the real `OpenFile` error.
 
 ### Util
 
@@ -157,9 +154,13 @@ Command helpers are backend-only. Views should request operations through `App` 
 `sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts.
 
 - Four sidebar entries map to the four pages: Packages, Outdated, Search, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`.
-- Give the window an 820 × 740 initial and minimum size; `sidebar.NewShell` defaults to it. Set `StateKey` so MyGo remembers bounds and maximized state.
+- Give the window a 1024 × 620 minimum; `sidebar.NewShell` defaults to 820 × 740,
+  which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
+  the title bar controls fit and the table columns never overflow. Set `StateKey`
+  so MyGo remembers bounds and maximized state.
 - Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference; components never call `Context.SetTheme`.
-- Menus live in `main.go` as MyGo menus. The macOS Settings item calls the app's own show-settings method. The old `open_settings` Wails event and `useWailsEvents.ts` listener are gone.
+- The app defines no native menus yet. The old `open_settings` Wails event and its
+  `useWailsEvents.ts` listener are gone; settings is a page in the sidebar.
 - Dialogs use `mygo.Dialog` with the window as `Parent`, so macOS shows them as sheets.
 
 ### Views
@@ -244,7 +245,10 @@ Target behavior:
 1. `App.startup` initializes the app root, registry, config, logging, and cache.
 2. The window opens immediately and renders cached packages.
 3. A guarded job refreshes the cache off the UI thread and publishes rows through `Window.Update`.
-4. Obsolete jobs are cancelled when the user refreshes again or the window closes.
+4. A refresh asked for while one is running sets a pending flag instead of being
+   dropped, and the job runs once more when it finishes. Nothing is cancelled:
+   a scan holds the cache for the whole run, and an action that lands mid-scan
+   triggers that follow-up scan so the rows never describe the pre-action state.
 
 Views may rebuild several times for one event. Trigger side effects through handled actions or explicit guarded jobs, not from rendering code.
 

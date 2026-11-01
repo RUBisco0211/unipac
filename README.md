@@ -97,7 +97,7 @@ go tool mygo build
 ```
 
 Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
-`out` set to `../dist` in `mygo.json`:
+`out` set to `dist` in `mygo.json`:
 
 ```sh
 go tool mygo build -platform darwin/arm64,windows/amd64
@@ -125,11 +125,11 @@ GOCACHE=/private/tmp/unipac-mygo-go-build go test ./...
 ## Development Notes
 
 - The repository root is the Go module root; `mygo.json` sits beside `go.mod`. Go commands run there, not in a `source/` subdirectory.
-- Views call methods on `App` in `app.go`. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
+- Views call methods on `App` in `app/app.go`. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
 - The backend registry is the source of truth for available package managers and capabilities.
 - Adding a package manager is a backend adapter change plus a constructor registration in `backend/adapters/index.go`. No UI change is required.
 - UI availability is driven by backend capabilities, not hardcoded manager names. Unsupported actions stay visible but disabled, with a tooltip naming the missing capability.
-- Irreversible actions such as uninstall are confirmed with Onevra's `HoldToConfirm`, not a dialog.
+- Irreversible actions such as uninstall open a dialog whose confirm is Onevra's `HoldToConfirm` gesture.
 - Catalogs live in `locales/`. `mygo dev` and `mygo build` generate a typed Go package beside them; commit the generated files so `go build` and `go test` work without the CLI.
 - `AGENTS.md` and `.agents/ARCHITECTURE.md` describe the boundaries agents should follow.
 - `go tool mygo dev` regenerates `locales/catalog_gen.go` and the packaged app; commit the generated catalog file.

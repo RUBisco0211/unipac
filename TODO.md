@@ -152,9 +152,11 @@ and then against the review notes on the native window.
       inventory loads or reloads. It is drawn absolutely over a slot that is
       always reserved, so nothing moves when a refresh starts, and it shows on
       the empty state too. `TestLoadingBarPaints` covers the drawing.
-- [x] The table shows skeleton rows while refreshing.
+- [x] A refresh keeps the cached rows on screen; only the bar says a scan is
+      running. Skeleton rows were tried and dropped: replacing the table on every
+      refresh hid the data the window had just opened on.
 - [x] The empty state is a centred package icon over its message.
-      `TestEmptyStateIsCentredWithText` and `TestRefreshingShowsSkeleton` cover
+      `TestEmptyStateIsCentredWithText` and `TestRefreshKeepsCachedRows` cover
       both.
 - [x] The Outdated navigation entry uses `lucide.CircleFadingArrowUp`.
 - [x] Table spans the main area edge to edge while the toolbar and chips keep
@@ -181,8 +183,8 @@ Deviations from the old interface, kept on purpose:
 
 - Onevra has no destructive button variant, so `Remove selected` is a bordered
   button in the danger color rather than a filled red one.
-- The table header cannot host a widget, so select-all sits in the chip row
-  instead of the header cell.
+- The table header cannot host a widget, so select-all and the selection count
+  are drawn over the header cell rather than being part of it.
 - The row radius is flattened by building the table with a square theme and
   restoring the real theme inside each cell; Onevra paints the radius on the row
   box it creates, so there is no per-row option.
