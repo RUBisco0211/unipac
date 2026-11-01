@@ -127,6 +127,48 @@ func TestListViewQueryFilter(t *testing.T) {
 	}
 }
 
+func TestManagerCountsCoverTheWholeInventory(t *testing.T) {
+	d := fixture()
+	counts := d.managerCounts()
+	if counts["brew"] != 1 || counts["npm"] != 1 {
+		t.Fatalf("counts = %v", counts)
+	}
+	// Filtering a page must not change the numbers the menu offers.
+	d.rows = append(d.rows, manager.Package{Name: "git", Manager: "brew"})
+	d.version++
+	if got := d.managerCounts()["brew"]; got != 2 {
+		t.Fatalf("brew count = %d, want 2", got)
+	}
+}
+
+func TestManagerSelectListsManagersWithCounts(t *testing.T) {
+	l := &listView{data: fixture(), chosen: map[string]struct{}{}}
+	tt := render(t, l.view, 1000, 500)
+
+	exact := func(want string) bool {
+		for _, text := range tt.Texts() {
+			if text == want {
+				return true
+			}
+		}
+		return false
+	}
+	if exact("2") || exact("1") {
+		t.Fatalf("counts shown before opening: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.PackagesAllManagers()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	// Two packages overall, one in each manager.
+	if !exact("2") {
+		t.Errorf("total count missing: %v", tt.Texts())
+	}
+	if !exact("1") {
+		t.Errorf("per-manager count missing: %v", tt.Texts())
+	}
+}
+
 func TestListViewSortsByName(t *testing.T) {
 	l := &listView{data: fixture()}
 	l.sortOrder = ui.SortOrder{Column: "name"}

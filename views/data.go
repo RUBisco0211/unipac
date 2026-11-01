@@ -20,6 +20,9 @@ type data struct {
 	version    int
 
 	toasts []toast
+
+	counts        map[string]int
+	countsVersion int
 }
 
 // toast is a message queued for the next frame, because MyGo adds toasts while
@@ -84,6 +87,20 @@ func (d *data) managerName(id string) string {
 		return name
 	}
 	return id
+}
+
+// managerCounts counts every package each manager holds, across the whole
+// inventory rather than the rows a page currently shows.
+func (d *data) managerCounts() map[string]int {
+	if d.counts != nil && d.countsVersion == d.version {
+		return d.counts
+	}
+	counts := make(map[string]int, len(d.managers))
+	for _, pkg := range d.rows {
+		counts[pkg.Manager]++
+	}
+	d.counts, d.countsVersion = counts, d.version
+	return counts
 }
 
 // capabilities reports what the manager behind a package claims. An unknown ID

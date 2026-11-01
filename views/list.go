@@ -2,6 +2,7 @@ package views
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/RUBisco0211/unipac/backend/core/manager"
@@ -213,16 +214,26 @@ func (l *listView) managerSelect(c *ui.Context) {
 	sel.Trigger.Label(locales.PackagesAllManagers()).Width(170).Children(func() {
 		components.Text(c, l.managerLabel()).SingleLine()
 	})
+	counts := l.data.managerCounts()
 	sel.Popup(func(panel ui.Element) {
 		all := sel.Item("").Label(locales.PackagesAllManagers())
-		all.Children(func() { components.Text(c, locales.PackagesAllManagers()).SingleLine() })
+		all.Children(func() { l.managerOption(c, locales.PackagesAllManagers(), len(l.data.rows)) })
 		for _, m := range l.data.managers {
 			if !m.Enabled {
 				continue
 			}
 			item := sel.Item(m.ID).Label(m.Name)
-			item.Children(func() { components.Text(c, m.Name).SingleLine() })
+			item.Children(func() { l.managerOption(c, m.Name, counts[m.ID]) })
 		}
+	})
+}
+
+// managerOption names a manager and counts the packages it holds.
+func (l *listView) managerOption(c *ui.Context, name string, count int) {
+	ui.Row(c).FillWidth().AlignItems(ui.Center).Children(func() {
+		components.Text(c, name).SingleLine()
+		ui.Spacer(c)
+		components.Text(c, strconv.Itoa(count)).TextColor(c.Theme().TextMuted)
 	})
 }
 
