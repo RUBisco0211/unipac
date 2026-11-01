@@ -697,3 +697,13 @@ func CommonSelectionCount(selected int, total int) string {
 func (msgs Messages) CommonSelectionCount(selected int, total int) string {
 	return Catalog.Format(msgs.locale, "commonSelectionCount", map[string]any{"selected": selected, "total": total})
 }
+
+// ActionUpToDate says "Already up to date"
+// in the language the app shows.
+func ActionUpToDate() string { return In(i18n.Locale()).ActionUpToDate() }
+
+// ActionUpToDate says "Already up to date"
+// in the language of msgs.
+func (msgs Messages) ActionUpToDate() string {
+	return Catalog.Format(msgs.locale, "actionUpToDate", nil)
+}

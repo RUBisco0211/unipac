@@ -119,15 +119,6 @@ func placeholder(c *ui.Context, text string) {
 	})
 }
 
-// skeletonRows stands in for the table while the inventory loads.
-func skeletonRows(c *ui.Context) {
-	ui.Column(c).Fill().Gap(16).Padding(10, 16).Children(func() {
-		for range 9 {
-			components.Skeleton(c, components.SkeletonOptions{Lines: 2, Avatar: true})
-		}
-	})
-}
-
 // packageFields are the columns shared by the installed, outdated and search
 // tables, in order: package, installed version, latest version, type, manager.
 func packageFields() []ui.TableColumn {

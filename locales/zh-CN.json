@@ -65,5 +65,6 @@
   "capabilityUpdate": "更新",
   "capabilityVersions": "版本",
   "actionsInstall": "安装",
-  "commonSelectionCount": "{selected} / {total}"
+  "commonSelectionCount": "{selected} / {total}",
+  "actionUpToDate": "已是最新版本"
 }

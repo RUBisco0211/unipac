@@ -18,11 +18,13 @@ type searchView struct {
 	submit    func(query string)
 	onInstall func(manager.Package)
 
-	query     string
-	results   []manager.Package
-	searching bool
-	err       error
-	ran       bool
+	query       string
+	resultQuery string
+	seq         int
+	results     []manager.Package
+	searching   bool
+	err         error
+	ran         bool
 
 	table     components.TableVirtualizedState
 	sortOrder ui.SortOrder
@@ -102,7 +104,8 @@ func (s *searchView) body(c *ui.Context) {
 	case !s.ran:
 		placeholder(c, locales.SearchHint())
 	case len(s.results) == 0:
-		placeholder(c, locales.SearchNoResults(s.query))
+		// Name the query the results belong to, not what is typed now.
+		placeholder(c, locales.SearchNoResults(s.resultQuery))
 	default:
 		s.table.Sort = &s.sortOrder
 		s.table.OnSort = func() { s.applySort() }
@@ -128,10 +131,11 @@ func (s *searchView) rowAction(c *ui.Context, pkg manager.Package) {
 }
 
 // apply installs the outcome of a background search.
-func (s *searchView) apply(results []manager.Package, err error) {
+func (s *searchView) apply(query string, results []manager.Package, err error) {
 	s.searching = false
 	s.err = err
 	s.ran = true
+	s.resultQuery = query
 	s.results = results
 	s.applySort()
 }

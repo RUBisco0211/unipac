@@ -312,20 +312,36 @@ func (l *listView) toolbar(c *ui.Context) {
 			return
 		}
 
-		anyOutdated := slices.ContainsFunc(selected, func(pkg manager.Package) bool { return pkg.Outdated })
+		// Only packages that can actually be updated go to the manager. A mixed
+		// selection would otherwise update what is already current, and one
+		// manager without the capability would fail the whole batch after
+		// earlier groups had already run.
+		updatable := make([]manager.Package, 0, len(selected))
+		for _, pkg := range selected {
+			if pkg.Outdated && l.data.capabilities(pkg.Manager).Update {
+				updatable = append(updatable, pkg)
+			}
+		}
+		canBulkUpdate := len(updatable) > 0 && !l.data.busy
 		bulkUpdate := components.IconButton(c, lucide.CircleArrowUp(), locales.PackagesBulkUpdate(), components.IconButtonPlain)
-		bulkUpdate.Disabled(!anyOutdated || l.data.busy)
-		if bulkUpdate.Clicked() && anyOutdated && l.onBulkUpdate != nil {
-			l.onBulkUpdate(selected)
+		bulkUpdate.Disabled(!canBulkUpdate)
+		disabledHint(c, bulkUpdate, canBulkUpdate, l.busyReason())
+		if len(updatable) == 0 && !l.data.busy {
+			disabledHint(c, bulkUpdate, false, locales.ActionUpToDate())
+		}
+		if bulkUpdate.Clicked() && canBulkUpdate && l.onBulkUpdate != nil {
+			l.onBulkUpdate(updatable)
 		}
 
 		if !l.allowRemove {
 			return
 		}
+		canBulkRemove := !l.data.busy
 		bulkRemove := components.IconButton(c, lucide.Trash(), locales.PackagesBulkRemove(), components.IconButtonPlain)
 		bulkRemove.TextColor(c.Theme().Danger)
-		bulkRemove.Disabled(l.data.busy)
-		if bulkRemove.Clicked() {
+		bulkRemove.Disabled(!canBulkRemove)
+		disabledHint(c, bulkRemove, canBulkRemove, l.busyReason())
+		if bulkRemove.Clicked() && canBulkRemove {
 			l.bulkTargets = selected
 			l.bulkOpen = true
 		}
@@ -365,8 +381,6 @@ func (l *listView) body(c *ui.Context) {
 	switch {
 	case l.data.loadErr != nil:
 		placeholder(c, locales.PackagesLoadError(l.data.loadErr.Error()))
-	case l.data.refreshing:
-		skeletonRows(c)
 	case len(l.rows) == 0:
 		if l.outdatedOnly {
 			placeholder(c, locales.OutdatedEmpty())
@@ -454,14 +468,24 @@ func (l *listView) cell(c *ui.Context, row, col int) {
 
 func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 	caps := l.data.capabilities(pkg.Manager)
+	key := packageKey(pkg)
 	ui.Row(c).Gap(2).AlignItems(ui.Center).Justify(ui.End).Children(func() {
+		updating := l.data.busyKey == "update:"+key
 		canUpdate := pkg.Outdated && caps.Update && !l.data.busy
 		updateLabel := locales.ActionsUpdate()
-		if l.data.busy {
+		if updating {
 			updateLabel = locales.ActionsUpdating()
 		}
 		update := components.IconButton(c, lucide.CircleArrowUp(), updateLabel, components.IconButtonPlain)
 		update.Disabled(!canUpdate)
+		switch {
+		case !caps.Update:
+			disabledHint(c, update, canUpdate, locales.ActionUnsupported())
+		case !pkg.Outdated:
+			disabledHint(c, update, canUpdate, locales.ActionUpToDate())
+		default:
+			disabledHint(c, update, canUpdate, l.busyReason())
+		}
 		if update.Clicked() && canUpdate && l.onUpdate != nil {
 			l.onUpdate(pkg)
 		}
@@ -469,15 +493,42 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		if !l.allowRemove {
 			return
 		}
+		removing := l.data.busyKey == "remove:"+key
 		canRemove := caps.Uninstall && !l.data.busy
-		remove := components.IconButton(c, lucide.Trash(), locales.ActionsRemove(), components.IconButtonPlain)
+		removeLabel := locales.ActionsRemove()
+		if removing {
+			removeLabel = locales.ActionsRemoving()
+		}
+		remove := components.IconButton(c, lucide.Trash(), removeLabel, components.IconButtonPlain)
 		remove.TextColor(c.Theme().Danger)
 		remove.Disabled(!canRemove)
+		if !caps.Uninstall {
+			disabledHint(c, remove, canRemove, locales.ActionUnsupported())
+		} else {
+			disabledHint(c, remove, canRemove, l.busyReason())
+		}
 		if remove.Clicked() && canRemove {
 			l.uninstallTarget = pkg
 			l.uninstallOpen = true
 		}
 	})
+}
+
+// busyReason names the action in flight, for a control that waits on it.
+func (l *listView) busyReason() string {
+	if !l.data.busy {
+		return ""
+	}
+	return locales.ActionWorking()
+}
+
+// disabledHint explains a disabled control without adding a tooltip to one that
+// can be used.
+func disabledHint(c *ui.Context, control ui.Element, enabled bool, reason string) {
+	if enabled || reason == "" {
+		return
+	}
+	components.Tooltip(c, control, reason)
 }
 
 // uninstallDialog asks before removing one package; the removal itself is a

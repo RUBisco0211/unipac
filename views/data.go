@@ -16,8 +16,14 @@ type data struct {
 	loadErr    error
 	refreshErr error
 	refreshing bool
-	busy       bool
-	version    int
+	// refreshPending asks for another scan once the running one finishes, so an
+	// action that lands mid-scan is not left showing pre-action data.
+	refreshPending bool
+	busy           bool
+	// busyKey names the running action, such as "update:brew:git", so only the
+	// control that started it says it is working.
+	busyKey string
+	version int
 
 	toasts []toast
 }

@@ -104,7 +104,11 @@ func (u *UI) Run() {
 // through Window.Update. A refresh already in flight wins; a second request is
 // dropped rather than queued, so the app never stacks scans.
 func (u *UI) Refresh() {
-	if u.shell == nil || u.data.refreshing {
+	if u.shell == nil {
+		return
+	}
+	if u.data.refreshing {
+		u.data.refreshPending = true
 		return
 	}
 	u.data.refreshing = true
@@ -116,68 +120,82 @@ func (u *UI) Refresh() {
 		rows, loadErr := u.svc.GetCachedPackages()
 		win.Update(func() {
 			u.data.applyRefresh(rows, refreshErr, loadErr)
+			if u.data.refreshPending {
+				u.data.refreshPending = false
+				u.Refresh()
+			}
 		})
 	}()
 }
 
 // Search runs a keyword search off the UI thread and publishes the results.
 func (u *UI) Search(query string) {
-	if u.shell == nil || u.search.searching || query == "" {
+	if u.shell == nil || query == "" {
 		return
 	}
+	// A newer query wins: the sequence number drops a slow earlier result.
+	u.search.seq++
+	seq := u.search.seq
 	u.search.searching = true
 	u.search.err = nil
 	win := u.shell.Window()
 	go func() {
 		results, err := u.svc.SearchPackages(query)
-		win.Update(func() { u.search.apply(results, err) })
+		win.Update(func() {
+			if seq != u.search.seq {
+				return
+			}
+			u.search.apply(query, results, err)
+		})
 	}()
 }
 
 // Install, Update and Remove run one package action at a time and refresh the
 // inventory when it finishes.
 func (u *UI) Install(pkg manager.Package) {
-	u.runAction(func() (manager.ActionResult, error) {
+	u.runAction("install:"+packageKey(pkg), func() (manager.ActionResult, error) {
 		return u.svc.InstallPackage(pkg.Manager, pkg.Name, manager.ActionOptions{})
 	}, locales.ToastInstalled())
 }
 
 func (u *UI) Update(pkg manager.Package) {
-	u.runAction(func() (manager.ActionResult, error) {
+	u.runAction("update:"+packageKey(pkg), func() (manager.ActionResult, error) {
 		return u.svc.UpdatePackage(pkg.Manager, pkg.Name, manager.ActionOptions{})
 	}, locales.ToastUpdated())
 }
 
 func (u *UI) Remove(pkg manager.Package) {
-	u.runAction(func() (manager.ActionResult, error) {
+	u.runAction("remove:"+packageKey(pkg), func() (manager.ActionResult, error) {
 		return u.svc.UninstallPackage(pkg, manager.ActionOptions{})
 	}, locales.ToastRemoved())
 }
 
 func (u *UI) BulkUpdate(pkgs []manager.Package) {
-	u.runAction(func() (manager.ActionResult, error) {
+	u.runAction("bulk-update", func() (manager.ActionResult, error) {
 		return u.svc.BatchUpdatePackages(pkgs, manager.ActionOptions{})
 	}, locales.ToastUpdated())
 }
 
 func (u *UI) BulkRemove(pkgs []manager.Package) {
-	u.runAction(func() (manager.ActionResult, error) {
+	u.runAction("bulk-remove", func() (manager.ActionResult, error) {
 		return u.svc.BatchUninstallPackages(pkgs, manager.ActionOptions{})
 	}, locales.ToastRemoved())
 }
 
 // runAction runs one action off the UI thread. Its outcome becomes a toast,
 // queued for the next frame because MyGo adds toasts while building.
-func (u *UI) runAction(fn func() (manager.ActionResult, error), done string) {
+func (u *UI) runAction(key string, fn func() (manager.ActionResult, error), done string) {
 	if u.shell == nil || u.data.busy {
 		return
 	}
 	u.data.busy = true
+	u.data.busyKey = key
 	win := u.shell.Window()
 	go func() {
 		result, err := fn()
 		win.Update(func() {
 			u.data.busy = false
+			u.data.busyKey = ""
 			switch {
 			case err != nil:
 				u.data.queueToast(err.Error(), components.ToastError)

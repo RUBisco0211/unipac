@@ -79,17 +79,65 @@ func TestEmptyStateIsCentredWithText(t *testing.T) {
 	}
 }
 
-func TestRefreshingShowsSkeleton(t *testing.T) {
+// A background refresh must keep the cached rows on screen: the window opens on
+// them and only the thin bar says a scan is running.
+func TestRefreshKeepsCachedRows(t *testing.T) {
 	d := fixture()
 	d.refreshing = true
 	l := &listView{data: d}
 	tt := render(t, l.view, 900, 500)
 
-	if tt.HasText("ripgrep") {
-		t.Errorf("rows shown while refreshing: %v", tt.Texts())
+	if !tt.HasText("ripgrep") || !tt.HasText("typescript") {
+		t.Errorf("cached rows hidden while refreshing: %v", tt.Texts())
 	}
-	if tt.HasText(locales.PackagesEmpty()) {
-		t.Errorf("empty state shown while refreshing: %v", tt.Texts())
+}
+
+func TestOutdatedEmptyState(t *testing.T) {
+	d := fixture()
+	for i := range d.rows {
+		d.rows[i].Outdated = false
+	}
+	l := &listView{data: d, outdatedOnly: true}
+	tt := render(t, l.view, 900, 500)
+
+	if !tt.HasText(locales.OutdatedEmpty()) {
+		t.Errorf("outdated empty state missing: %v", tt.Texts())
+	}
+}
+
+func TestUpdateActionRespectsCapability(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Update = false // npm
+	d.rows = d.rows[1:]                       // typescript is outdated
+	called := 0
+	l := &listView{data: d, onUpdate: func(manager.Package) { called++ }}
+
+	tt := render(t, l.view, 1000, 500)
+	if err := tt.Click(locales.ActionsUpdate()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if called != 0 {
+		t.Fatalf("update fired for a manager without the capability")
+	}
+}
+
+func TestBulkUpdateSendsOnlyOutdatedPackages(t *testing.T) {
+	d := fixture()
+	var got []manager.Package
+	l := &listView{data: d, allowRemove: true, onBulkUpdate: func(pkgs []manager.Package) { got = pkgs }}
+	l.sync()
+	for _, pkg := range l.rows {
+		l.choose(pkg, true)
+	}
+
+	tt := render(t, l.view, 1000, 500)
+	if err := tt.Click(locales.PackagesBulkUpdate()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if len(got) != 1 || got[0].Name != "typescript" {
+		t.Fatalf("bulk update sent %+v, want only the outdated package", got)
 	}
 }
 
