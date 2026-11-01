@@ -3,7 +3,10 @@
 > Status: Work in Process.
 > Expect incomplete features, rough edges, and changing APIs.
 
-UniPac is a desktop package manager dashboard built with Wails, Go, and Vue.
+UniPac is a desktop package manager dashboard written in Go. Its windows are
+drawn natively by [MyGo](https://github.com/egoist/mygo) and its controls come
+from [Onevra](https://github.com/oneo-me/onevra), so the app ships as a single Go
+binary with no webview and no JavaScript.
 
 The goal is to provide one place to inspect and operate on packages installed through different package managers, without making users known about each manager's command-line details.
 
@@ -17,13 +20,13 @@ UniPac is currently focused on:
 - Discovering available package managers on the host machine.
 - Listing installed packages through backend adapters.
 - Caching installed package snapshots in SQLite.
-- Showing installed and outdated package views in a Vue desktop UI.
+- Showing installed and outdated package views in a native desktop UI.
 - Exposing package-manager capabilities so the UI can enable only supported actions.
 - Gradually adding search, install, uninstall, update, and version lookup workflows.
 
 ## Package Manager Support
 
-The backend is adapter-based. Each adapter reports its own capabilities, and the frontend should treat manager IDs as opaque values returned by the backend.
+The backend is adapter-based. Each adapter reports its own capabilities, and the views treat manager IDs as opaque values returned by the backend.
 
 Current adapter targets include:
 
@@ -38,19 +41,28 @@ Support is intentionally uneven while the project is under active development. S
 
 ## Tech Stack
 
-- Wails v2 for the desktop shell and Go-to-frontend bindings.
+- MyGo for the desktop shell: windows, menus, dialogs, notifications, i18n, and the native `ui` toolkit that draws the interface.
+- Onevra for themed controls, the sidebar window shell, and Lucide icons.
 - Go for package-manager discovery, command execution, registry orchestration, cache persistence, config, and logging.
-- Vue 3 + TypeScript for the frontend.
-- Vite for frontend development and builds.
 - SQLite for cached package snapshots.
-- Tailwind CSS and local shadcn-vue style primitives for UI components.
+- `mygo.json` and `go tool mygo` for development, packaging, app bundles and installers.
+- Go 1.27.3 or newer, built with `CGO_ENABLED=0`.
 
 ## Repository Layout
 
 ```text
 .
-├── app.go                  # Wails-facing backend API
-├── main.go                 # Wails app setup
+├── AGENTS.md               # Agent entry point
+├── .agents/                # Architecture and agent development notes
+│   ├── ARCHITECTURE.md
+│   ├── PACKAGE_MANAGER_ADAPTERS.md
+│   └── skills/             # Project-local MyGo and Onevra skills
+├── assets/                 # Build-time inputs: app icon, screenshots
+├── go.mod                  # github.com/RUBisco0211/unipac
+├── mygo.json               # App name, identifier, version, icon, output
+├── main.go                 # App lifecycle: startup, window, shutdown
+├── app/                    # Application service the views call
+├── locales/                # ARB catalogs and the Go package generated from them
 ├── backend/
 │   ├── adapters/           # Package-manager adapters
 │   ├── cache/              # SQLite cache
@@ -58,66 +70,69 @@ Support is intentionally uneven while the project is under active development. S
 │   ├── core/               # Manager domain types and registry
 │   ├── logging/            # Logging setup
 │   └── util/               # Shared backend helpers
-├── frontend/
-│   ├── src/                # Vue app
-│   └── wailsjs/            # Generated Wails bindings
-└── .agents/                # Architecture and agent development notes
+└── views/                  # Native UI: shell, one file per page, shared table
 ```
+
+The repository root is the Go module root. There is no `source/` subdirectory:
+`go.mod`, `mygo.json`, `main.go` and `backend/` all sit together.
 
 ## Development
 
-Install the Wails CLI first if you do not already have it:
+Install Go 1.27.3 or newer, then from the repository root:
 
 ```sh
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
+go get -tool github.com/egoist/mygo/cmd/mygo
 ```
 
-Install frontend dependencies:
+Run the app with live reload:
 
 ```sh
-cd frontend
-npm install
-cd ..
+go tool mygo dev
 ```
 
-Run the app in live development mode:
+Build a redistributable app for the current machine:
 
 ```sh
-wails dev
+go tool mygo build
 ```
 
-Build a redistributable app:
+Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
+`out` set to `../dist` in `mygo.json`:
 
 ```sh
-wails build
+go tool mygo build -platform darwin/arm64,windows/amd64
 ```
 
-Run backend tests:
+Run tests and checks:
 
 ```sh
-go test ./...
+CGO_ENABLED=0 go test ./...
+go tool mygo vet .
+```
+
+Regenerate the README screenshot from the real builders, without opening a window:
+
+```sh
+UNIPAC_SCREENSHOT=assets/screenshot.png go test ./views -run TestScreenshot -count=1
 ```
 
 If Go cannot write to the default build cache in a sandboxed environment, use a writable cache path:
 
 ```sh
-GOCACHE=/private/tmp/unipac-wails-go-build go test ./...
-```
-
-Run the frontend build directly:
-
-```sh
-cd frontend
-npm run build
+GOCACHE=/private/tmp/unipac-mygo-go-build go test ./...
 ```
 
 ## Development Notes
 
-- `frontend/wailsjs/` is generated by Wails. Do not edit it by hand.
-- Frontend pages and components should call `frontend/src/lib/api.ts`, not generated Wails bindings directly.
+- The repository root is the Go module root; `mygo.json` sits beside `go.mod`. Go commands run there, not in a `source/` subdirectory.
+- Views call methods on `App` in `app.go`. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
 - The backend registry is the source of truth for available package managers and capabilities.
-- Adding a package manager should be a backend adapter change, followed by Wails binding regeneration when new app methods are exposed.
-- UI availability should be driven by backend capabilities, not hardcoded manager names.
+- Adding a package manager is a backend adapter change plus a constructor registration in `backend/adapters/index.go`. No UI change is required.
+- UI availability is driven by backend capabilities, not hardcoded manager names. Unsupported actions stay visible but disabled, with a tooltip naming the missing capability.
+- Irreversible actions such as uninstall are confirmed with Onevra's `HoldToConfirm`, not a dialog.
+- Catalogs live in `locales/`. `mygo dev` and `mygo build` generate a typed Go package beside them; commit the generated files so `go build` and `go test` work without the CLI.
+- `AGENTS.md` and `.agents/ARCHITECTURE.md` describe the boundaries agents should follow.
+- `go tool mygo dev` regenerates `locales/catalog_gen.go` and the packaged app; commit the generated catalog file.
 
 ## Known Limitations
 
@@ -125,7 +140,7 @@ npm run build
 - Package actions may require permissions depending on the package manager and host setup.
 - Startup and refresh behavior may be affected by slow or failing package-manager commands.
 - Some package-manager capabilities are intentionally disabled until their CLI behavior is reliable enough to expose.
-- Generated bindings and frontend action wiring may change as backend workflows stabilize.
+- Native UI layout and platform behavior need manual review on each supported platform; headless tests do not cover them.
 
 ## License
 
