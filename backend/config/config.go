@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"unipac-wails/backend/cache"
-	"unipac-wails/backend/core/manager"
-	"unipac-wails/backend/logging"
-	"unipac-wails/backend/util"
 
+	"github.com/RUBisco0211/unipac/backend/cache"
+	"github.com/RUBisco0211/unipac/backend/core/manager"
+	"github.com/RUBisco0211/unipac/backend/logging"
+	"github.com/RUBisco0211/unipac/backend/util"
 	"github.com/samber/lo"
 )
 

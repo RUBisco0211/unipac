@@ -3,7 +3,8 @@ package manager
 import (
 	"context"
 	"fmt"
-	"unipac-wails/backend/util"
+
+	"github.com/RUBisco0211/unipac/backend/util"
 )
 
 type ActionResult struct {

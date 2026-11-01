@@ -3,12 +3,21 @@ package cache
 import (
 	"context"
 	"fmt"
-	"unipac-wails/backend/util"
 
+	"github.com/RUBisco0211/unipac/backend/util"
 	"github.com/jmoiron/sqlx"
-
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
+
+// sqliteDriver is the pure-Go driver, so the app builds and cross-compiles with
+// CGO_ENABLED=0.
+const sqliteDriver = "sqlite"
+
+// sqliteDSN opens path with WAL and a busy timeout. modernc.org/sqlite reads
+// pragmas from the DSN, unlike the cgo driver's mattn-style parameters.
+func sqliteDSN(path string) string {
+	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", path)
+}
 
 // Config represents the configuration for the cache manager
 type Config struct {
@@ -51,7 +60,7 @@ func newCache(ctx context.Context, cfg Config) (*Cache, error) {
 		return nil, err
 	}
 
-	db, err := sqlx.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL", dbPath))
+	db, err := sqlx.Open(sqliteDriver, sqliteDSN(dbPath))
 	if err != nil {
 		return nil, err
 	}

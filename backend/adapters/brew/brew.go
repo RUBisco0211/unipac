@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"unipac-wails/backend/core/manager"
-	"unipac-wails/backend/util"
+
+	"github.com/RUBisco0211/unipac/backend/core/manager"
+	"github.com/RUBisco0211/unipac/backend/util"
 )
 
 type Adapter struct {

@@ -1,13 +1,13 @@
 package adapters
 
 import (
-	"unipac-wails/backend/adapters/brew"
-	"unipac-wails/backend/adapters/cargo"
-	"unipac-wails/backend/adapters/npm"
-	"unipac-wails/backend/adapters/pip"
-	"unipac-wails/backend/adapters/pipx"
-	"unipac-wails/backend/adapters/uvtool"
-	"unipac-wails/backend/core/manager"
+	"github.com/RUBisco0211/unipac/backend/adapters/brew"
+	"github.com/RUBisco0211/unipac/backend/adapters/cargo"
+	"github.com/RUBisco0211/unipac/backend/adapters/npm"
+	"github.com/RUBisco0211/unipac/backend/adapters/pip"
+	"github.com/RUBisco0211/unipac/backend/adapters/pipx"
+	"github.com/RUBisco0211/unipac/backend/adapters/uvtool"
+	"github.com/RUBisco0211/unipac/backend/core/manager"
 )
 
 func GetAdapterConstructors() []manager.AdapterConstructor {

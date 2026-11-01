@@ -3,7 +3,8 @@ package cache
 import (
 	_ "embed"
 	"log/slog"
-	"unipac-wails/backend/core/manager"
+
+	"github.com/RUBisco0211/unipac/backend/core/manager"
 )
 
 //go:embed schema.sql

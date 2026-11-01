@@ -1,11 +1,13 @@
 package logging
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"unipac-wails/backend/util"
+
+	"github.com/RUBisco0211/unipac/backend/util"
 )
 
 var AppLogDir string
@@ -38,22 +40,17 @@ func DefaultConfig() Config {
 }
 
 func Init(cfg Config) error {
-	AppLogDir, err := util.SafeJoin(util.AppRoot, cfg.LogDir)
+	logPath, err := util.SafeJoin(util.AppRoot, cfg.LogDir, "app.log")
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve app log path: %w", err)
 	}
+	AppLogDir = filepath.Dir(logPath)
 
-	LogFile, err = os.OpenFile(
-		filepath.Join(AppLogDir, "app.log"),
-		os.O_CREATE|os.O_APPEND|os.O_WRONLY,
-		0644,
-	)
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		if err = LogFile.Close(); err != nil {
-			return err
-		}
-		return err
+		return fmt.Errorf("open app log %s: %w", logPath, err)
 	}
+	LogFile = file
 
 	logLevel, ok := levelMap[cfg.Level]
 	if !ok {
@@ -66,9 +63,14 @@ func Init(cfg Config) error {
 		AddSource: util.IsDev(),
 	})
 	slog.SetDefault(slog.New(handler))
-	return err
+	return nil
 }
 
 func Close() error {
-	return LogFile.Close()
+	if LogFile == nil {
+		return nil
+	}
+	err := LogFile.Close()
+	LogFile = nil
+	return err
 }
