@@ -1,109 +1,92 @@
-package main
+// Package app holds UniPac's application service: the coarse operations the
+// views call. It has no dependency on Wails or on any UI toolkit, so the Wails
+// entry point and the MyGo entry point share the same implementation.
+package app
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
-	"unipac-wails/backend/cache"
-	"unipac-wails/backend/config"
-	"unipac-wails/backend/core/manager"
-	"unipac-wails/backend/core/registry"
-	"unipac-wails/backend/logging"
-	"unipac-wails/backend/util"
 
+	"github.com/RUBisco0211/unipac/backend/cache"
+	"github.com/RUBisco0211/unipac/backend/config"
+	"github.com/RUBisco0211/unipac/backend/core/manager"
+	"github.com/RUBisco0211/unipac/backend/core/registry"
+	"github.com/RUBisco0211/unipac/backend/logging"
+	"github.com/RUBisco0211/unipac/backend/util"
 	"github.com/samber/lo"
-	wailsrt "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
+// App is the application service. Its exported methods are called directly by
+// the views; there is no binding layer between them.
 type App struct {
 	ctx context.Context
 }
 
 func NewApp() *App {
-	return &App{}
+	return &App{ctx: context.Background()}
 }
 
-// startup called when the app starts
-// context injected
-func (a *App) startup(ctx context.Context) {
+// Startup prepares the app root, config, logging, cache and manager registry.
+// It returns the first failure with the stage that produced it; entry points
+// decide whether to report it and quit.
+func (a *App) Startup(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	a.ctx = ctx
 
-	// init app root directory
 	if err := util.InitAppRoot("unipac"); err != nil {
-		slog.ErrorContext(ctx, "Failed to init app root dir", "error", err)
-		if err = util.WailsDialog(ctx, util.DialogOptions{
-			Type:  wailsrt.ErrorDialog,
-			Title: "Error",
-			Message: fmt.Sprintf("Failed to init app root dir: %s. "+
-				"Please check if UniPac has the right to create directories",
-				err.Error()),
-		}); err != nil {
-			panic(err)
-		}
-		return
+		return a.fail("init app root dir", err)
 	}
 
-	// load config
 	if err := config.Init(); err != nil {
-		slog.ErrorContext(ctx, "Failed to load config", "error", err)
-		_ = util.WailsDialog(ctx, util.DialogOptions{
-			Type:    wailsrt.ErrorDialog,
-			Title:   "Error",
-			Message: fmt.Sprintf("Failed to load app config: %s.", err.Error()),
-		})
-		panic(err)
+		return a.fail("load app config", err)
 	}
 
-	// init logging
 	if err := logging.Init(config.Instance.Log); err != nil {
-		slog.ErrorContext(ctx, "Failed to initialize logging", "error", err)
-		_ = util.WailsDialog(ctx, util.DialogOptions{
-			Type:    wailsrt.ErrorDialog,
-			Title:   "Error",
-			Message: fmt.Sprintf("Failed to init logging: %s.", err.Error()),
-		})
-		panic(err)
+		return a.fail("init logging", err)
 	}
-	slog.InfoContext(ctx, "Logging initialized")
+	slog.InfoContext(a.ctx, "logging initialized")
 
-	// init cache
-	if err := cache.Init(ctx, config.Instance.Cache); err != nil {
-		slog.ErrorContext(ctx, "Failed to initialize cache", "error", err)
-		_ = util.WailsDialog(ctx, util.DialogOptions{
-			Type:    wailsrt.ErrorDialog,
-			Title:   "Error",
-			Message: fmt.Sprintf("Failed to init cache: %s.", err.Error()),
-		})
-		panic(err)
+	if err := cache.Init(a.ctx, config.Instance.Cache); err != nil {
+		return a.fail("init cache", err)
 	}
-	slog.InfoContext(ctx, "Cache initialized")
+	slog.InfoContext(a.ctx, "cache initialized")
 
-	// register adapters after app config, logging, and cache are ready
 	slog.InfoContext(a.ctx, "initializing manager registry")
 	registry.Init(a.ctx, config.Instance.Managers)
 	if err := config.SyncManagers(registry.Instance.ListManagers()); err != nil {
-		slog.ErrorContext(ctx, "Failed to sync manager config", "error", err)
-		_ = util.WailsDialog(ctx, util.DialogOptions{
-			Type:    wailsrt.ErrorDialog,
-			Title:   "Error",
-			Message: fmt.Sprintf("Failed to sync manager config: %s.", err.Error()),
-		})
-		panic(err)
+		return a.fail("sync manager config", err)
 	}
+	slog.InfoContext(a.ctx, "manager registry initialized")
 
-	if err := a.UpdateCache(); err != nil {
-		slog.ErrorContext(ctx, "Failed to update cache", "error", err)
-		_ = util.WailsDialog(ctx, util.DialogOptions{
-			Type:    wailsrt.ErrorDialog,
-			Title:   "Error",
-			Message: fmt.Sprintf("Failed to update cache: %s.", err.Error()),
-		})
-		panic(err)
+	return nil
+}
+
+func (a *App) fail(stage string, err error) error {
+	slog.ErrorContext(a.ctx, "startup failed", "stage", stage, "error", err)
+	return fmt.Errorf("%s: %w", stage, err)
+}
+
+// Shutdown releases resources held by the app.
+func (a *App) Shutdown() {
+	Cleanup()
+}
+
+// Cleanup closes the log file. It is safe to call more than once.
+func Cleanup() {
+	if logging.LogFile == nil {
+		return
+	}
+	if err := logging.Close(); err != nil {
+		slog.Error("Failed to close log file", "error", err)
 	}
 }
 
-func (a *App) shutdown(_ context.Context) {
-	Cleanup()
+// Context returns the context the app was started with.
+func (a *App) Context() context.Context {
+	return a.ctx
 }
 
 func (a *App) ListManagers() []manager.Info {
