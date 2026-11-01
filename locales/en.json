@@ -83,5 +83,7 @@
       }
     }
   },
-  "actionUpToDate": "Already up to date"
+  "actionUpToDate": "Already up to date",
+  "packagesScanning": "Scanning installed packages…",
+  "actionsInstalling": "Installing…"
 }

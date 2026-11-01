@@ -323,27 +323,47 @@ func (l *listView) toolbar(c *ui.Context) {
 			}
 		}
 		canBulkUpdate := len(updatable) > 0 && !l.data.busy
-		bulkUpdate := components.IconButton(c, lucide.CircleArrowUp(), locales.PackagesBulkUpdate(), components.IconButtonPlain)
-		bulkUpdate.Disabled(!canBulkUpdate)
-		disabledHint(c, bulkUpdate, canBulkUpdate, l.busyReason())
-		if len(updatable) == 0 && !l.data.busy {
-			disabledHint(c, bulkUpdate, false, locales.ActionUpToDate())
+		updateLabel := locales.PackagesBulkUpdate()
+		if l.data.busyKey == "bulk-update" {
+			updateLabel = locales.ActionsUpdating()
 		}
-		if bulkUpdate.Clicked() && canBulkUpdate && l.onBulkUpdate != nil {
-			l.onBulkUpdate(updatable)
+		updateSlot := actionSlot(c)
+		updateSlot.Children(func() {
+			bulkUpdate := components.IconButton(c, lucide.CircleArrowUp(), updateLabel, components.IconButtonPlain)
+			bulkUpdate.Disabled(!canBulkUpdate)
+			if bulkUpdate.Clicked() && canBulkUpdate && l.onBulkUpdate != nil {
+				l.onBulkUpdate(updatable)
+			}
+		})
+		switch {
+		case l.data.busyKey == "bulk-update":
+			// Its own label already says it is working.
+		case l.data.busy:
+			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionWorking())
+		case len(updatable) == 0:
+			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionUpToDate())
 		}
 
 		if !l.allowRemove {
 			return
 		}
 		canBulkRemove := !l.data.busy
-		bulkRemove := components.IconButton(c, lucide.Trash(), locales.PackagesBulkRemove(), components.IconButtonPlain)
-		bulkRemove.TextColor(c.Theme().Danger)
-		bulkRemove.Disabled(!canBulkRemove)
-		disabledHint(c, bulkRemove, canBulkRemove, l.busyReason())
-		if bulkRemove.Clicked() && canBulkRemove {
-			l.bulkTargets = selected
-			l.bulkOpen = true
+		removeLabel := locales.PackagesBulkRemove()
+		if l.data.busyKey == "bulk-remove" {
+			removeLabel = locales.ActionsRemoving()
+		}
+		removeSlot := actionSlot(c)
+		removeSlot.Children(func() {
+			bulkRemove := components.IconButton(c, lucide.Trash(), removeLabel, components.IconButtonPlain)
+			bulkRemove.TextColor(c.Theme().Danger)
+			bulkRemove.Disabled(!canBulkRemove)
+			if bulkRemove.Clicked() && canBulkRemove {
+				l.bulkTargets = selected
+				l.bulkOpen = true
+			}
+		})
+		if l.data.busyKey != "bulk-remove" {
+			actionTooltip(c, removeSlot, canBulkRemove, l.busyReason())
 		}
 	})
 }
@@ -381,6 +401,10 @@ func (l *listView) body(c *ui.Context) {
 	switch {
 	case l.data.loadErr != nil:
 		placeholder(c, locales.PackagesLoadError(l.data.loadErr.Error()))
+	case l.data.refreshing && len(l.rows) == 0:
+		// Nothing cached yet: say what is happening instead of claiming the
+		// inventory is empty.
+		placeholder(c, locales.PackagesScanning())
 	case len(l.rows) == 0:
 		if l.outdatedOnly {
 			placeholder(c, locales.OutdatedEmpty())
@@ -476,18 +500,23 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		if updating {
 			updateLabel = locales.ActionsUpdating()
 		}
-		update := components.IconButton(c, lucide.CircleArrowUp(), updateLabel, components.IconButtonPlain)
-		update.Disabled(!canUpdate)
+		updateSlot := actionSlot(c)
+		updateSlot.Children(func() {
+			update := components.IconButton(c, lucide.CircleArrowUp(), updateLabel, components.IconButtonPlain)
+			update.Disabled(!canUpdate)
+			if update.Clicked() && canUpdate && l.onUpdate != nil {
+				l.onUpdate(pkg)
+			}
+		})
 		switch {
+		case updating:
+			// The label already says it is working.
 		case !caps.Update:
-			disabledHint(c, update, canUpdate, locales.ActionUnsupported())
+			actionTooltip(c, updateSlot, canUpdate, locales.ActionUnsupported())
 		case !pkg.Outdated:
-			disabledHint(c, update, canUpdate, locales.ActionUpToDate())
+			actionTooltip(c, updateSlot, canUpdate, locales.ActionUpToDate())
 		default:
-			disabledHint(c, update, canUpdate, l.busyReason())
-		}
-		if update.Clicked() && canUpdate && l.onUpdate != nil {
-			l.onUpdate(pkg)
+			actionTooltip(c, updateSlot, canUpdate, l.busyReason())
 		}
 
 		if !l.allowRemove {
@@ -499,17 +528,23 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		if removing {
 			removeLabel = locales.ActionsRemoving()
 		}
-		remove := components.IconButton(c, lucide.Trash(), removeLabel, components.IconButtonPlain)
-		remove.TextColor(c.Theme().Danger)
-		remove.Disabled(!canRemove)
-		if !caps.Uninstall {
-			disabledHint(c, remove, canRemove, locales.ActionUnsupported())
-		} else {
-			disabledHint(c, remove, canRemove, l.busyReason())
-		}
-		if remove.Clicked() && canRemove {
-			l.uninstallTarget = pkg
-			l.uninstallOpen = true
+		removeSlot := actionSlot(c)
+		removeSlot.Children(func() {
+			remove := components.IconButton(c, lucide.Trash(), removeLabel, components.IconButtonPlain)
+			remove.TextColor(c.Theme().Danger)
+			remove.Disabled(!canRemove)
+			if remove.Clicked() && canRemove {
+				l.uninstallTarget = pkg
+				l.uninstallOpen = true
+			}
+		})
+		switch {
+		case removing:
+			// Its own label already says it is working.
+		case !caps.Uninstall:
+			actionTooltip(c, removeSlot, canRemove, locales.ActionUnsupported())
+		default:
+			actionTooltip(c, removeSlot, canRemove, l.busyReason())
 		}
 	})
 }
@@ -522,13 +557,18 @@ func (l *listView) busyReason() string {
 	return locales.ActionWorking()
 }
 
-// disabledHint explains a disabled control without adding a tooltip to one that
-// can be used.
-func disabledHint(c *ui.Context, control ui.Element, enabled bool, reason string) {
+// actionSlot wraps a control that may be disabled. MyGo shows no tooltip
+// anchored on a disabled element, so the reason hangs on the wrapper instead.
+func actionSlot(c *ui.Context) ui.Element {
+	return ui.Row(c).Shrink(0).AlignItems(ui.Center)
+}
+
+// actionTooltip explains a disabled action; an enabled one needs no reason.
+func actionTooltip(c *ui.Context, slot ui.Element, enabled bool, reason string) {
 	if enabled || reason == "" {
 		return
 	}
-	components.Tooltip(c, control, reason)
+	components.Tooltip(c, slot, reason)
 }
 
 // uninstallDialog asks before removing one package; the removal itself is a

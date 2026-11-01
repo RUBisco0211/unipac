@@ -66,5 +66,7 @@
   "capabilityVersions": "版本",
   "actionsInstall": "安装",
   "commonSelectionCount": "{selected} / {total}",
-  "actionUpToDate": "已是最新版本"
+  "actionUpToDate": "已是最新版本",
+  "packagesScanning": "正在扫描已安装软件包…",
+  "actionsInstalling": "正在安装…"
 }

@@ -122,8 +122,18 @@ func TestUpdateActionRespectsCapability(t *testing.T) {
 	}
 }
 
-func TestBulkUpdateSendsOnlyOutdatedPackages(t *testing.T) {
+func TestBulkUpdateSendsOnlyUpdatablePackages(t *testing.T) {
 	d := fixture()
+	// A manager that cannot update, holding an outdated package: the old code
+	// sent it along and the batch failed after earlier groups had run.
+	d.managers = append(d.managers, manager.Info{
+		ID: "cargo", Name: "Cargo", Enabled: true,
+		Capabilities: manager.Capabilities{ListInstalled: true, Update: false},
+	})
+	d.names["cargo"] = "Cargo"
+	d.rows = append(d.rows,
+		manager.Package{Name: "stale-crate", Version: "1.0.0", Manager: "cargo", Outdated: true})
+
 	var got []manager.Package
 	l := &listView{data: d, allowRemove: true, onBulkUpdate: func(pkgs []manager.Package) { got = pkgs }}
 	l.sync()
@@ -137,7 +147,69 @@ func TestBulkUpdateSendsOnlyOutdatedPackages(t *testing.T) {
 	}
 	tt.Frame()
 	if len(got) != 1 || got[0].Name != "typescript" {
-		t.Fatalf("bulk update sent %+v, want only the outdated package", got)
+		t.Fatalf("bulk update sent %+v, want only the updatable package", got)
+	}
+}
+
+func TestDisabledActionExplainsItself(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Update = false // npm
+	d.rows = d.rows[1:]                       // typescript, outdated
+	l := &listView{data: d}
+
+	tt := render(t, l.view, 1000, 500)
+	rect, ok := tt.Find(locales.ActionsUpdate())
+	if !ok {
+		t.Fatalf("update control not found: %v", tt.Texts())
+	}
+	tt.Move(rect.X+rect.W/2, rect.Y+rect.H/2)
+	tt.Advance(2 * time.Second)
+
+	for _, text := range tt.Texts() {
+		if text == locales.ActionUnsupported() {
+			return
+		}
+	}
+	t.Fatalf("disabled action gave no reason: %v", tt.Texts())
+}
+
+// A request that arrives mid-scan must not be dropped: the follow-up scan is
+// what stops an action from leaving pre-action rows on screen.
+func TestRefreshQueuesOneFollowUp(t *testing.T) {
+	d := &data{}
+
+	if !d.beginRefresh() {
+		t.Fatal("first refresh did not start")
+	}
+	if d.beginRefresh() {
+		t.Fatal("second refresh started while one was running")
+	}
+	if !d.refreshPending {
+		t.Fatal("the mid-scan request was dropped")
+	}
+	if !d.finishRefresh(nil, nil, nil) {
+		t.Fatal("finishing did not report the queued scan")
+	}
+	if d.refreshPending {
+		t.Fatal("the queued scan was not cleared")
+	}
+	if !d.beginRefresh() {
+		t.Fatal("the queued scan did not start")
+	}
+}
+
+func TestFirstScanSaysScanning(t *testing.T) {
+	d := fixture()
+	d.rows = nil
+	d.refreshing = true
+	l := &listView{data: d}
+	tt := render(t, l.view, 900, 500)
+
+	if !tt.HasText(locales.PackagesScanning()) {
+		t.Fatalf("first scan shows no progress text: %v", tt.Texts())
+	}
+	if tt.HasText(locales.PackagesEmpty()) {
+		t.Fatalf("first scan claims the inventory is empty: %v", tt.Texts())
 	}
 }
 

@@ -93,9 +93,12 @@ human look at the window, a real package action, and packaging.
 
 - [x] `App` methods for install, uninstall, update and version lookup already
       existed and route through the registry's capability checks.
-- [x] Disabled actions stay visible, with a tooltip naming the reason: no
-      selection, unsupported by the manager, or an action already running.
-- [x] `HoldToConfirm` for uninstall, per package, no stacked dialogs.
+- [x] Disabled actions stay visible, with a tooltip naming the reason: the
+      manager does not support it, the package is already current, or another
+      action is running. The reason hangs on a wrapper, because MyGo shows no
+      tooltip on a disabled element.
+- [x] Uninstall opens a dialog per action whose confirm is `HoldToConfirm`; batch
+      uninstall opens one dialog for every target.
       Verify: `TestUpdateActionRespectsCapability` proves a button without the
       capability does nothing; `TestUpdateActionFires` proves a supported one
       reaches the selected package. A real uninstall was not run, because it

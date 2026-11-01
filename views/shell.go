@@ -101,27 +101,23 @@ func (u *UI) Run() {
 }
 
 // Refresh rescans installed packages off the UI thread and publishes the rows
-// through Window.Update. A refresh already in flight wins; a second request is
-// dropped rather than queued, so the app never stacks scans.
+// through Window.Update. A request that arrives mid-scan is remembered and runs
+// once more when it finishes, so an action that lands during a scan is not left
+// showing pre-action rows; only one extra scan is queued, never a stack.
 func (u *UI) Refresh() {
 	if u.shell == nil {
 		return
 	}
-	if u.data.refreshing {
-		u.data.refreshPending = true
+	if !u.data.beginRefresh() {
 		return
 	}
-	u.data.refreshing = true
-	u.data.refreshErr = nil
 	slog.Debug("views: refresh started")
 	win := u.shell.Window()
 	go func() {
 		refreshErr := u.svc.UpdateCache()
 		rows, loadErr := u.svc.GetCachedPackages()
 		win.Update(func() {
-			u.data.applyRefresh(rows, refreshErr, loadErr)
-			if u.data.refreshPending {
-				u.data.refreshPending = false
+			if u.data.finishRefresh(rows, refreshErr, loadErr) {
 				u.Refresh()
 			}
 		})

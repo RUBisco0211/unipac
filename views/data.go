@@ -56,6 +56,30 @@ func (d *data) load(service *app.App) {
 	d.version++
 }
 
+// beginRefresh reports whether a scan should start. A request that arrives
+// while one runs is remembered instead, so the caller runs one more scan when
+// the current one finishes rather than dropping the request.
+func (d *data) beginRefresh() bool {
+	if d.refreshing {
+		d.refreshPending = true
+		return false
+	}
+	d.refreshing = true
+	d.refreshErr = nil
+	return true
+}
+
+// finishRefresh installs a scan's outcome and reports whether another scan was
+// asked for while it ran.
+func (d *data) finishRefresh(rows []manager.Package, refreshErr, loadErr error) bool {
+	d.applyRefresh(rows, refreshErr, loadErr)
+	if !d.refreshPending {
+		return false
+	}
+	d.refreshPending = false
+	return true
+}
+
 // applyRefresh installs the outcome of a background scan. It runs on the UI
 // thread, from Window.Update.
 func (d *data) applyRefresh(rows []manager.Package, refreshErr, loadErr error) {

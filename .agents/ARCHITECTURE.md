@@ -158,7 +158,7 @@ Command helpers are backend-only. Views should request operations through `App` 
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
   so MyGo remembers bounds and maximized state.
-- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference; components never call `Context.SetTheme`.
+- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme`, with one documented exception: `list.go` builds the table with a square-radius copy of the theme so its rows meet without notches, and restores the real theme inside every cell so the controls keep their rounding.
 - The app defines no native menus yet. The old `open_settings` Wails event and its
   `useWailsEvents.ts` listener are gone; settings is a page in the sidebar.
 - Dialogs use `mygo.Dialog` with the window as `Parent`, so macOS shows them as sheets.
@@ -193,10 +193,10 @@ Rules that replace the Vue ones:
 - Keep slow work out of the builder and publish results through `Window.Update`.
 
 Actions are never hidden. A button whose manager lacks the capability stays
-visible and disabled, and a tooltip names the reason: no selection, the manager
-does not support it, or another action is already running. Uninstall is a
-`HoldToConfirm`, so it takes a deliberate press-and-hold and never stacks modal
-confirmations.
+visible and disabled, and a tooltip names the reason: the manager does not
+support it, the package is already current, or another action is running. MyGo
+shows no tooltip on a disabled element, so the reason hangs on the wrapper row
+that `actionSlot` builds, not on the button.
 
 ### Components
 
@@ -225,7 +225,7 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 
 Action availability is capability-driven, and the result is never a disappearing button: an unsupported action stays visible and disabled, with a tooltip naming the missing capability. A user must be able to tell "this manager cannot search" from "the app is broken".
 
-Irreversible actions use Onevra's `HoldToConfirm`, so uninstalling takes a deliberate press-and-hold instead of a dialog. Batch uninstall keeps the same gesture per package rather than stacking modal confirmations.
+Uninstall opens a dialog, and the dialog's confirm button is a `HoldToConfirm` gesture, so removing a package takes a deliberate press-and-hold after the dialog is open. Batch uninstall opens one dialog for every target and confirms them with the same gesture.
 
 ### Localization
 
@@ -257,11 +257,11 @@ Views may rebuild several times for one event. Trigger side effects through hand
 Startup:
 
 1. `mygo.App.Run()` starts the runtime and calls the `WhenReady` callback.
-2. `App.startup` initializes the app root.
-3. Registry constructs and preflights all adapters.
-4. Config is loaded or created.
-5. Logging is initialized.
-6. Cache is initialized.
+2. `App.Startup` initializes the app root.
+3. Config is loaded or created.
+4. Logging is initialized.
+5. Cache is initialized.
+6. The registry constructs and preflights all adapters.
 7. `sidebar.NewShell` opens the main window on the Packages view.
 8. Cached packages render immediately; a background job refreshes the cache.
 

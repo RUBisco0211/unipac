@@ -49,13 +49,11 @@ func (s *searchView) toolbar(c *ui.Context) {
 			Label(locales.SearchField()).
 			Width(340)
 
-		label := locales.SearchAction()
-		if s.searching {
-			label = locales.SearchSearching()
-		}
-		search := components.IconButton(c, lucide.Search(), label, components.IconButtonPlain)
-		search.Disabled(s.searching || strings.TrimSpace(s.query) == "")
-		if (search.Clicked() || box.Submitted()) && s.submit != nil && !s.searching {
+		// A second submission is allowed while one runs: the sequence number in
+		// UI.Search drops the slower, older result.
+		search := components.IconButton(c, lucide.Search(), locales.SearchAction(), components.IconButtonPlain)
+		search.Disabled(strings.TrimSpace(s.query) == "")
+		if (search.Clicked() || box.Submitted()) && s.submit != nil {
 			s.submit(strings.TrimSpace(s.query))
 		}
 	})
@@ -122,11 +120,29 @@ func (s *searchView) body(c *ui.Context) {
 
 func (s *searchView) rowAction(c *ui.Context, pkg manager.Package) {
 	caps := s.data.capabilities(pkg.Manager)
+	installing := s.data.busyKey == "install:"+packageKey(pkg)
 	canInstall := caps.Install && !s.data.busy
-	install := components.IconButton(c, lucide.Download(), locales.ActionsInstall(), components.IconButtonPlain)
-	install.Disabled(!canInstall)
-	if install.Clicked() && canInstall && s.onInstall != nil {
-		s.onInstall(pkg)
+	label := locales.ActionsInstall()
+	if installing {
+		label = locales.ActionsInstalling()
+	}
+	slot := actionSlot(c)
+	slot.Children(func() {
+		install := components.IconButton(c, lucide.Download(), label, components.IconButtonPlain)
+		install.Disabled(!canInstall)
+		if install.Clicked() && canInstall && s.onInstall != nil {
+			s.onInstall(pkg)
+		}
+	})
+	switch {
+	case installing:
+		// Its own label already says it is working.
+	case !caps.Install:
+		actionTooltip(c, slot, canInstall, locales.ActionUnsupported())
+	default:
+		if s.data.busy {
+			actionTooltip(c, slot, canInstall, locales.ActionWorking())
+		}
 	}
 }
 

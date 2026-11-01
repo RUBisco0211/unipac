@@ -59,8 +59,10 @@ func TestScreenshot(t *testing.T) {
 	}
 	if os.Getenv("UNIPAC_SCREENSHOT_SELECTED") != "" {
 		u.installed.sync()
-		u.installed.selection.Add(packageKey(u.installed.rows[1]))
-		u.installed.selection.Add(packageKey(u.installed.rows[2]))
+		// Selection lives in chosen; body() rebuilds the table's selection from
+		// it every frame, so writing to selection here would be discarded.
+		u.installed.choose(u.installed.rows[1], true)
+		u.installed.choose(u.installed.rows[2], true)
 	}
 
 	dark := os.Getenv("UNIPAC_SCREENSHOT_DARK") != ""

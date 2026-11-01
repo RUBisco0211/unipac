@@ -707,3 +707,23 @@ func ActionUpToDate() string { return In(i18n.Locale()).ActionUpToDate() }
 func (msgs Messages) ActionUpToDate() string {
 	return Catalog.Format(msgs.locale, "actionUpToDate", nil)
 }
+
+// PackagesScanning says "Scanning installed packages…"
+// in the language the app shows.
+func PackagesScanning() string { return In(i18n.Locale()).PackagesScanning() }
+
+// PackagesScanning says "Scanning installed packages…"
+// in the language of msgs.
+func (msgs Messages) PackagesScanning() string {
+	return Catalog.Format(msgs.locale, "packagesScanning", nil)
+}
+
+// ActionsInstalling says "Installing…"
+// in the language the app shows.
+func ActionsInstalling() string { return In(i18n.Locale()).ActionsInstalling() }
+
+// ActionsInstalling says "Installing…"
+// in the language of msgs.
+func (msgs Messages) ActionsInstalling() string {
+	return Catalog.Format(msgs.locale, "actionsInstalling", nil)
+}
