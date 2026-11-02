@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"os/exec"
 	"slices"
 	"strconv"
@@ -46,11 +47,8 @@ func TestTaskRecordsCommandOutputAndOutcome(t *testing.T) {
 	if got.ExecPath != sh {
 		t.Errorf("exec path = %q, want %q", got.ExecPath, sh)
 	}
-	if len(got.Output) != 1 || got.Output[0].Text != "upgrading" {
-		t.Fatalf("output = %+v", got.Output)
-	}
-	if !got.OutputKept {
-		t.Error("a task run in this process should keep its output")
+	if output := m.Output(got.ID); len(output.Lines) != 1 || output.Lines[0].Text != "upgrading" {
+		t.Fatalf("output = %+v", output)
 	}
 	if got.Message != "brew failed" || got.FinishedAt.IsZero() {
 		t.Fatalf("outcome = %q at %v", got.Message, got.FinishedAt)
@@ -110,8 +108,8 @@ func TestStopAllFailsUnfinishedTasks(t *testing.T) {
 	}
 }
 
-// The command, target, state and times survive a restart; output does not, and
-// a task left running by the old process is failed.
+// The command, target, state, times and console output survive a restart; a
+// task left running by the old process is cancelled.
 func TestTasksPersistAcrossRestart(t *testing.T) {
 	oldRoot := util.AppRoot
 	util.AppRoot = t.TempDir()
@@ -168,9 +166,6 @@ func TestTasksPersistAcrossRestart(t *testing.T) {
 	if done.Message != "Installed" {
 		t.Errorf("message after reload = %q", done.Message)
 	}
-	if done.OutputKept {
-		t.Error("reloaded task claims to keep output")
-	}
 	if done.NewVersion != "" {
 		t.Errorf("install target new version = %q", done.NewVersion)
 	}
@@ -190,11 +185,18 @@ func TestOutputIsBounded(t *testing.T) {
 	task := m.Begin(context.Background(), KindInstall, target("x"))
 	task.Start()
 	for i := 0; i < maxOutput+5; i++ {
-		task.report(util.Event{Kind: util.EventOutput, Text: "line"})
+		task.report(util.Event{Kind: util.EventOutput, Text: "line " + strconv.Itoa(i)})
 	}
 	got := m.List()[0]
-	if len(got.Output) != maxOutput {
-		t.Fatalf("kept %d lines, want %d", len(got.Output), maxOutput)
+	output := m.Output(got.ID)
+	if len(output.Lines) != maxOutput {
+		t.Fatalf("kept %d lines, want %d", len(output.Lines), maxOutput)
+	}
+	if first := output.Lines[0].Text; first != "line 5" {
+		t.Fatalf("oldest kept line = %q, want line 5", first)
+	}
+	if last := output.Lines[len(output.Lines)-1].Text; last != "line "+strconv.Itoa(maxOutput+4) {
+		t.Fatalf("newest kept line = %q", last)
 	}
 	if !got.Truncated {
 		t.Fatal("truncation was not reported")
@@ -225,6 +227,26 @@ func TestCancelStopsAndKeepsTheTask(t *testing.T) {
 	}
 	if err := m.Cancel(idString(running)); err == nil {
 		t.Fatal("cancelling a finished task succeeded")
+	}
+}
+
+func TestCloseIsIdempotent(t *testing.T) {
+	m := NewManager()
+	m.Close()
+	m.Close()
+}
+
+func TestCancelReturnsSentinels(t *testing.T) {
+	m := NewManager()
+	if err := m.Cancel("not-an-id"); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("invalid id error = %v, want ErrTaskNotFound", err)
+	}
+	task := m.Begin(context.Background(), KindInstall, target("x"))
+	if err := m.Cancel(idString(task)); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if err := m.Cancel(idString(task)); !errors.Is(err, ErrTaskNotRunning) {
+		t.Fatalf("finished task error = %v, want ErrTaskNotRunning", err)
 	}
 }
 

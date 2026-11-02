@@ -21,7 +21,7 @@ func uiWithRunningTasks() *UI {
 	list[1].State = tasks.StateRunning
 	list = append(list, tasks.Snapshot{
 		ID: "4", Kind: tasks.KindInstall, State: tasks.StateRunning,
-		ManagerName: "Cargo", Package: "ripgrep", StartedAt: time.Now(), OutputKept: true,
+		ManagerName: "Cargo", Package: "ripgrep", StartedAt: time.Now(),
 	})
 	u.tasks.apply(list)
 	return u

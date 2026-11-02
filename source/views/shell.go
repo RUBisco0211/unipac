@@ -164,6 +164,12 @@ func (u *UI) Run() {
 			u.tasks.apply(list)
 			u.announceTaskResults(previous, list)
 			u.knownTasks = taskStates(list)
+			// A refresh started while another task for the same manager was still
+			// running could race its package manager. Wait for the last task to
+			// finish, then scan once.
+			if unfinishedStates(previous) && !u.hasUnfinishedTasks() && !u.quitAccepted.Load() {
+				u.Refresh()
+			}
 		})
 	})
 	mygo.App.OnNotificationClick(func(id string) {
@@ -283,7 +289,11 @@ func (u *UI) runAction(op string, pkgs []manager.Package, at actionOrigin, fn fu
 			default:
 				u.data.queueToast(done, components.ToastSuccess)
 			}
-			u.Refresh()
+			// Do not scan while another task may still be running for the same
+			// manager; the task listener refreshes when the last one finishes.
+			if !u.hasUnfinishedTasks() {
+				u.Refresh()
+			}
 		})
 	}()
 }
@@ -318,7 +328,14 @@ func (u *UI) CancelTask(task tasks.Snapshot) {
 		err := u.svc.CancelTask(task.ID)
 		win.Update(func() {
 			if err != nil {
-				u.data.queueToast(err.Error(), components.ToastError)
+				message := err.Error()
+				switch {
+				case errors.Is(err, tasks.ErrTaskNotFound):
+					message = locales.TasksCancelMissing()
+				case errors.Is(err, tasks.ErrTaskNotRunning):
+					message = locales.TasksCancelFinished()
+				}
+				u.data.queueToast(message, components.ToastError)
 				return
 			}
 			u.data.queueToast(locales.ToastCancelled(), components.ToastInfo)
@@ -326,8 +343,9 @@ func (u *UI) CancelTask(task tasks.Snapshot) {
 	}()
 }
 
-// loadTaskOutput fetches a stored console for a task that came from a previous
-// session. A task this process ran reads its output from the snapshot.
+// loadTaskOutput fetches the selected task's console. Live output is loaded
+// the same way as history, so a task listener update copies one selected
+// console rather than every running task's full output on every frame.
 func (u *UI) loadTaskOutput(id string) {
 	if u.svc == nil || u.shell == nil {
 		return
@@ -335,6 +353,7 @@ func (u *UI) loadTaskOutput(id string) {
 	if id == "" {
 		u.tasks.output = tasks.Output{}
 		u.tasks.outputFor = ""
+		u.tasks.outputSeq = 0
 		u.tasks.outputLoading = false
 		return
 	}
@@ -342,17 +361,15 @@ func (u *UI) loadTaskOutput(id string) {
 	if !ok {
 		return
 	}
-	if task.OutputKept {
-		u.tasks.output = tasks.Output{}
-		u.tasks.outputFor = ""
-		u.tasks.outputLoading = false
+	if u.tasks.outputFor == id && u.tasks.outputLoading {
 		return
 	}
-	if u.tasks.outputFor == id && !u.tasks.outputLoading {
+	if u.tasks.outputFor == id && u.tasks.outputSeq == task.OutputSeq {
 		return
 	}
 	u.tasks.output = tasks.Output{}
 	u.tasks.outputFor = id
+	u.tasks.outputSeq = task.OutputSeq
 	u.tasks.outputLoading = true
 	win := u.shell.Window()
 	go func() {
@@ -445,6 +462,19 @@ func taskStates(list []tasks.Snapshot) map[string]tasks.State {
 		states[task.ID] = task.State
 	}
 	return states
+}
+
+func unfinishedStates(states map[string]tasks.State) bool {
+	for _, state := range states {
+		if state == tasks.StateQueued || state == tasks.StateRunning {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *UI) hasUnfinishedTasks() bool {
+	return u.svc != nil && u.svc.UnfinishedTasks() > 0
 }
 
 func truncateMessage(message string, limit int) string {

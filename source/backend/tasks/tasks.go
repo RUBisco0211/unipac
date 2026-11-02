@@ -5,6 +5,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -50,6 +51,13 @@ const (
 	CancelledMessage = "Cancelled by user"
 )
 
+var (
+	// ErrTaskNotFound reports an ID with no task behind it.
+	ErrTaskNotFound = errors.New("task not found")
+	// ErrTaskNotRunning reports a task that already finished or was cancelled.
+	ErrTaskNotRunning = errors.New("task is not running")
+)
+
 // Target is the package a task operates on. It is kept with the task so a
 // failed operation can be retried, even after a restart.
 type Target struct {
@@ -69,8 +77,8 @@ type Line struct {
 	Text string
 }
 
-// Output is a task's console, loaded on demand. A live task's output is also in
-// its snapshot; a task loaded from the store returns its persisted lines here.
+// Output is a task's console, loaded on demand. A live task answers from
+// memory; a task loaded from the store returns its persisted lines here.
 type Output struct {
 	Lines     []Line
 	Truncated bool
@@ -93,12 +101,10 @@ type Snapshot struct {
 	StartedAt   time.Time
 	FinishedAt  time.Time
 	Message     string
-	// Output is filled for tasks this process ran; a task loaded from the
-	// store has none here and loads it with Manager.Output.
-	Output    []Line
-	Truncated bool
-	// OutputKept is false for a task loaded from the store.
-	OutputKept bool
+	Truncated   bool
+	// OutputSeq is the number of console lines the task has produced. The page
+	// uses it to reload the selected console only when it changed.
+	OutputSeq int
 }
 
 const (
@@ -129,6 +135,13 @@ type Manager struct {
 	// pending says a notification is already scheduled, so a burst of output
 	// results in one repaint.
 	pending bool
+	// writes tracks store operations admitted before Close, so Close can wait
+	// for the last console lines instead of closing the database under them.
+	writes sync.WaitGroup
+	// closing and closed make store admission and repeated Close calls safe.
+	closing   bool
+	closed    bool
+	closeDone chan struct{}
 }
 
 // Default is the app's task manager. UniPac runs one process, so the tasks are
@@ -138,7 +151,7 @@ var Default = NewManager()
 // NewManager builds an empty, memory-only task manager. Init replaces it with
 // one backed by the store.
 func NewManager() *Manager {
-	return &Manager{ctx: context.Background()}
+	return &Manager{ctx: context.Background(), closeDone: make(chan struct{})}
 }
 
 // Init opens the task store, loads the history, marks tasks left unfinished by
@@ -186,15 +199,54 @@ func Init(ctx context.Context) error {
 	return nil
 }
 
-// Close releases the task store. It is safe to call more than once.
+// Close releases the task store after the writes already admitted have
+// finished. It is safe to call more than once.
 func (m *Manager) Close() {
 	m.mu.Lock()
+	if m.closed {
+		done := m.closeDone
+		m.mu.Unlock()
+		<-done
+		return
+	}
+	m.closed = true
+	m.closing = true
 	s := m.store
-	m.store = nil
+	done := m.closeDone
 	m.mu.Unlock()
+
+	m.writes.Wait()
 	if s != nil {
 		s.close()
 	}
+	m.mu.Lock()
+	m.store = nil
+	m.mu.Unlock()
+	close(done)
+}
+
+// acquireStore admits one store operation. Once Close begins, no new
+// operation is admitted; the returned release must run when the operation
+// finishes. A nil store means memory-only mode or a closed manager.
+func (m *Manager) acquireStore() (*store, func()) {
+	m.mu.Lock()
+	if m.store == nil || m.closing {
+		m.mu.Unlock()
+		return nil, func() {}
+	}
+	m.writes.Add(1)
+	s := m.store
+	m.mu.Unlock()
+	return s, m.writes.Done
+}
+
+func (m *Manager) withStore(fn func(*store)) {
+	s, done := m.acquireStore()
+	if s == nil {
+		return
+	}
+	defer done()
+	fn(s)
 }
 
 // SetListener registers fn, called after tasks change. It runs off the UI
@@ -209,9 +261,7 @@ func (m *Manager) SetListener(fn func()) {
 // Begin creates a queued task for one package and returns it. The task's
 // Context carries the command reporter; hand it to the action.
 func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
-	m.mu.Lock()
-	store := m.store
-	m.mu.Unlock()
+	store, done := m.acquireStore()
 	if ctx == nil {
 		ctx = m.ctx
 	}
@@ -247,6 +297,7 @@ func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
 		if err != nil {
 			slog.Error("tasks: saving a new task", "error", err)
 		}
+		done()
 	}
 
 	m.mu.Lock()
@@ -312,7 +363,6 @@ func (m *Manager) Output(id string) Output {
 			break
 		}
 	}
-	store := m.store
 	m.mu.Unlock()
 	if task == nil {
 		return Output{}
@@ -320,15 +370,17 @@ func (m *Manager) Output(id string) Output {
 
 	task.mu.Lock()
 	kept := task.outputKept
-	lines := slices.Clone(task.output)
+	lines := task.orderedOutput()
 	truncated := task.truncated
 	task.mu.Unlock()
 	if kept {
 		return Output{Lines: lines, Truncated: truncated}
 	}
+	store, done := m.acquireStore()
 	if store == nil {
 		return Output{Truncated: truncated}
 	}
+	defer done()
 	loaded, err := store.loadOutput(n)
 	if err != nil {
 		slog.Error("tasks: loading console output", "id", id, "error", err)
@@ -388,7 +440,7 @@ func (m *Manager) StopAll(message string) {
 func (m *Manager) Cancel(id string) error {
 	n, err := strconv.ParseInt(id, 10, 64)
 	if err != nil {
-		return fmt.Errorf("invalid task id: %s", id)
+		return fmt.Errorf("%w: %s", ErrTaskNotFound, id)
 	}
 	m.mu.Lock()
 	var task *Task
@@ -400,7 +452,7 @@ func (m *Manager) Cancel(id string) error {
 	}
 	m.mu.Unlock()
 	if task == nil {
-		return fmt.Errorf("task not found: %s", id)
+		return fmt.Errorf("%w: %s", ErrTaskNotFound, id)
 	}
 	return task.cancelByUser()
 }
@@ -428,63 +480,43 @@ func (m *Manager) changed() {
 }
 
 func (m *Manager) storeState(id int64, state State) {
-	m.mu.Lock()
-	s := m.store
-	m.mu.Unlock()
-	if s == nil {
-		return
-	}
-	if err := s.setState(id, state); err != nil {
-		slog.Error("tasks: saving task state", "id", id, "state", state, "error", err)
-	}
+	m.withStore(func(s *store) {
+		if err := s.markRunning(id); err != nil {
+			slog.Error("tasks: saving task state", "id", id, "state", state, "error", err)
+		}
+	})
 }
 
 func (m *Manager) storeCommand(id int64, command, execPath string) {
-	m.mu.Lock()
-	s := m.store
-	m.mu.Unlock()
-	if s == nil {
-		return
-	}
-	if err := s.setCommand(id, command, execPath); err != nil {
-		slog.Error("tasks: saving task command", "id", id, "error", err)
-	}
+	m.withStore(func(s *store) {
+		if err := s.setCommand(id, command, execPath); err != nil {
+			slog.Error("tasks: saving task command", "id", id, "error", err)
+		}
+	})
 }
 
 func (m *Manager) storeFinish(id int64, state State, message string, at time.Time) {
-	m.mu.Lock()
-	s := m.store
-	m.mu.Unlock()
-	if s == nil {
-		return
-	}
-	if err := s.finish(id, state, message, at); err != nil {
-		slog.Error("tasks: saving task outcome", "id", id, "error", err)
-	}
+	m.withStore(func(s *store) {
+		if err := s.finish(id, state, message, at); err != nil {
+			slog.Error("tasks: saving task outcome", "id", id, "error", err)
+		}
+	})
 }
 
 func (m *Manager) storeOutput(id int64, seq int, text string) {
-	m.mu.Lock()
-	s := m.store
-	m.mu.Unlock()
-	if s == nil {
-		return
-	}
-	if err := s.appendOutput(id, seq, text); err != nil {
-		slog.Error("tasks: saving console output", "id", id, "seq", seq, "error", err)
-	}
+	m.withStore(func(s *store) {
+		if err := s.appendOutput(id, seq, text); err != nil {
+			slog.Error("tasks: saving console output", "id", id, "seq", seq, "error", err)
+		}
+	})
 }
 
 func (m *Manager) storeTruncated(id int64) {
-	m.mu.Lock()
-	s := m.store
-	m.mu.Unlock()
-	if s == nil {
-		return
-	}
-	if err := s.setTruncated(id); err != nil {
-		slog.Error("tasks: saving console truncation", "id", id, "error", err)
-	}
+	m.withStore(func(s *store) {
+		if err := s.setTruncated(id); err != nil {
+			slog.Error("tasks: saving console truncation", "id", id, "error", err)
+		}
+	})
 }
 
 // Task is one package operation.
@@ -500,6 +532,7 @@ type Task struct {
 	commands   []string
 	execPath   string
 	output     []Line
+	outputAt   int
 	nextSeq    int
 	truncated  bool
 	outputKept bool
@@ -562,7 +595,7 @@ func (t *Task) cancelByUser() error {
 	unfinished := t.state == StateQueued || t.state == StateRunning
 	t.mu.Unlock()
 	if !unfinished {
-		return fmt.Errorf("task is not running")
+		return ErrTaskNotRunning
 	}
 	t.finishState(StateCancelled, CancelledMessage)
 	return nil
@@ -613,23 +646,39 @@ func (t *Task) report(ev util.Event) {
 		t.manager.storeCommand(t.id, command, execPath)
 	case util.EventOutput:
 		t.mu.Lock()
-		if len(t.output) >= maxOutput {
-			truncate := !t.truncated
-			t.truncated = true
-			t.mu.Unlock()
-			if truncate {
-				t.manager.storeTruncated(t.id)
+		var truncate bool
+		line := Line{Text: ev.Text}
+		if len(t.output) < maxOutput {
+			t.output = append(t.output, line)
+		} else {
+			t.output[t.outputAt] = line
+			t.outputAt = (t.outputAt + 1) % maxOutput
+			if !t.truncated {
+				t.truncated = true
+				truncate = true
 			}
-			t.manager.changed()
-			return
 		}
-		t.output = append(t.output, Line{Text: ev.Text})
 		seq := t.nextSeq
 		t.nextSeq++
 		t.mu.Unlock()
+		if truncate {
+			t.manager.storeTruncated(t.id)
+		}
 		t.manager.storeOutput(t.id, seq, ev.Text)
 		t.manager.changed()
 	}
+}
+
+// orderedOutput returns the console in line order. output is a ring once it is
+// full, so appending never copies the whole buffer.
+func (t *Task) orderedOutput() []Line {
+	if len(t.output) < maxOutput || t.outputAt == 0 {
+		return slices.Clone(t.output)
+	}
+	lines := make([]Line, 0, len(t.output))
+	lines = append(lines, t.output[t.outputAt:]...)
+	lines = append(lines, t.output[:t.outputAt]...)
+	return lines
 }
 
 func (t *Task) pending() bool {
@@ -657,10 +706,7 @@ func (t *Task) snapshot() Snapshot {
 		FinishedAt:  t.finished,
 		Message:     t.message,
 		Truncated:   t.truncated,
-		OutputKept:  t.outputKept,
-	}
-	if t.outputKept {
-		snapshot.Output = slices.Clone(t.output)
+		OutputSeq:   t.nextSeq,
 	}
 	return snapshot
 }

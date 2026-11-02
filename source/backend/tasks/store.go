@@ -17,7 +17,7 @@ import (
 const sqliteDriver = "sqlite"
 
 func sqliteDSN(path string) string {
-	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)", path)
+	return fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=busy_timeout(5000)", path)
 }
 
 //go:embed schema.sql
@@ -153,9 +153,12 @@ func (s *store) insert(row taskRow) (int64, error) {
 	return res.LastInsertId()
 }
 
-func (s *store) setState(id int64, state State) error {
+// markRunning moves a queued row to running. The state predicate makes a
+// cancel that wins the race with Start win the write as well.
+func (s *store) markRunning(id int64) error {
 	_, err := s.db.ExecContext(s.ctx,
-		`UPDATE package_tasks SET state = ? WHERE id = ?`, state, id)
+		`UPDATE package_tasks SET state = ? WHERE id = ? AND state = ?`,
+		StateRunning, id, StateQueued)
 	return err
 }
 
@@ -179,9 +182,17 @@ func (s *store) setTruncated(id int64) error {
 }
 
 func (s *store) appendOutput(id int64, seq int, line string) error {
-	_, err := s.db.ExecContext(s.ctx,
+	if _, err := s.db.ExecContext(s.ctx,
 		`INSERT OR REPLACE INTO package_task_output (task_id, seq, line) VALUES (?, ?, ?)`,
-		id, seq, line)
+		id, seq, line); err != nil {
+		return err
+	}
+	if seq < maxOutput {
+		return nil
+	}
+	// Keep the newest window in the store too, matching the in-memory buffer.
+	_, err := s.db.ExecContext(s.ctx,
+		`DELETE FROM package_task_output WHERE task_id = ? AND seq = ?`, id, seq-maxOutput)
 	return err
 }
 
@@ -199,7 +210,7 @@ func (s *store) loadOutput(id int64) ([]Line, error) {
 }
 
 // taskFromRow rebuilds a task loaded from the store. Its console output comes
-// from the output table on demand, which is what OutputKept = false means.
+// from the output table on demand.
 func taskFromRow(row taskRow, m *Manager) *Task {
 	return &Task{
 		id:   row.ID,

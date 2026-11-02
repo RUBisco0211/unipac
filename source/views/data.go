@@ -1,6 +1,8 @@
 package views
 
 import (
+	"slices"
+
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 )
@@ -80,13 +82,16 @@ func newData(service Service) *data {
 // setManagers installs the manager list and the user's saved settings after the
 // settings page changed them.
 func (d *data) setManagers(managers []manager.Info, overrides map[string]manager.Settings) {
+	changed := !slices.Equal(d.managers, managers)
 	d.managers = managers
 	d.overrides = overrides
 	d.names = make(map[string]string, len(managers))
 	for _, m := range managers {
 		d.names[m.ID] = m.Name
 	}
-	d.managersVersion++
+	if changed {
+		d.managersVersion++
+	}
 	d.version++
 }
 

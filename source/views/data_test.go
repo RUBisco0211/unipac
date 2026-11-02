@@ -1,10 +1,29 @@
 package views
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 )
+
+// Saving an unrelated setting republishes the same manager list; the settings
+// page and search filter must not treat that as a manager change.
+func TestSetManagersOnlyBumpsVersionOnChange(t *testing.T) {
+	d := fixture()
+	d.setManagers(d.managers, d.overrides)
+	version := d.managersVersion
+	d.setManagers(d.managers, d.overrides)
+	if d.managersVersion != version {
+		t.Fatalf("identical manager list bumped version %d -> %d", version, d.managersVersion)
+	}
+	next := slices.Clone(d.managers)
+	next[0].Enabled = false
+	d.setManagers(next, d.overrides)
+	if d.managersVersion == version {
+		t.Fatal("a manager change did not bump the version")
+	}
+}
 
 func TestBeginActionMarksOnlyItsPackages(t *testing.T) {
 	d := fixture()

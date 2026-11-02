@@ -375,7 +375,7 @@ func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
 func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {
 	res, err := util.Run(a.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_COLOR=1"})
 	if err != nil {
-		msg := res.Output()
+		msg := util.StripANSI(res.Output())
 		if msg == "" {
 			msg = err.Error()
 		}

@@ -26,11 +26,14 @@ func TestDemoUpdateCompletesAndMovesThePackage(t *testing.T) {
 		t.Fatalf("tasks = %d, want 1", len(list))
 	}
 	task := list[0]
-	if task.State != tasks.StateSucceeded || !task.OutputKept {
+	if task.State != tasks.StateSucceeded {
 		t.Fatalf("task = %+v", task)
 	}
-	if task.Command == "" || task.ExecPath == "" || len(task.Output) == 0 {
+	if task.Command == "" || task.ExecPath == "" || task.OutputSeq == 0 {
 		t.Fatalf("task lacks its console data: %+v", task)
+	}
+	if output := s.TaskOutput(task.ID); len(output.Lines) == 0 {
+		t.Fatalf("task output is empty: %+v", output)
 	}
 	if s.UnfinishedTasks() != 0 {
 		t.Fatalf("unfinished tasks = %d", s.UnfinishedTasks())

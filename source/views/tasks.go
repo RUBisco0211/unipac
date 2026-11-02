@@ -47,10 +47,11 @@ type tasksView struct {
 	// as the user drags the divider.
 	splitPercent float32
 
-	// output is the persisted console of the selected historical task. A live
-	// task reads its output from its snapshot instead.
+	// output is the selected task's console, loaded on demand from the task
+	// manager. outputSeq is the snapshot sequence it corresponds to.
 	output        tasks.Output
 	outputFor     string
+	outputSeq     int
 	outputLoading bool
 
 	onRetry  func(tasks.Snapshot, actionOrigin)
@@ -73,6 +74,12 @@ func (s *tasksView) apply(list []tasks.Snapshot) {
 	s.version++
 	if s.selectedID != "" && !s.hasTask(s.selectedID) {
 		s.clearSelection()
+		return
+	}
+	if s.selectedID != "" && s.onSelect != nil {
+		// Reload the console when new output arrived; loadTaskOutput compares
+		// the sequence and leaves an unchanged console alone.
+		s.onSelect(s.selectedID)
 	}
 }
 
@@ -159,6 +166,7 @@ func (s *tasksView) clearSelection() {
 	s.selectedIndex = -1
 	s.output = tasks.Output{}
 	s.outputFor = ""
+	s.outputSeq = 0
 	s.outputLoading = false
 }
 
@@ -801,7 +809,7 @@ func (s *tasksView) consoleBody(c *ui.Context, task tasks.Snapshot) {
 		}
 
 		output := s.taskOutput(task)
-		if !task.OutputKept && (s.outputFor != task.ID || s.outputLoading) {
+		if s.outputFor != task.ID || s.outputLoading {
 			consoleNote(c, locales.TasksOutputLoading())
 			return
 		}
@@ -831,9 +839,6 @@ func (s *tasksView) consoleBody(c *ui.Context, task tasks.Snapshot) {
 }
 
 func (s *tasksView) taskOutput(task tasks.Snapshot) tasks.Output {
-	if task.OutputKept {
-		return tasks.Output{Lines: task.Output, Truncated: task.Truncated}
-	}
 	if s.outputFor == task.ID {
 		return s.output
 	}

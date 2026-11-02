@@ -15,6 +15,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/logging"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/backend/util"
+	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo"
 	"github.com/samber/lo"
 )
@@ -397,8 +398,8 @@ func (a *App) UnfinishedTasks() int {
 	return tasks.Default.PendingCount()
 }
 
-// StopTasks fails every unfinished task and cancels the commands still running,
-// so the child processes are killed rather than orphaned.
+// StopTasks cancels every unfinished task and kills the commands still
+// running, so the child processes are not orphaned.
 func (a *App) StopTasks() {
 	tasks.Default.StopAll(tasks.InterruptedMessage)
 	a.cancel()
@@ -449,9 +450,10 @@ func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manag
 	workers := min(maxConcurrentActions, len(jobs))
 	queue := make(chan batchJob)
 	var (
-		mu       sync.Mutex
-		failures []string
-		wg       sync.WaitGroup
+		mu        sync.Mutex
+		failures  []string
+		cancelled int
+		wg        sync.WaitGroup
 	)
 	wg.Add(workers)
 	for range workers {
@@ -461,6 +463,9 @@ func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manag
 				release, err := a.actions.acquire(job.task.Context(), job.pkg.Manager)
 				if err != nil {
 					if job.task.Cancelled() {
+						mu.Lock()
+						cancelled++
+						mu.Unlock()
 						continue
 					}
 					job.task.Finish(false, tasks.InterruptedMessage)
@@ -468,11 +473,17 @@ func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manag
 				}
 				if !job.task.Start() {
 					release()
+					mu.Lock()
+					cancelled++
+					mu.Unlock()
 					continue
 				}
 				result, runErr := a.runRegistryAction(job.task.Context(), kind, job.pkg, opt)
 				release()
 				if job.task.Cancelled() {
+					mu.Lock()
+					cancelled++
+					mu.Unlock()
 					continue
 				}
 				job.task.Finish(runErr == nil && result.Success, actionMessage(result, runErr))
@@ -499,7 +510,14 @@ func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manag
 	if len(failures) > 0 {
 		return manager.ErrorResult(strings.Join(failures, "\n")), nil
 	}
-	return manager.SuccessResult(""), nil
+	switch {
+	case cancelled == len(jobs):
+		return manager.ErrorResult(tasks.CancelledMessage), nil
+	case cancelled > 0:
+		return manager.ErrorResult(locales.TasksBatchCancelled()), nil
+	default:
+		return manager.SuccessResult(""), nil
+	}
 }
 
 // runRegistryAction calls the registry for one task. Every call carries exactly
@@ -561,9 +579,9 @@ func (a *App) managerLabel(id string) string {
 // the error that stopped it.
 func actionMessage(result manager.ActionResult, err error) string {
 	if err != nil {
-		return err.Error()
+		return util.StripANSI(err.Error())
 	}
-	return result.Message
+	return util.StripANSI(result.Message)
 }
 
 func packageNames(pkgs []manager.Package) []string {

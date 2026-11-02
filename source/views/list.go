@@ -32,10 +32,13 @@ type listView struct {
 	managersOpen bool
 	// managersSeen is the manager list version the filter was built for.
 	managersSeen int
-	table        components.TableVirtualizedState
-	chosen       map[string]struct{}
-	selection    ui.Selection[any]
-	sortOrder    ui.SortOrder
+	// knownManagers is the enabled set at the previous sync. It tells whether
+	// the old selection meant "all" before a new manager joins the list.
+	knownManagers map[string]bool
+	table         components.TableVirtualizedState
+	chosen        map[string]struct{}
+	selection     ui.Selection[any]
+	sortOrder     ui.SortOrder
 
 	uninstallOpen   bool
 	uninstallTarget manager.Package
@@ -106,14 +109,16 @@ func (l *listView) syncManagerFilter() {
 	if l.managers != nil && l.managersSeen == l.data.managersVersion {
 		return
 	}
-	previousAll := l.managers == nil || l.allManagersSelected()
+	previousAll := l.managers == nil || l.allManagersSelectedFor(l.knownManagers)
 	enabled := make([]string, 0, len(l.data.managers))
 	next := make(map[string]bool, len(l.data.managers))
+	known := make(map[string]bool, len(l.data.managers))
 	for _, info := range l.data.managers {
 		if !info.Enabled {
 			continue
 		}
 		enabled = append(enabled, info.ID)
+		known[info.ID] = true
 		if previousAll || l.managers[info.ID] {
 			next[info.ID] = true
 		}
@@ -126,7 +131,23 @@ func (l *listView) syncManagerFilter() {
 		}
 	}
 	l.managers = next
+	l.knownManagers = known
 	l.managersSeen = l.data.managersVersion
+}
+
+// allManagersSelectedFor reports whether the selection covers every manager in
+// ids. It is used against the previous enabled set, before a newly enabled
+// manager is added to the current one.
+func (l *listView) allManagersSelectedFor(ids map[string]bool) bool {
+	if len(ids) == 0 {
+		return false
+	}
+	for id := range ids {
+		if !l.managers[id] {
+			return false
+		}
+	}
+	return true
 }
 
 func (l *listView) allManagersSelected() bool {

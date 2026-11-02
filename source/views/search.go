@@ -20,6 +20,10 @@ type searchView struct {
 
 	query       string
 	resultQuery string
+	// activeQuery is the last query sent to the backend, including one still in
+	// flight. A manager change reruns this query, not the query that produced
+	// the visible results.
+	activeQuery string
 	seq         int
 	results     []manager.Package
 	searching   bool
@@ -31,6 +35,9 @@ type searchView struct {
 	managerFilter map[string]bool
 	managersOpen  bool
 	filterReady   bool
+	// managerAll says the last filter change meant "every searchable manager",
+	// so a manager enabled later joins it.
+	managerAll bool
 
 	table     components.TableVirtualizedState
 	sortOrder ui.SortOrder
@@ -65,7 +72,21 @@ func (s *searchView) syncManagers() {
 	}
 	s.seenManagers = s.data.managersVersion
 	s.results = s.enabledResults(s.results)
-	s.resetManagerFilter()
+	if !s.filterReady {
+		s.resetManagerFilter()
+		return
+	}
+	// Keep choices for managers that can still search. A newly searchable
+	// manager follows "all" only; a narrowed selection stays narrowed.
+	previousAll := s.managerAll
+	next := make(map[string]bool)
+	for _, info := range s.searchableManagers() {
+		if previousAll || s.managerFilter[info.ID] {
+			next[info.ID] = true
+		}
+	}
+	s.managerFilter = next
+	s.managerAll = s.allManagersSelected()
 }
 
 // resetManagerFilter starts with every manager that can search, which is what
@@ -75,6 +96,7 @@ func (s *searchView) resetManagerFilter() {
 	for _, info := range s.searchableManagers() {
 		s.managerFilter[info.ID] = true
 	}
+	s.managerAll = true
 	s.filterReady = true
 }
 
@@ -137,13 +159,14 @@ func (s *searchView) managerFilterLabel() string {
 	}
 }
 
-// rerunSearch asks the backend again with the new manager set, for the query
-// that produced the visible results.
+// rerunSearch asks the backend again with the new manager set, for the last
+// query submitted, whether its results have arrived or not.
 func (s *searchView) rerunSearch() {
-	if !s.ran || strings.TrimSpace(s.resultQuery) == "" || s.submit == nil {
+	query := strings.TrimSpace(s.activeQuery)
+	if query == "" || s.submit == nil {
 		return
 	}
-	s.submit(s.resultQuery, s.selectedManagerIDs())
+	s.submit(query, s.selectedManagerIDs())
 }
 
 // enabledResults keeps the packages whose manager is still in use. A search can
@@ -175,7 +198,9 @@ func (s *searchView) toolbar(c *ui.Context) {
 		search := components.IconButton(c, lucide.Search(), locales.SearchAction(), components.IconButtonPlain)
 		search.Disabled(strings.TrimSpace(s.query) == "")
 		if (search.Clicked() || box.Submitted()) && s.submit != nil {
-			s.submit(strings.TrimSpace(s.query), s.selectedManagerIDs())
+			query := strings.TrimSpace(s.query)
+			s.activeQuery = query
+			s.submit(query, s.selectedManagerIDs())
 		}
 	})
 }
@@ -199,6 +224,7 @@ func (s *searchView) managerSelect(c *ui.Context) {
 			for _, info := range s.searchableManagers() {
 				s.managerFilter[info.ID] = all
 			}
+			s.managerAll = all
 			s.rerunSearch()
 		}
 		for _, info := range s.searchableManagers() {
@@ -206,6 +232,7 @@ func (s *searchView) managerSelect(c *ui.Context) {
 			box := components.Checkbox(c, &selected, info.Name)
 			if box.Changed() {
 				s.managerFilter[info.ID] = selected
+				s.managerAll = s.allManagersSelected()
 				s.rerunSearch()
 			}
 		}
@@ -309,6 +336,7 @@ func (s *searchView) rowAction(c *ui.Context, pkg manager.Package) {
 
 // apply installs the outcome of a background search.
 func (s *searchView) apply(query string, results []manager.Package, err error) {
+	s.activeQuery = query
 	s.searching = false
 	s.err = err
 	s.ran = true

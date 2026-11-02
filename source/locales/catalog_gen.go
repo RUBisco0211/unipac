@@ -1098,6 +1098,36 @@ func (msgs Messages) TasksCancel() string {
 	return Catalog.Format(msgs.locale, "tasksCancel", nil)
 }
 
+// TasksCancelMissing says "This task no longer exists."
+// in the language the app shows.
+func TasksCancelMissing() string { return In(i18n.Locale()).TasksCancelMissing() }
+
+// TasksCancelMissing says "This task no longer exists."
+// in the language of msgs.
+func (msgs Messages) TasksCancelMissing() string {
+	return Catalog.Format(msgs.locale, "tasksCancelMissing", nil)
+}
+
+// TasksCancelFinished says "This task has already finished."
+// in the language the app shows.
+func TasksCancelFinished() string { return In(i18n.Locale()).TasksCancelFinished() }
+
+// TasksCancelFinished says "This task has already finished."
+// in the language of msgs.
+func (msgs Messages) TasksCancelFinished() string {
+	return Catalog.Format(msgs.locale, "tasksCancelFinished", nil)
+}
+
+// TasksBatchCancelled says "Some tasks were cancelled before they finished."
+// in the language the app shows.
+func TasksBatchCancelled() string { return In(i18n.Locale()).TasksBatchCancelled() }
+
+// TasksBatchCancelled says "Some tasks were cancelled before they finished."
+// in the language of msgs.
+func (msgs Messages) TasksBatchCancelled() string {
+	return Catalog.Format(msgs.locale, "tasksBatchCancelled", nil)
+}
+
 // TasksAllOperations says "All operations"
 // in the language the app shows.
 func TasksAllOperations() string { return In(i18n.Locale()).TasksAllOperations() }

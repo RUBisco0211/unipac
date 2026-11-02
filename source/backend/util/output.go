@@ -3,6 +3,7 @@ package util
 import (
 	"bytes"
 	"context"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,6 +50,19 @@ func reporterFrom(ctx context.Context) Reporter {
 	}
 	fn, _ := ctx.Value(reporterKey{}).(Reporter)
 	return fn
+}
+
+// ansiSGR matches the color and style sequences commands add to stderr when
+// their output is not a terminal. Stripping only SGR leaves other terminal
+// controls alone, which plain text does not normally carry.
+var ansiSGR = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+// StripANSI removes SGR color sequences from text shown outside the console.
+func StripANSI(s string) string {
+	if !strings.ContainsRune(s, 0x1b) {
+		return s
+	}
+	return ansiSGR.ReplaceAllString(s, "")
 }
 
 // FormatCommand renders a command line the way a console would show it,

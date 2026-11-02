@@ -724,7 +724,7 @@ func TestSearchViewRendersResults(t *testing.T) {
 func TestSearchManagerFilterGoesToTheBackend(t *testing.T) {
 	d := fixture()
 	d.managers[1].Capabilities.Search = true // NPM
-	s := &searchView{data: d, ran: true, resultQuery: "query"}
+	s := &searchView{data: d, ran: true, resultQuery: "query", activeQuery: "query"}
 	var (
 		calls int
 		gotQ  string
@@ -758,6 +758,65 @@ func TestSearchManagerFilterGoesToTheBackend(t *testing.T) {
 	}
 }
 
+// A manager change while the first search is still in flight reruns that
+// query, even though no results have arrived yet.
+func TestSearchRerunUsesInFlightQuery(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Search = true
+	s := &searchView{data: d, activeQuery: "bar"}
+	var got string
+	s.submit = func(query string, _ []string) { got = query }
+	s.syncManagers()
+	s.rerunSearch()
+	if got != "bar" {
+		t.Fatalf("reran %q, want the in-flight query", got)
+	}
+}
+
+// A manager list refresh from an unrelated settings save keeps the user's
+// search-manager choices.
+func TestSearchManagerFilterSurvivesListRefresh(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Search = true
+	s := &searchView{data: d}
+	s.syncManagers()
+	s.managerFilter["npm"] = false
+	s.managerAll = s.allManagersSelected()
+
+	d.managersVersion++
+	s.syncManagers()
+	if s.managerFilter["npm"] {
+		t.Fatal("the narrowed search filter was reset")
+	}
+	if s.managerFilter["brew"] != true {
+		t.Fatal("a still-valid selection was dropped")
+	}
+}
+
+// A newly searchable manager joins an "all" selection but not a narrowed one.
+func TestSearchManagerAllIncludesNewManager(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Search = true
+	s := &searchView{data: d}
+	s.syncManagers()
+
+	d.managers[2].Enabled = true
+	d.managers[2].Capabilities.Search = true
+	d.managersVersion++
+	s.syncManagers()
+	if !s.managerFilter["cargo"] {
+		t.Fatal("the new searchable manager did not join the all selection")
+	}
+
+	s.managerFilter["cargo"] = false
+	s.managerAll = false
+	d.managersVersion++
+	s.syncManagers()
+	if s.managerFilter["cargo"] {
+		t.Fatal("a narrowed selection gained a manager")
+	}
+}
+
 // Unchecking every manager is different from "all": the backend is asked for
 // nothing, not for everything.
 func TestSearchNoManagersIsAnEmptySelection(t *testing.T) {
@@ -776,6 +835,33 @@ func TestSearchNoManagersIsAnEmptySelection(t *testing.T) {
 
 // The installed and outdated pages' manager filter is a multi-select; checking
 // and unchecking managers rebuilds the table from the cached rows.
+// A manager enabled while everything was selected joins the selection; its
+// packages must not disappear behind the filter.
+func TestEnablingManagerKeepsAllSelected(t *testing.T) {
+	d := fixture()
+	l := &listView{data: d, chosen: map[string]struct{}{}}
+	tt := render(t, l.view, 1000, 500)
+
+	d.managers[2].Enabled = true
+	d.managersVersion++
+	d.rows = append(d.rows, manager.Package{Name: "serde", Version: "1.0.0", Manager: "cargo", Installed: true})
+	d.version++
+	tt.Frame()
+
+	if !l.managers["cargo"] {
+		t.Fatal("the newly enabled manager was not selected")
+	}
+	found := false
+	for _, row := range l.rows {
+		if row.Name == "serde" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("the new manager's package is hidden: %+v", l.rows)
+	}
+}
+
 func TestManagerFilterMultiSelect(t *testing.T) {
 	l := &listView{data: fixture(), chosen: map[string]struct{}{}}
 	tt := render(t, l.view, 1000, 500)

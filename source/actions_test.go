@@ -83,6 +83,46 @@ func TestActionLimiterSerializesOneManager(t *testing.T) {
 	}
 }
 
+// Waiters for a held manager do not consume the global slots other managers
+// need. This is the difference between a single-manager batch (one active task,
+// many waiters) and a batch that starves every other manager.
+func TestActionLimiterDoesNotStarveOtherManagers(t *testing.T) {
+	limiter := newActionLimiter(2)
+	release, err := limiter.acquire(context.Background(), "brew")
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+
+	for range 6 {
+		go func() {
+			release, err := limiter.acquire(context.Background(), "brew")
+			if err == nil {
+				release()
+			}
+		}()
+	}
+	// Let the waiters reach the manager slot before asking for another manager.
+	time.Sleep(30 * time.Millisecond)
+
+	npm := make(chan error, 1)
+	go func() {
+		release, err := limiter.acquire(context.Background(), "npm")
+		if err == nil {
+			release()
+		}
+		npm <- err
+	}()
+	select {
+	case err := <-npm:
+		if err != nil {
+			t.Fatalf("npm acquire: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("waiters for one manager exhausted the global slots")
+	}
+	release()
+}
+
 // A cancelled wait must give back the global slot it took.
 func TestActionLimiterReleasesOnCancel(t *testing.T) {
 	limiter := newActionLimiter(1)

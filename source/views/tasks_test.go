@@ -24,11 +24,7 @@ func tasksFixture() []tasks.Snapshot {
 			StartedAt:   base,
 			Command:     "brew upgrade typescript",
 			ExecPath:    "/opt/homebrew/bin/brew",
-			Output: []tasks.Line{
-				{Text: "\x1b[32m==>\x1b[0m Upgrading typescript"},
-				{Text: "==> Pouring typescript"},
-			},
-			OutputKept: true,
+			OutputSeq:   2,
 		},
 		{
 			ID:          "2",
@@ -39,7 +35,6 @@ func tasksFixture() []tasks.Snapshot {
 			Package:     "eslint",
 			NewVersion:  "9.9.0",
 			StartedAt:   base.Add(-time.Second),
-			OutputKept:  true,
 		},
 		{
 			ID:          "1",
@@ -54,7 +49,6 @@ func tasksFixture() []tasks.Snapshot {
 			Message:     "pip failed",
 			Command:     "pip uninstall requests",
 			ExecPath:    "/usr/bin/pip3",
-			OutputKept:  false,
 		},
 	}
 }
@@ -64,6 +58,12 @@ func tasksViewFixture() *tasksView {
 		data:          fixture(),
 		selectedIndex: -1,
 		splitPercent:  64,
+		outputFor:     "3",
+		outputSeq:     2,
+		output: tasks.Output{Lines: []tasks.Line{
+			{Text: "\x1b[32m==>\x1b[0m Upgrading typescript"},
+			{Text: "==> Pouring typescript"},
+		}},
 	}
 	v.apply(tasksFixture())
 	return v
@@ -153,15 +153,15 @@ func TestTaskConsoleStates(t *testing.T) {
 	nodes := []tasks.Snapshot{
 		{
 			ID: "1", Kind: tasks.KindInstall, State: tasks.StateQueued,
-			ManagerName: "NPM", Package: "queued", StartedAt: time.Now(), OutputKept: true,
+			ManagerName: "NPM", Package: "queued", StartedAt: time.Now(),
 		},
 		{
 			ID: "2", Kind: tasks.KindInstall, State: tasks.StateSucceeded,
-			ManagerName: "NPM", Package: "stored", StartedAt: time.Now(), OutputKept: false,
+			ManagerName: "NPM", Package: "stored", StartedAt: time.Now(),
 		},
 		{
 			ID: "3", Kind: tasks.KindInstall, State: tasks.StateRunning,
-			ManagerName: "NPM", Package: "quiet", StartedAt: time.Now(), OutputKept: true,
+			ManagerName: "NPM", Package: "quiet", StartedAt: time.Now(),
 		},
 	}
 
@@ -173,6 +173,7 @@ func TestTaskConsoleStates(t *testing.T) {
 		v := &tasksView{data: fixture(), selectedIndex: -1, splitPercent: 64}
 		v.apply(nodes)
 		v.selectedID = id
+		v.outputFor = id
 		for i := range v.all {
 			if v.all[i].ID == id {
 				v.selectedIndex = i
@@ -295,7 +296,7 @@ func TestTasksReloadKeepsSelection(t *testing.T) {
 
 	next := append([]tasks.Snapshot{{
 		ID: "4", Kind: tasks.KindInstall, State: tasks.StateRunning,
-		ManagerName: "Cargo", Package: "ripgrep", StartedAt: time.Now(), OutputKept: true,
+		ManagerName: "Cargo", Package: "ripgrep", StartedAt: time.Now(),
 	}}, tasksFixture()...)
 	v.apply(next)
 	v.sync()
@@ -334,7 +335,7 @@ func TestCancelledTaskShowsCancelledAndRetry(t *testing.T) {
 	nodes := []tasks.Snapshot{{
 		ID: "9", Kind: tasks.KindUpdate, State: tasks.StateCancelled,
 		ManagerID: "brew", ManagerName: "Homebrew", Package: "cancelled",
-		Version: "1.0", NewVersion: "1.1", StartedAt: time.Now(), OutputKept: true,
+		Version: "1.0", NewVersion: "1.1", StartedAt: time.Now(),
 	}}
 
 	v := &tasksView{data: fixture(), selectedIndex: -1, splitPercent: 64}
@@ -357,7 +358,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 	nodes := []tasks.Snapshot{{
 		ID: "5", Kind: tasks.KindInstall, State: tasks.StateSucceeded,
 		ManagerID: "npm", ManagerName: "NPM", Package: "stored",
-		StartedAt: time.Now(), OutputKept: false,
+		StartedAt: time.Now(),
 	}}
 
 	loading := &tasksView{data: fixture(), selectedIndex: -1, splitPercent: 64}
@@ -387,7 +388,6 @@ func TestTaskTableShowsStartAndFinishTimes(t *testing.T) {
 		ID: "7", Kind: tasks.KindUpdate, State: tasks.StateSucceeded,
 		ManagerID: "brew", ManagerName: "Homebrew", Package: "timed",
 		Version: "1.0", NewVersion: "1.1", StartedAt: start, FinishedAt: finish,
-		OutputKept: true,
 	}})
 	tt := render(t, v.view, 1280, 560)
 	for _, want := range []string{

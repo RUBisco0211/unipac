@@ -187,8 +187,8 @@ and the version the operation goes to, so the page can show an update as
 - `Manager.StopAll(message)` cancels every queued and running task. The quit flow
   uses it, so a task interrupted by a quit is recorded as cancelled, not failed.
 - `Manager.List()` returns deep-copied snapshots, running first, then queued,
-  then finished newest first. A snapshot of a task this process ran carries its
-  console; a snapshot loaded from the store carries `OutputKept = false`.
+  then finished newest first. A snapshot carries metadata and `OutputSeq`, not
+  the console; the page loads that separately with `Manager.Output(id)`.
 
 #### Persistence
 
@@ -407,18 +407,20 @@ console is a `components.List` with `FollowEnd`, which keeps the newest line in
 view until the user scrolls up, and starts at the end when a different task is
 chosen. `ansi.go` parses SGR sequences into colored spans, so
 bold, standard and 256/true colors look as the tool meant them; stderr is not
-tinted by itself. The adapter's action commands ask for color (`HOMEBREW_COLOR`,
-`FORCE_COLOR`, `CARGO_TERM_COLOR`) because they print to a pipe. The panel also
+tinted by itself. Homebrew, npm and Cargo's action commands ask for color
+(`HOMEBREW_COLOR`, `FORCE_COLOR`, `CARGO_TERM_COLOR`) because they print to a
+pipe; the other adapters' output stays plain. The panel also
 shows the stored command and executable path.
 
-A task this process ran carries its console in the snapshot. A task from the
-store has `OutputKept = false`; choosing it asks `App.TaskOutput`, which reads
-`package_task_output` off the UI thread, and the panel shows a loading state until
-the lines arrive. `tasksView` holds only snapshots and the loaded console; `UI.Run`
-registers the task listener once, and each callback copies the snapshots off the
-UI thread and posts one `Window.Update`, so a command printing hundreds of lines
-cannot post hundreds of frames. Opening the page reloads the snapshots, because
-live updates may have been skipped while another page was shown.
+Snapshots carry metadata and `OutputSeq`, not the console itself. Choosing a
+task asks `App.TaskOutput` off the UI thread; a live task answers from memory and
+a stored one from `package_task_output`, and the panel shows a loading state until
+the lines arrive. The listener reloads only the selected console, and only when
+its sequence changed, so a command printing hundreds of lines cannot copy every
+running task's full output on every frame. `tasksView` holds snapshots and the
+one loaded console; `UI.Run` registers the listener once, and each callback posts
+one `Window.Update`. Opening the page reloads the snapshots, because live updates
+may have been skipped while another page was shown.
 
 ### Notifications
 
@@ -535,7 +537,7 @@ Startup:
 4. Logging is initialized.
 5. Cache is initialized.
 6. The task store opens, loads its history, and marks leftover unfinished rows
-   failed.
+   cancelled.
 7. The registry constructs and preflights all adapters.
 8. `sidebar.NewShell` opens the main window on the Packages view.
 9. Cached packages render immediately; a background job refreshes the cache.
@@ -590,8 +592,6 @@ Task UI:
 
 - Version selection is not implemented: no page offers `ListVersions` yet, even
   for managers that advertise it.
-- The task store keeps metadata only. A console that survives a restart would
-  need a bounded log file per task.
 - `assets/screenshot.png` still shows the old interface.
 
 ## Resolved

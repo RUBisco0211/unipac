@@ -190,7 +190,7 @@ func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionRes
 	// npm turns color off for a pipe; the console can render it, so ask for it.
 	res, err := util.Run(a.ctx, a.info.ExecPath, args, []string{"FORCE_COLOR=1"})
 	if err != nil {
-		msg := res.Output()
+		msg := util.StripANSI(res.Output())
 		if msg == "" {
 			msg = err.Error()
 		}

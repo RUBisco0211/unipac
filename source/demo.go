@@ -815,9 +815,8 @@ func (s *demoService) ListTasks() []tasks.Snapshot {
 			StartedAt:   task.started,
 			FinishedAt:  task.finished,
 			Message:     task.message,
-			Output:      append([]tasks.Line(nil), task.output...),
 			Truncated:   task.truncated,
-			OutputKept:  true,
+			OutputSeq:   len(task.output),
 		})
 	}
 	sortDemoTasks(out)

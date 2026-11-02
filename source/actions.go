@@ -31,21 +31,22 @@ func newActionLimiter(limit int) *actionLimiter {
 	}
 }
 
-// acquire waits for a global slot and the manager's own slot. The returned
-// function releases both. Waiting stops when ctx is cancelled, which is what a
-// quit does.
+// acquire waits for the manager's own slot before the global slot. A batch for
+// one manager therefore queues on that manager without consuming the global
+// capacity that other managers need. The returned function releases both.
+// Waiting stops when ctx is cancelled, which is what a quit does.
 func (l *actionLimiter) acquire(ctx context.Context, managerID string) (func(), error) {
-	select {
-	case l.slots <- struct{}{}:
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
-
 	manager := l.managerSlot(managerID)
 	select {
 	case manager <- struct{}{}:
 	case <-ctx.Done():
-		<-l.slots
+		return nil, ctx.Err()
+	}
+
+	select {
+	case l.slots <- struct{}{}:
+	case <-ctx.Done():
+		<-manager
 		return nil, ctx.Err()
 	}
 

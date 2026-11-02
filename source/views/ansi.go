@@ -3,6 +3,7 @@ package views
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/egoist/mygo/ui"
 )
@@ -118,7 +119,17 @@ func ansiEscape(line string, i int) (next int, sgr string, ok bool) {
 		}
 		return len(line), "", false
 	default:
-		return i + 2, "", false
+		// A two-byte escape such as ESC ( B skips its intermediate bytes and
+		// one final rune; a final UTF-8 rune must be consumed whole.
+		j := i + 1
+		for j < len(line) && line[j] >= 0x20 && line[j] <= 0x2f {
+			j++
+		}
+		if j < len(line) {
+			_, size := utf8.DecodeRuneInString(line[j:])
+			j += size
+		}
+		return j, "", false
 	}
 }
 

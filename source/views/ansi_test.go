@@ -69,6 +69,19 @@ func TestANSIStripsNonColorSequences(t *testing.T) {
 	}
 }
 
+// Two-byte escapes may carry an intermediate byte and a final rune, and the
+// final rune can be multi-byte UTF-8.
+func TestANSIStripsTwoByteEscapes(t *testing.T) {
+	spans := ansiSpans("a\x1b(Bb\x1b(中c", palette())
+	text := ""
+	for _, span := range spans {
+		text += span.Text
+	}
+	if text != "abc" {
+		t.Fatalf("text = %q, want the visible characters only", text)
+	}
+}
+
 func TestANSIBackgroundAndUnderline(t *testing.T) {
 	spans := ansiSpans("\x1b[44;4mselected\x1b[0m", palette())
 	if len(spans) != 1 {
