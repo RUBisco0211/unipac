@@ -109,17 +109,6 @@ func loadingBar(c *ui.Context) ui.Element {
 	return e
 }
 
-// setTheme changes the theme for the rest of the build. Context.SetTheme also
-// repaints the root with the theme's background, which is opaque and would cover
-// the window material behind the sidebar; the shell relies on the root staying
-// transparent while the window shows that material.
-func setTheme(c *ui.Context, t *ui.Theme) {
-	c.SetTheme(t)
-	if c.Vibrancy() {
-		c.Root().Background(ui.Transparent)
-	}
-}
-
 // placeholder fills a page with a centred icon and a line of text.
 func placeholder(c *ui.Context, text string) {
 	t := c.Theme()

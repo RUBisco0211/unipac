@@ -418,19 +418,7 @@ func (l *listView) body(c *ui.Context) {
 		l.table.List.Selection = &l.selection
 		l.table.List.OnChange = l.syncSelection
 		l.table.List.Key = func(row int) any { return packageKey(l.rows[row]) }
-		// Onevra rounds every collection row with the theme radius, which leaves
-		// notches where selected rows meet. Build the table with a square theme
-		// and give the controls inside it their radius back explicitly.
-		// Onevra rounds every collection row with the theme radius, which leaves
-		// notches where selected rows meet. Build the table with a square theme
-		// and give the cell contents the real theme back, so only the row
-		// corners are flat and controls keep their rounding.
 		t := c.Theme()
-		l.theme = t
-		flat := *t
-		flat.Radius = 0
-		l.flat = &flat
-		setTheme(c, l.flat)
 		ui.Column(c).Fill().Children(func() {
 			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
 				l.cell(c, row, col)
@@ -457,21 +445,10 @@ func (l *listView) body(c *ui.Context) {
 				})
 			}
 		})
-		setTheme(c, t)
 	}
 }
 
 func (l *listView) cell(c *ui.Context, row, col int) {
-	// The row box is already built with the square theme; everything inside it
-	// gets the real one back.
-	if l.theme != nil {
-		setTheme(c, l.theme)
-	}
-	defer func() {
-		if l.flat != nil {
-			setTheme(c, l.flat)
-		}
-	}()
 	pkg := l.rows[row]
 	switch col {
 	case 0:
