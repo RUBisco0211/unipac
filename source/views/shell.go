@@ -42,6 +42,7 @@ type UI struct {
 	installed *listView
 	outdated  *listView
 	search    *searchView
+	settings  *settingsView
 }
 
 // New builds the window state. Everything the pages need is loaded here, so no
@@ -75,6 +76,12 @@ func New(service Service) *UI {
 		submit:    u.Search,
 		onInstall: u.Install,
 	}
+	u.settings = newSettings(service, u.data)
+	u.settings.onSetEnabled = u.SetManagerEnabled
+	u.settings.onSetPath = u.SetManagerExecPath
+	u.settings.onReload = u.ReloadManagers
+	u.settings.onSetAutoScan = u.SetAutoScanOnLaunch
+	u.settings.onSetLogLevel = u.SetLogLevel
 	return u
 }
 
@@ -95,7 +102,9 @@ func (u *UI) Run() {
 	})
 	u.shell.Window().OnClosed(func() { mygo.App.Quit() })
 	slog.Debug("views: main window created")
-	u.Refresh()
+	if u.settings.autoScan {
+		u.Refresh()
+	}
 }
 
 // Refresh rescans installed packages off the UI thread and publishes the rows
@@ -309,80 +318,86 @@ func (u *UI) content(c *ui.Context) {
 		case PageSearch:
 			u.search.view(c)
 		case PageSettings:
-			u.settings(c)
+			u.settings.view(c)
 		}
 	})
 }
 
-func (u *UI) settings(c *ui.Context) {
-	components.ScrollView(c, components.ScrollViewOptions{}).
-		Fill().
-		Children(func() {
-			ui.Column(c).FillWidth().Gap(10).Padding(0, 16, 16, 16).Children(func() {
-				components.Text(c, locales.SettingsManagers()).
-					FontSize(12).Bold().TextColor(c.Theme().TextMuted)
-				for _, m := range u.data.managers {
-					managerCard(c, m)
-				}
-			})
-		})
+// SetManagerEnabled turns one manager on or off. The switch has already moved,
+// so the save runs off the UI thread and only the outcome is reported back.
+func (u *UI) SetManagerEnabled(id string, enabled bool) {
+	u.saveSettings(true, func() error {
+		return u.svc.SetManagerEnabled(id, enabled)
+	})
 }
 
-func managerCard(c *ui.Context, m manager.Info) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().Shrink(0).Gap(10).
-		Padding(16).Radius(t.Radius).
-		Background(t.Surface.Alpha(1)).
-		Border(1, t.Border).
-		Children(func() {
-			ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-				components.Text(c, m.Name).FontSize(15).Bold()
-				if m.Enabled {
-					components.Badge(c, locales.SettingsEnabled(), components.BadgeOptions{Tone: components.BadgeSuccess})
-				} else {
-					components.Badge(c, locales.SettingsDisabled(), components.BadgeOptions{Tone: components.BadgeDanger})
-				}
-				ui.Spacer(c)
-				components.Text(c, m.ID).TextColor(t.TextMuted)
-			})
-
-			if m.ExecPath != "" {
-				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
-					components.Text(c, locales.SettingsExecutable()).TextColor(t.TextMuted)
-					components.Text(c, m.ExecPath).SingleLine().TextColor(t.TextMuted)
-				})
-			}
-
-			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-				components.Text(c, locales.SettingsCapabilities()).TextColor(t.TextMuted)
-				names := capabilityList(m.Capabilities)
-				if len(names) == 0 {
-					components.Text(c, locales.SettingsNoCapabilities()).TextColor(t.TextMuted)
-					return
-				}
-				for _, name := range names {
-					components.Badge(c, name)
-				}
-			})
-		})
+// SetManagerExecPath saves a manager's executable path. The preflight that
+// follows runs in the job, never in the builder.
+func (u *UI) SetManagerExecPath(id, path string) {
+	u.saveSettings(true, func() error {
+		return u.svc.SetManagerExecPath(id, path)
+	})
 }
 
-// capabilityList names what an adapter claims, so the page explains why an
-// action is disabled elsewhere.
-func capabilityList(caps manager.Capabilities) []string {
-	var names []string
-	add := func(on bool, name string) {
-		if on {
-			names = append(names, name)
-		}
+// ReloadManagers preflights every manager again, for a tool installed while the
+// app was open.
+func (u *UI) ReloadManagers() {
+	u.saveSettings(true, func() error {
+		return u.svc.ReloadManagers()
+	})
+}
+
+func (u *UI) SetAutoScanOnLaunch(on bool) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetAutoScanOnLaunch(on)
+	})
+}
+
+func (u *UI) SetLogLevel(level string) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetLogLevel(level)
+	})
+}
+
+// saveSettings runs one settings write off the UI thread and publishes what the
+// backend now reports. rescan asks for a new package scan, which is what makes
+// a turned-off manager's rows leave the lists.
+func (u *UI) saveSettings(rescan bool, fn func() error) {
+	if u.shell == nil || u.settings == nil {
+		return
 	}
-	add(caps.ListInstalled, locales.CapabilityList())
-	add(caps.ListOutdated, locales.CapabilityOutdated())
-	add(caps.GetPackageInfo, locales.CapabilityInfo())
-	add(caps.Search, locales.CapabilitySearch())
-	add(caps.Install, locales.CapabilityInstall())
-	add(caps.Uninstall, locales.CapabilityUninstall())
-	add(caps.Update, locales.CapabilityUpdate())
-	add(caps.ListVersions, locales.CapabilityVersions())
-	return names
+	s := u.settings
+	if s.busy {
+		// A second change would race the config write. Put the control back
+		// where the saved state says it is instead of silently dropping it.
+		s.invalidate()
+		return
+	}
+	s.busy = true
+	s.err = ""
+	win := u.shell.Window()
+	go func() {
+		err := fn()
+		managers := u.svc.ListManagers()
+		overrides := u.svc.ManagerOverrides()
+		autoScan := u.svc.AutoScanOnLaunch()
+		level := u.svc.LogLevel()
+		win.Update(func() {
+			s.busy = false
+			s.detecting = false
+			// These come from the backend either way, so a failed save puts the
+			// startup switch and the log level back with the manager rows.
+			s.autoScan = autoScan
+			s.logLevel = level
+			if err != nil {
+				s.err = err.Error()
+				s.invalidate()
+				return
+			}
+			u.data.setManagers(managers, overrides)
+			if rescan {
+				u.Refresh()
+			}
+		})
+	}()
 }

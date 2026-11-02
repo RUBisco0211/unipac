@@ -16,6 +16,15 @@ type Service interface {
 	UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	BatchUpdatePackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
+	ManagerOverrides() map[string]manager.Settings
+	SetManagerEnabled(id string, enabled bool) error
+	SetManagerExecPath(id string, path string) error
+	ReloadManagers() error
+	AutoScanOnLaunch() bool
+	SetAutoScanOnLaunch(on bool) error
+	LogLevel() string
+	LogLevels() []string
+	SetLogLevel(level string) error
 }
 
 // data is the package inventory shared by the pages, plus the state of the
@@ -25,6 +34,7 @@ type Service interface {
 type data struct {
 	rows       []manager.Package
 	managers   []manager.Info
+	overrides  map[string]manager.Settings
 	names      map[string]string
 	loadErr    error
 	refreshErr error
@@ -37,6 +47,9 @@ type data struct {
 	// control that started it says it is working.
 	busyKey string
 	version int
+	// managersVersion changes when the manager list itself changes, so the
+	// settings page rebuilds its rows only then and keeps the path being typed.
+	managersVersion int
 
 	toasts []toast
 }
@@ -50,12 +63,22 @@ type toast struct {
 
 func newData(service Service) *data {
 	d := &data{names: make(map[string]string)}
-	d.managers = service.ListManagers()
-	for _, m := range d.managers {
-		d.names[m.ID] = m.Name
-	}
+	d.setManagers(service.ListManagers(), service.ManagerOverrides())
 	d.load(service)
 	return d
+}
+
+// setManagers installs the manager list and the user's saved settings after the
+// settings page changed them.
+func (d *data) setManagers(managers []manager.Info, overrides map[string]manager.Settings) {
+	d.managers = managers
+	d.overrides = overrides
+	d.names = make(map[string]string, len(managers))
+	for _, m := range managers {
+		d.names[m.ID] = m.Name
+	}
+	d.managersVersion++
+	d.version++
 }
 
 func (d *data) load(service Service) {
@@ -129,13 +152,27 @@ func (d *data) managerName(id string) string {
 	return id
 }
 
-// capabilities reports what the manager behind a package claims. An unknown ID
-// claims nothing, so its actions stay disabled.
+// capabilities reports what the manager behind a package claims. An unknown or
+// turned-off manager claims nothing, so its actions stay disabled even before
+// the next scan drops its rows.
 func (d *data) capabilities(id string) manager.Capabilities {
 	for _, m := range d.managers {
 		if m.ID == id {
+			if !m.Enabled {
+				return manager.Capabilities{}
+			}
 			return m.Capabilities
 		}
 	}
 	return manager.Capabilities{}
+}
+
+// enabled reports whether UniPac currently uses a manager.
+func (d *data) enabled(id string) bool {
+	for _, m := range d.managers {
+		if m.ID == id {
+			return m.Enabled
+		}
+	}
+	return false
 }

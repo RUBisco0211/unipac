@@ -81,6 +81,11 @@ func (l *listView) view(c *ui.Context) {
 // sync rebuilds the filtered rows when the inventory or a filter changed. It is
 // pure in-memory work, safe inside a builder.
 func (l *listView) sync() {
+	// A manager that was turned off while its filter was active would leave the
+	// page on a filter the manager select no longer offers.
+	if l.manager != "" && !l.data.enabled(l.manager) {
+		l.manager = ""
+	}
 	if l.applied.version == l.data.version &&
 		l.applied.manager == l.manager &&
 		l.applied.query == l.query {
@@ -179,7 +184,10 @@ func (l *listView) applySort() {
 		case "type":
 			order = strings.Compare(typeLabel(a.IsGUI), typeLabel(b.IsGUI))
 		case "manager":
-			order = strings.Compare(l.data.managerName(a.Manager), l.data.managerName(b.Manager))
+			order = strings.Compare(
+				strings.ToLower(l.data.managerName(a.Manager)),
+				strings.ToLower(l.data.managerName(b.Manager)),
+			)
 		default:
 			order = strings.Compare(a.Name, b.Name)
 		}
@@ -279,6 +287,20 @@ func (l *listView) managerOption(c *ui.Context, name string, count int) {
 }
 
 // managerLabel names the current filter in the trigger.
+// allManagersOff reports whether every package belongs to a manager that is
+// turned off, which is why none of them can be updated.
+func (l *listView) allManagersOff(pkgs []manager.Package) bool {
+	if len(pkgs) == 0 {
+		return false
+	}
+	for _, pkg := range pkgs {
+		if l.data.enabled(pkg.Manager) {
+			return false
+		}
+	}
+	return true
+}
+
 func (l *listView) managerLabel() string {
 	if l.manager == "" {
 		return locales.PackagesAllManagers()
@@ -340,6 +362,8 @@ func (l *listView) toolbar(c *ui.Context) {
 			// Its own label already says it is working.
 		case l.data.busy:
 			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionWorking())
+		case len(updatable) == 0 && l.allManagersOff(selected):
+			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionManagerOff())
 		case len(updatable) == 0:
 			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionUpToDate())
 		}
@@ -418,6 +442,10 @@ func (l *listView) body(c *ui.Context) {
 		l.table.List.Selection = &l.selection
 		l.table.List.OnChange = l.syncSelection
 		l.table.List.Key = func(row int) any { return packageKey(l.rows[row]) }
+		// Rows move when a column sorts them. Keeping the offset, rather than
+		// the item at the top, is what stops the table from scrolling along
+		// with that item to wherever the sort puts it.
+		l.table.List.KeepOffset = true
 		t := c.Theme()
 		ui.Column(c).Fill().Children(func() {
 			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
@@ -488,6 +516,8 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		switch {
 		case updating:
 			// The label already says it is working.
+		case !l.data.enabled(pkg.Manager):
+			actionTooltip(c, updateSlot, canUpdate, locales.ActionManagerOff())
 		case !caps.Update:
 			actionTooltip(c, updateSlot, canUpdate, locales.ActionUnsupported())
 		case !pkg.Outdated:
@@ -518,6 +548,8 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		switch {
 		case removing:
 			// Its own label already says it is working.
+		case !l.data.enabled(pkg.Manager):
+			actionTooltip(c, removeSlot, canRemove, locales.ActionManagerOff())
 		case !caps.Uninstall:
 			actionTooltip(c, removeSlot, canRemove, locales.ActionUnsupported())
 		default:

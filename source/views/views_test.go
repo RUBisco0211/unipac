@@ -15,9 +15,9 @@ func fixture() *data {
 		names:   map[string]string{"brew": "Homebrew", "npm": "NPM"},
 		version: 1,
 		managers: []manager.Info{
-			{ID: "brew", Name: "Homebrew", Enabled: true, ExecPath: "/opt/homebrew/bin/brew",
+			{ID: "brew", Name: "Homebrew", Enabled: true, Available: true, ExecPath: "/opt/homebrew/bin/brew",
 				Capabilities: manager.Capabilities{ListInstalled: true, ListOutdated: true, Search: true, Update: true, Uninstall: true}},
-			{ID: "npm", Name: "NPM", Enabled: true,
+			{ID: "npm", Name: "NPM", Enabled: true, Available: true,
 				Capabilities: manager.Capabilities{ListInstalled: true, Update: true, Uninstall: true}},
 			{ID: "cargo", Name: "Cargo", Enabled: false},
 		},
@@ -25,6 +25,15 @@ func fixture() *data {
 			{Name: "ripgrep", Version: "14.1.1", Manager: "brew", Installed: true, Description: "Line-oriented search tool"},
 			{Name: "typescript", Version: "5.9.3", LatestVersion: "6.0.0", Manager: "npm", Installed: true, Outdated: true},
 		},
+	}
+}
+
+func settingsFixture() *settingsView {
+	return &settingsView{
+		data:     fixture(),
+		autoScan: true,
+		logLevel: "info",
+		levels:   []string{"debug", "info", "warn", "error"},
 	}
 }
 
@@ -419,13 +428,180 @@ func TestUpdateActionFires(t *testing.T) {
 }
 
 func TestSettingsShowsManagers(t *testing.T) {
-	u := &UI{data: fixture()}
-	tt := render(t, u.settings, 900, 500)
+	s := settingsFixture()
+	tt := render(t, s.view, 900, 600)
 
-	for _, want := range []string{"Homebrew", "/opt/homebrew/bin/brew", "Cargo", locales.SettingsDisabled()} {
+	for _, want := range []string{
+		"Homebrew", "NPM", "Cargo",
+		locales.SettingsGeneral(), locales.SettingsManagers(),
+		locales.SettingsStartupScan(), locales.SettingsLogLevel(),
+	} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
+	}
+	// A manager the backend could not preflight says so; one that is simply
+	// off does not need a second label next to its switch.
+	if !tt.HasText(locales.SettingsNotFound()) {
+		t.Errorf("missing the not-found state in %v", tt.Texts())
+	}
+	// Manager IDs belong to the backend, not the page.
+	for _, text := range tt.Texts() {
+		if text == "brew" || text == "cargo" {
+			t.Errorf("settings page exposes a manager ID: %v", tt.Texts())
+		}
+	}
+}
+
+// A path typed into a manager's field is sent when its Apply is pressed, and a
+// frame in between must not rebuild the row and lose the draft.
+func TestSettingsApplySendsPath(t *testing.T) {
+	s := settingsFixture()
+	var gotID, gotPath string
+	s.onSetPath = func(id, path string) { gotID, gotPath = id, path }
+
+	tt := render(t, s.view, 900, 600)
+	s.rows[0].path = "/usr/local/bin/brew"
+	tt.Frame()
+	if s.rows[0].path != "/usr/local/bin/brew" {
+		t.Fatalf("a rebuild discarded the draft: %q", s.rows[0].path)
+	}
+
+	if err := tt.Click(locales.SettingsApply()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if gotID != "brew" || gotPath != "/usr/local/bin/brew" {
+		t.Fatalf("apply sent %q %q, want brew /usr/local/bin/brew", gotID, gotPath)
+	}
+}
+
+// The switch on a manager row carries that manager's ID to the backend.
+func TestSettingsSwitchReachesBackend(t *testing.T) {
+	s := settingsFixture()
+	var gotID string
+	var gotOn bool
+	s.onSetEnabled = func(id string, on bool) { gotID, gotOn = id, on }
+
+	tt := render(t, s.view, 900, 600)
+	if err := tt.Click(locales.SettingsEnableManager("Homebrew")); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if gotID != "brew" || gotOn {
+		t.Fatalf("switch sent %q %v, want brew false", gotID, gotOn)
+	}
+}
+
+// Choosing a log level reaches the backend, and the select shows the value.
+func TestSettingsLogLevelReachesBackend(t *testing.T) {
+	s := settingsFixture()
+	var got string
+	s.onSetLogLevel = func(level string) { got = level }
+
+	tt := render(t, s.view, 900, 600)
+	// The trigger shows the current level; clicking it opens the popup.
+	if err := tt.Click(locales.LogLevelInfo()); err != nil {
+		t.Fatalf("open the level select: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click(locales.LogLevelDebug()); err != nil {
+		t.Fatalf("choose a level: %v", err)
+	}
+	tt.Frame()
+	if got != "debug" {
+		t.Fatalf("log level sent %q, want debug", got)
+	}
+}
+
+// A search can return after a manager was turned off. Its results must not
+// reappear just because the page already rebuilt its rows while it was running.
+func TestSearchResultsArrivingAfterManagerOffAreFiltered(t *testing.T) {
+	d := fixture()
+	s := &searchView{data: d, ran: true}
+	d.setManagers([]manager.Info{
+		{ID: "brew", Name: "Homebrew", Enabled: true, Available: true},
+		{ID: "npm", Name: "NPM", Enabled: false, Available: true},
+	}, map[string]manager.Settings{})
+	s.syncManagers() // the page rebuilt while the search was in flight
+
+	s.apply("typescript", []manager.Package{
+		{Name: "typescript", Manager: "npm"},
+		{Name: "ripgrep", Manager: "brew"},
+	}, nil)
+
+	if len(s.results) != 1 || s.results[0].Manager != "brew" {
+		t.Fatalf("results from the turned-off manager survived: %+v", s.results)
+	}
+}
+
+// Turning a manager off while its filter is active must not leave the page on
+// a filter the manager select no longer offers.
+func TestDisabledManagerFilterResets(t *testing.T) {
+	d := fixture()
+	l := &listView{data: d, manager: "npm", chosen: map[string]struct{}{}}
+	l.sync()
+
+	// The rescan that follows the setting drops the manager's rows.
+	d.rows = d.rows[:1]
+	d.setManagers([]manager.Info{
+		{ID: "brew", Name: "Homebrew", Enabled: true, Available: true},
+	}, map[string]manager.Settings{})
+	l.sync()
+
+	if l.manager != "" {
+		t.Fatalf("filter kept the turned-off manager: %q", l.manager)
+	}
+	if len(l.rows) != 1 || l.rows[0].Manager != "brew" {
+		t.Fatalf("rows after reset = %+v", l.rows)
+	}
+}
+
+// Results from a manager turned off after the search ran must not linger with
+// a working install button.
+func TestSearchDropsResultsFromTurnedOffManagers(t *testing.T) {
+	d := fixture()
+	s := &searchView{
+		data: d,
+		ran:  true,
+		results: []manager.Package{
+			{Name: "typescript", Manager: "npm"},
+			{Name: "ripgrep", Manager: "brew"},
+		},
+	}
+	d.setManagers([]manager.Info{
+		{ID: "brew", Name: "Homebrew", Enabled: true, Available: true},
+		{ID: "npm", Name: "NPM", Enabled: false, Available: true},
+	}, map[string]manager.Settings{})
+
+	s.syncManagers()
+
+	if len(s.results) != 1 || s.results[0].Manager != "brew" {
+		t.Fatalf("results after the manager was turned off: %+v", s.results)
+	}
+}
+
+// Turning a manager off must reach the backend with the manager's own state,
+// and a failed save must put the switch back.
+func TestSettingsSwitchAndRevert(t *testing.T) {
+	s := settingsFixture()
+	s.data.overrides = map[string]manager.Settings{
+		"brew":  {Disabled: true},
+		"npm":   {},
+		"cargo": {Disabled: true},
+	}
+	tt := render(t, s.view, 900, 600)
+	if s.rows[0].enabled {
+		t.Fatal("Homebrew switch ignored the saved state")
+	}
+
+	s.invalidate()
+	tt.Frame()
+	if s.rows[0].enabled {
+		t.Fatal("rebuild did not restore the saved switch state")
+	}
+	if s.rows[0].path != "" {
+		t.Fatalf("unsaved path was invented: %q", s.rows[0].path)
 	}
 }
 

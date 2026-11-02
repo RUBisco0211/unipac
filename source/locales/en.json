@@ -35,11 +35,19 @@
   "actionsRemoving": "Removing…",
   "actionSelectRow": "Select a package first",
   "actionUnsupported": "This manager does not support that action",
+  "actionManagerOff": "This manager is turned off",
   "actionWorking": "Another action is still running",
   "uninstallTitle": "Uninstall package?",
   "uninstallMessage": "{name} will be removed with {manager}. This cannot be undone.",
   "uninstallBulkTitle": "Uninstall selected packages?",
   "uninstallBulkMessage": "{count} packages will be removed. This cannot be undone.",
+  "@uninstallBulkMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "uninstallConfirm": "Hold to uninstall",
   "toastRemoved": "Removed",
   "toastUpdated": "Updated",
@@ -50,24 +58,52 @@
   "searchError": "Search failed: {error}",
   "searchNoResults": "No packages found matching {query}",
   "searchHint": "Start with a package name, keyword, or tool you want to install",
-  "settingsManagers": "Managers",
-  "settingsEnabled": "Available",
-  "settingsDisabled": "Not available",
-  "settingsExecutable": "Executable",
-  "settingsCapabilities": "Capabilities",
-  "settingsNoCapabilities": "No capabilities reported",
-  "capabilityList": "List",
-  "capabilityOutdated": "Outdated",
-  "capabilityInfo": "Info",
-  "capabilitySearch": "Search",
-  "capabilityInstall": "Install",
-  "capabilityUninstall": "Uninstall",
-  "capabilityUpdate": "Update",
-  "capabilityVersions": "Versions",
-  "@uninstallBulkMessage": {
+  "settingsGeneral": "General",
+  "settingsStartupScan": "Scan on launch",
+  "settingsStartupScanDesc": "Check installed packages as soon as UniPac opens.",
+  "settingsLogLevel": "Log level",
+  "settingsLogLevelDesc": "How much detail UniPac writes to its log file.",
+  "logLevelDebug": "Debug",
+  "logLevelInfo": "Info",
+  "logLevelWarn": "Warning",
+  "logLevelError": "Error",
+  "logLevelUnknown": "Unknown",
+  "settingsManagers": "Package managers",
+  "settingsManagersDesc": "A manager you turn off keeps its packages out of the lists, search and updates. Leave the executable path empty to detect it automatically.",
+  "settingsExecPathLabel": "Executable path for {name}",
+  "@settingsExecPathLabel": {
     "placeholders": {
-      "count": {
-        "type": "int"
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsEnableManager": "Use {name}",
+  "@settingsEnableManager": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPathAuto": "Detect automatically",
+  "settingsApply": "Apply",
+  "settingsApplyPathFor": "Apply path for {name}",
+  "@settingsApplyPathFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRedetect": "Detect again",
+  "settingsDetecting": "Detecting…",
+  "settingsNotFound": "Executable not found",
+  "settingsSaveError": "Could not save settings: {error}",
+  "@settingsSaveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
       }
     }
   },

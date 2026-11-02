@@ -384,6 +384,16 @@ func (msgs Messages) ActionUnsupported() string {
 	return Catalog.Format(msgs.locale, "actionUnsupported", nil)
 }
 
+// ActionManagerOff says "This manager is turned off"
+// in the language the app shows.
+func ActionManagerOff() string { return In(i18n.Locale()).ActionManagerOff() }
+
+// ActionManagerOff says "This manager is turned off"
+// in the language of msgs.
+func (msgs Messages) ActionManagerOff() string {
+	return Catalog.Format(msgs.locale, "actionManagerOff", nil)
+}
+
 // ActionWorking says "Another action is still running"
 // in the language the app shows.
 func ActionWorking() string { return In(i18n.Locale()).ActionWorking() }
@@ -536,144 +546,214 @@ func (msgs Messages) SearchHint() string {
 	return Catalog.Format(msgs.locale, "searchHint", nil)
 }
 
-// SettingsManagers says "Managers"
+// SettingsGeneral says "General"
+// in the language the app shows.
+func SettingsGeneral() string { return In(i18n.Locale()).SettingsGeneral() }
+
+// SettingsGeneral says "General"
+// in the language of msgs.
+func (msgs Messages) SettingsGeneral() string {
+	return Catalog.Format(msgs.locale, "settingsGeneral", nil)
+}
+
+// SettingsStartupScan says "Scan on launch"
+// in the language the app shows.
+func SettingsStartupScan() string { return In(i18n.Locale()).SettingsStartupScan() }
+
+// SettingsStartupScan says "Scan on launch"
+// in the language of msgs.
+func (msgs Messages) SettingsStartupScan() string {
+	return Catalog.Format(msgs.locale, "settingsStartupScan", nil)
+}
+
+// SettingsStartupScanDesc says "Check installed packages as soon as UniPac opens."
+// in the language the app shows.
+func SettingsStartupScanDesc() string { return In(i18n.Locale()).SettingsStartupScanDesc() }
+
+// SettingsStartupScanDesc says "Check installed packages as soon as UniPac opens."
+// in the language of msgs.
+func (msgs Messages) SettingsStartupScanDesc() string {
+	return Catalog.Format(msgs.locale, "settingsStartupScanDesc", nil)
+}
+
+// SettingsLogLevel says "Log level"
+// in the language the app shows.
+func SettingsLogLevel() string { return In(i18n.Locale()).SettingsLogLevel() }
+
+// SettingsLogLevel says "Log level"
+// in the language of msgs.
+func (msgs Messages) SettingsLogLevel() string {
+	return Catalog.Format(msgs.locale, "settingsLogLevel", nil)
+}
+
+// SettingsLogLevelDesc says "How much detail UniPac writes to its log file."
+// in the language the app shows.
+func SettingsLogLevelDesc() string { return In(i18n.Locale()).SettingsLogLevelDesc() }
+
+// SettingsLogLevelDesc says "How much detail UniPac writes to its log file."
+// in the language of msgs.
+func (msgs Messages) SettingsLogLevelDesc() string {
+	return Catalog.Format(msgs.locale, "settingsLogLevelDesc", nil)
+}
+
+// LogLevelDebug says "Debug"
+// in the language the app shows.
+func LogLevelDebug() string { return In(i18n.Locale()).LogLevelDebug() }
+
+// LogLevelDebug says "Debug"
+// in the language of msgs.
+func (msgs Messages) LogLevelDebug() string {
+	return Catalog.Format(msgs.locale, "logLevelDebug", nil)
+}
+
+// LogLevelInfo says "Info"
+// in the language the app shows.
+func LogLevelInfo() string { return In(i18n.Locale()).LogLevelInfo() }
+
+// LogLevelInfo says "Info"
+// in the language of msgs.
+func (msgs Messages) LogLevelInfo() string {
+	return Catalog.Format(msgs.locale, "logLevelInfo", nil)
+}
+
+// LogLevelWarn says "Warning"
+// in the language the app shows.
+func LogLevelWarn() string { return In(i18n.Locale()).LogLevelWarn() }
+
+// LogLevelWarn says "Warning"
+// in the language of msgs.
+func (msgs Messages) LogLevelWarn() string {
+	return Catalog.Format(msgs.locale, "logLevelWarn", nil)
+}
+
+// LogLevelError says "Error"
+// in the language the app shows.
+func LogLevelError() string { return In(i18n.Locale()).LogLevelError() }
+
+// LogLevelError says "Error"
+// in the language of msgs.
+func (msgs Messages) LogLevelError() string {
+	return Catalog.Format(msgs.locale, "logLevelError", nil)
+}
+
+// LogLevelUnknown says "Unknown"
+// in the language the app shows.
+func LogLevelUnknown() string { return In(i18n.Locale()).LogLevelUnknown() }
+
+// LogLevelUnknown says "Unknown"
+// in the language of msgs.
+func (msgs Messages) LogLevelUnknown() string {
+	return Catalog.Format(msgs.locale, "logLevelUnknown", nil)
+}
+
+// SettingsManagers says "Package managers"
 // in the language the app shows.
 func SettingsManagers() string { return In(i18n.Locale()).SettingsManagers() }
 
-// SettingsManagers says "Managers"
+// SettingsManagers says "Package managers"
 // in the language of msgs.
 func (msgs Messages) SettingsManagers() string {
 	return Catalog.Format(msgs.locale, "settingsManagers", nil)
 }
 
-// SettingsEnabled says "Available"
+// SettingsManagersDesc says "A manager you turn off keeps its packages out of the lists, search and updates. Leave the executable path empty to de…"
 // in the language the app shows.
-func SettingsEnabled() string { return In(i18n.Locale()).SettingsEnabled() }
+func SettingsManagersDesc() string { return In(i18n.Locale()).SettingsManagersDesc() }
 
-// SettingsEnabled says "Available"
+// SettingsManagersDesc says "A manager you turn off keeps its packages out of the lists, search and updates. Leave the executable path empty to de…"
 // in the language of msgs.
-func (msgs Messages) SettingsEnabled() string {
-	return Catalog.Format(msgs.locale, "settingsEnabled", nil)
+func (msgs Messages) SettingsManagersDesc() string {
+	return Catalog.Format(msgs.locale, "settingsManagersDesc", nil)
 }
 
-// SettingsDisabled says "Not available"
+// SettingsExecPathLabel says "Executable path for {name}"
 // in the language the app shows.
-func SettingsDisabled() string { return In(i18n.Locale()).SettingsDisabled() }
+func SettingsExecPathLabel(name string) string { return In(i18n.Locale()).SettingsExecPathLabel(name) }
 
-// SettingsDisabled says "Not available"
+// SettingsExecPathLabel says "Executable path for {name}"
 // in the language of msgs.
-func (msgs Messages) SettingsDisabled() string {
-	return Catalog.Format(msgs.locale, "settingsDisabled", nil)
+func (msgs Messages) SettingsExecPathLabel(name string) string {
+	return Catalog.Format(msgs.locale, "settingsExecPathLabel", map[string]any{"name": name})
 }
 
-// SettingsExecutable says "Executable"
+// SettingsEnableManager says "Use {name}"
 // in the language the app shows.
-func SettingsExecutable() string { return In(i18n.Locale()).SettingsExecutable() }
+func SettingsEnableManager(name string) string { return In(i18n.Locale()).SettingsEnableManager(name) }
 
-// SettingsExecutable says "Executable"
+// SettingsEnableManager says "Use {name}"
 // in the language of msgs.
-func (msgs Messages) SettingsExecutable() string {
-	return Catalog.Format(msgs.locale, "settingsExecutable", nil)
+func (msgs Messages) SettingsEnableManager(name string) string {
+	return Catalog.Format(msgs.locale, "settingsEnableManager", map[string]any{"name": name})
 }
 
-// SettingsCapabilities says "Capabilities"
+// SettingsPathAuto says "Detect automatically"
 // in the language the app shows.
-func SettingsCapabilities() string { return In(i18n.Locale()).SettingsCapabilities() }
+func SettingsPathAuto() string { return In(i18n.Locale()).SettingsPathAuto() }
 
-// SettingsCapabilities says "Capabilities"
+// SettingsPathAuto says "Detect automatically"
 // in the language of msgs.
-func (msgs Messages) SettingsCapabilities() string {
-	return Catalog.Format(msgs.locale, "settingsCapabilities", nil)
+func (msgs Messages) SettingsPathAuto() string {
+	return Catalog.Format(msgs.locale, "settingsPathAuto", nil)
 }
 
-// SettingsNoCapabilities says "No capabilities reported"
+// SettingsApply says "Apply"
 // in the language the app shows.
-func SettingsNoCapabilities() string { return In(i18n.Locale()).SettingsNoCapabilities() }
+func SettingsApply() string { return In(i18n.Locale()).SettingsApply() }
 
-// SettingsNoCapabilities says "No capabilities reported"
+// SettingsApply says "Apply"
 // in the language of msgs.
-func (msgs Messages) SettingsNoCapabilities() string {
-	return Catalog.Format(msgs.locale, "settingsNoCapabilities", nil)
+func (msgs Messages) SettingsApply() string {
+	return Catalog.Format(msgs.locale, "settingsApply", nil)
 }
 
-// CapabilityList says "List"
+// SettingsApplyPathFor says "Apply path for {name}"
 // in the language the app shows.
-func CapabilityList() string { return In(i18n.Locale()).CapabilityList() }
+func SettingsApplyPathFor(name string) string { return In(i18n.Locale()).SettingsApplyPathFor(name) }
 
-// CapabilityList says "List"
+// SettingsApplyPathFor says "Apply path for {name}"
 // in the language of msgs.
-func (msgs Messages) CapabilityList() string {
-	return Catalog.Format(msgs.locale, "capabilityList", nil)
+func (msgs Messages) SettingsApplyPathFor(name string) string {
+	return Catalog.Format(msgs.locale, "settingsApplyPathFor", map[string]any{"name": name})
 }
 
-// CapabilityOutdated says "Outdated"
+// SettingsRedetect says "Detect again"
 // in the language the app shows.
-func CapabilityOutdated() string { return In(i18n.Locale()).CapabilityOutdated() }
+func SettingsRedetect() string { return In(i18n.Locale()).SettingsRedetect() }
 
-// CapabilityOutdated says "Outdated"
+// SettingsRedetect says "Detect again"
 // in the language of msgs.
-func (msgs Messages) CapabilityOutdated() string {
-	return Catalog.Format(msgs.locale, "capabilityOutdated", nil)
+func (msgs Messages) SettingsRedetect() string {
+	return Catalog.Format(msgs.locale, "settingsRedetect", nil)
 }
 
-// CapabilityInfo says "Info"
+// SettingsDetecting says "Detecting…"
 // in the language the app shows.
-func CapabilityInfo() string { return In(i18n.Locale()).CapabilityInfo() }
+func SettingsDetecting() string { return In(i18n.Locale()).SettingsDetecting() }
 
-// CapabilityInfo says "Info"
+// SettingsDetecting says "Detecting…"
 // in the language of msgs.
-func (msgs Messages) CapabilityInfo() string {
-	return Catalog.Format(msgs.locale, "capabilityInfo", nil)
+func (msgs Messages) SettingsDetecting() string {
+	return Catalog.Format(msgs.locale, "settingsDetecting", nil)
 }
 
-// CapabilitySearch says "Search"
+// SettingsNotFound says "Executable not found"
 // in the language the app shows.
-func CapabilitySearch() string { return In(i18n.Locale()).CapabilitySearch() }
+func SettingsNotFound() string { return In(i18n.Locale()).SettingsNotFound() }
 
-// CapabilitySearch says "Search"
+// SettingsNotFound says "Executable not found"
 // in the language of msgs.
-func (msgs Messages) CapabilitySearch() string {
-	return Catalog.Format(msgs.locale, "capabilitySearch", nil)
+func (msgs Messages) SettingsNotFound() string {
+	return Catalog.Format(msgs.locale, "settingsNotFound", nil)
 }
 
-// CapabilityInstall says "Install"
+// SettingsSaveError says "Could not save settings: {error}"
 // in the language the app shows.
-func CapabilityInstall() string { return In(i18n.Locale()).CapabilityInstall() }
+func SettingsSaveError(error string) string { return In(i18n.Locale()).SettingsSaveError(error) }
 
-// CapabilityInstall says "Install"
+// SettingsSaveError says "Could not save settings: {error}"
 // in the language of msgs.
-func (msgs Messages) CapabilityInstall() string {
-	return Catalog.Format(msgs.locale, "capabilityInstall", nil)
-}
-
-// CapabilityUninstall says "Uninstall"
-// in the language the app shows.
-func CapabilityUninstall() string { return In(i18n.Locale()).CapabilityUninstall() }
-
-// CapabilityUninstall says "Uninstall"
-// in the language of msgs.
-func (msgs Messages) CapabilityUninstall() string {
-	return Catalog.Format(msgs.locale, "capabilityUninstall", nil)
-}
-
-// CapabilityUpdate says "Update"
-// in the language the app shows.
-func CapabilityUpdate() string { return In(i18n.Locale()).CapabilityUpdate() }
-
-// CapabilityUpdate says "Update"
-// in the language of msgs.
-func (msgs Messages) CapabilityUpdate() string {
-	return Catalog.Format(msgs.locale, "capabilityUpdate", nil)
-}
-
-// CapabilityVersions says "Versions"
-// in the language the app shows.
-func CapabilityVersions() string { return In(i18n.Locale()).CapabilityVersions() }
-
-// CapabilityVersions says "Versions"
-// in the language of msgs.
-func (msgs Messages) CapabilityVersions() string {
-	return Catalog.Format(msgs.locale, "capabilityVersions", nil)
+func (msgs Messages) SettingsSaveError(error string) string {
+	return Catalog.Format(msgs.locale, "settingsSaveError", map[string]any{"error": error})
 }
 
 // ActionsInstall says "Install"

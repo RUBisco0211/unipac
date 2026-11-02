@@ -28,9 +28,13 @@ type searchView struct {
 
 	table     components.TableVirtualizedState
 	sortOrder ui.SortOrder
+
+	// seenManagers is the manager list the results were last checked against.
+	seenManagers int
 }
 
 func (s *searchView) view(c *ui.Context) {
+	s.syncManagers()
 	ui.Column(c).Fill().Gap(12).Children(func() {
 		ui.Column(c).Shrink(0).Gap(12).Padding(0, 16, 0, 16).Children(func() {
 			s.toolbar(c)
@@ -38,6 +42,29 @@ func (s *searchView) view(c *ui.Context) {
 		})
 		s.body(c)
 	})
+}
+
+// syncManagers drops results from managers that were turned off since the
+// search ran, so an install button cannot outlive the setting that allowed it.
+func (s *searchView) syncManagers() {
+	if s.seenManagers == s.data.managersVersion {
+		return
+	}
+	s.seenManagers = s.data.managersVersion
+	s.results = s.enabledResults(s.results)
+}
+
+// enabledResults keeps the packages whose manager is still in use. A search can
+// return after a manager was turned off, so this also runs when results land,
+// not only when the manager list changes.
+func (s *searchView) enabledResults(results []manager.Package) []manager.Package {
+	kept := results[:0]
+	for _, pkg := range results {
+		if s.data.enabled(pkg.Manager) {
+			kept = append(kept, pkg)
+		}
+	}
+	return kept
 }
 
 func (s *searchView) toolbar(c *ui.Context) {
@@ -81,7 +108,10 @@ func (s *searchView) applySort() {
 		case "type":
 			order = strings.Compare(typeLabel(a.IsGUI), typeLabel(b.IsGUI))
 		case "manager":
-			order = strings.Compare(s.data.managerName(a.Manager), s.data.managerName(b.Manager))
+			order = strings.Compare(
+				strings.ToLower(s.data.managerName(a.Manager)),
+				strings.ToLower(s.data.managerName(b.Manager)),
+			)
 		default:
 			order = strings.Compare(a.Name, b.Name)
 		}
@@ -137,6 +167,8 @@ func (s *searchView) rowAction(c *ui.Context, pkg manager.Package) {
 	switch {
 	case installing:
 		// Its own label already says it is working.
+	case !s.data.enabled(pkg.Manager):
+		actionTooltip(c, slot, canInstall, locales.ActionManagerOff())
 	case !caps.Install:
 		actionTooltip(c, slot, canInstall, locales.ActionUnsupported())
 	default:
@@ -152,6 +184,7 @@ func (s *searchView) apply(query string, results []manager.Package, err error) {
 	s.err = err
 	s.ran = true
 	s.resultQuery = query
-	s.results = results
+	s.results = s.enabledResults(results)
+	s.seenManagers = s.data.managersVersion
 	s.applySort()
 }
