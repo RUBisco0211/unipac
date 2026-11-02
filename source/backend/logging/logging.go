@@ -13,6 +13,10 @@ import (
 var AppLogDir string
 var LogFile *os.File
 
+// logWriter is where the handlers write, kept so SetLevel can rebuild the
+// default logger without reopening the file.
+var logWriter io.Writer
+
 type Config struct {
 	LogDir string `json:"log_dir,omitempty"`
 	Level  string `json:"level,omitempty"`
@@ -57,12 +61,34 @@ func Init(cfg Config) error {
 		logLevel = slog.LevelInfo
 	}
 
-	multiWriter := io.MultiWriter(os.Stderr, LogFile)
-	handler := slog.NewTextHandler(multiWriter, &slog.HandlerOptions{
+	logWriter = io.MultiWriter(os.Stderr, LogFile)
+	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level:     logLevel,
 		AddSource: util.IsDev(),
 	})
 	slog.SetDefault(slog.New(handler))
+	return nil
+}
+
+// Levels lists the log levels in order of increasing severity.
+func Levels() []string {
+	return []string{LevelDebug, LevelInfo, LevelWarn, LevelError}
+}
+
+// SetLevel applies a log level to the running logger. The file stays open, so
+// the change takes effect immediately without a restart.
+func SetLevel(level string) error {
+	logLevel, ok := levelMap[level]
+	if !ok {
+		return fmt.Errorf("unknown log level: %q", level)
+	}
+	if logWriter == nil {
+		return nil
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
+		Level:     logLevel,
+		AddSource: util.IsDev(),
+	})))
 	return nil
 }
 

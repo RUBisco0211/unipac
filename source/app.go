@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/RUBisco0211/unipac/source/backend/cache"
 	"github.com/RUBisco0211/unipac/source/backend/config"
@@ -52,10 +53,7 @@ func (a *App) Startup(ctx context.Context) error {
 	slog.InfoContext(a.ctx, "cache initialized")
 
 	slog.InfoContext(a.ctx, "initializing manager registry")
-	registry.Init(a.ctx, config.Instance.Managers)
-	if err := config.SyncManagers(registry.Instance.ListManagers()); err != nil {
-		return a.fail("sync manager config", err)
-	}
+	registry.Init(a.ctx, config.ManagerSettings())
 	slog.InfoContext(a.ctx, "manager registry initialized")
 
 	return nil
@@ -99,6 +97,89 @@ func (a *App) ListEnabledManagers() []manager.Info {
 	})
 }
 
+// ManagerOverrides returns the per-manager settings the user saved. The
+// settings page shows them as the values behind its controls.
+func (a *App) ManagerOverrides() map[string]manager.Settings {
+	return config.ManagerSettings()
+}
+
+// SetManagerEnabled turns one manager on or off and applies it to the running
+// registry, so the lists, search and actions follow at once.
+func (a *App) SetManagerEnabled(id string, enabled bool) error {
+	slog.InfoContext(a.ctx, "changing manager state", "manager", id, "enabled", enabled)
+	if err := config.SetManagerEnabled(id, enabled); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save manager state", "manager", id, "error", err)
+		return err
+	}
+	registry.Instance.Apply(config.ManagerSettings())
+	return nil
+}
+
+// SetManagerExecPath saves one manager's executable path and preflights it. An
+// empty path goes back to detecting the executable on PATH.
+func (a *App) SetManagerExecPath(id string, path string) error {
+	slog.InfoContext(a.ctx, "changing manager executable", "manager", id, "path", path)
+	if err := config.SetManagerExecPath(id, path); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save manager executable", "manager", id, "error", err)
+		return err
+	}
+	registry.Instance.Apply(config.ManagerSettings())
+	return nil
+}
+
+// ReloadManagers preflights every manager again, so a tool installed while the
+// app was open is picked up.
+func (a *App) ReloadManagers() error {
+	slog.InfoContext(a.ctx, "reloading manager registry")
+	registry.Instance.Reprobe()
+	return nil
+}
+
+// AutoScanOnLaunch reports whether the app scans for installed packages when
+// it opens.
+func (a *App) AutoScanOnLaunch() bool {
+	return config.Instance.Startup.ScansOnLaunch()
+}
+
+// SetAutoScanOnLaunch saves whether the app scans for installed packages when
+// it opens.
+func (a *App) SetAutoScanOnLaunch(on bool) error {
+	slog.InfoContext(a.ctx, "changing launch scan", "enabled", on)
+	return config.SetAutoScan(on)
+}
+
+// LogLevel returns the level the app logs at.
+func (a *App) LogLevel() string {
+	if level := config.Instance.Log.Level; level != "" {
+		return level
+	}
+	return logging.LevelInfo
+}
+
+// LogLevels lists the levels the app can log at, least to most severe.
+func (a *App) LogLevels() []string {
+	return logging.Levels()
+}
+
+// SetLogLevel saves a log level and applies it to the running logger. The
+// config is written first, so a failed save cannot leave the running app at a
+// level the next start would not use.
+func (a *App) SetLogLevel(level string) error {
+	slog.InfoContext(a.ctx, "changing log level", "level", level)
+	if !slices.Contains(logging.Levels(), level) {
+		return fmt.Errorf("unknown log level: %q", level)
+	}
+	if err := config.SetLogLevel(level); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save log level", "level", level, "error", err)
+		return err
+	}
+	if err := logging.SetLevel(level); err != nil {
+		slog.ErrorContext(a.ctx, "failed to apply log level", "level", level, "error", err)
+		return err
+	}
+	return nil
+}
+
 func (a *App) GetCachedPackages() ([]manager.Package, error) {
 	slog.DebugContext(a.ctx, "getting cached packages")
 	pkgs, err := cache.Default.List()
@@ -112,10 +193,16 @@ func (a *App) GetCachedPackages() ([]manager.Package, error) {
 
 func (a *App) UpdateCache() error {
 	slog.InfoContext(a.ctx, "updating package cache")
-	pkgs, err := registry.Instance.GetInstalledPackages()
+	pkgs, reliable, err := registry.Instance.GetInstalledPackages()
 	if err != nil {
 		slog.ErrorContext(a.ctx, "failed to get installed packages from registry", "error", err)
 		return fmt.Errorf("failed to get installed packages from registry: %w", err)
+	}
+	if !reliable {
+		// Every enabled manager failed. Keep the last good snapshot instead of
+		// replacing it with an empty one, and say so rather than looking idle.
+		slog.WarnContext(a.ctx, "no enabled manager could list packages; keeping the cached snapshot")
+		return fmt.Errorf("no package manager could list its packages")
 	}
 
 	if err = cache.Default.UpdateCache(pkgs); err != nil {

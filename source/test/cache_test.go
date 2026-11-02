@@ -62,11 +62,12 @@ func TestRoundTrip(t *testing.T) {
 		t.Errorf("outdated fields lost: %+v", got[1])
 	}
 
-	// An empty scan must not wipe the cache.
+	// An empty snapshot clears the cache. Callers decide whether an empty scan
+	// is trustworthy; the cache just stores what it is given.
 	if err := cache.Default.UpdateCache(nil); err != nil {
 		t.Fatalf("UpdateCache(nil): %v", err)
 	}
-	if again, err := cache.Default.List(); err != nil || len(again) != 2 {
-		t.Fatalf("cache changed after empty update: %d rows, err %v", len(again), err)
+	if again, err := cache.Default.List(); err != nil || len(again) != 0 {
+		t.Fatalf("cache kept rows after an empty update: %d rows, err %v", len(again), err)
 	}
 }

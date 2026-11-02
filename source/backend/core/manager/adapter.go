@@ -50,30 +50,30 @@ type Adapter interface {
 	ListVersions(pkg Package) ([]string, error)
 }
 
+// AdapterConstructor builds one adapter. It must stay cheap and free of I/O:
+// the registry calls it for every manager on each settings change, and runs
+// Preflight separately for the managers that actually need checking.
 type AdapterConstructor func(ctx context.Context) Adapter
 
 func Preflight(a Adapter, ctx context.Context) error {
-	if a.Info().ExecPath != "" {
-		if err := util.CheckCommandVersion(
-			ctx,
-			a.Info().ExecPath,
-			[]string{"--version"},
-		); err == nil {
-			return nil
+	info := a.Info()
+	// A configured executable is the user's choice: it is checked as given and
+	// never replaced by one found on PATH, so a typo shows up as unavailable
+	// instead of silently running a different binary.
+	if info.ExecPath != "" {
+		if err := util.CheckCommandVersion(ctx, info.ExecPath, []string{"--version"}); err != nil {
+			return fmt.Errorf("%s is not usable at %s: %w", info.ID, info.ExecPath, err)
 		}
+		return nil
 	}
 
-	path, err := util.GetExecPath(a.Info().ExecName)
+	path, err := util.GetExecPath(info.ExecName)
 	if err != nil {
-		return fmt.Errorf("%s not found: %w", a.Info().ID, err)
+		return fmt.Errorf("%s not found: %w", info.ID, err)
 	}
-	a.Info().ExecPath = path
-	if err := util.CheckCommandVersion(
-		ctx,
-		a.Info().ExecPath,
-		[]string{"--version"},
-	); err != nil {
-		return fmt.Errorf("%s not available: %w", a.Info().ID, err)
+	info.ExecPath = path
+	if err := util.CheckCommandVersion(ctx, info.ExecPath, []string{"--version"}); err != nil {
+		return fmt.Errorf("%s not available: %w", info.ID, err)
 	}
 	return nil
 }

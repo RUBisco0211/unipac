@@ -30,10 +30,10 @@ func (m *Cache) List() ([]manager.Package, error) {
 //	err := m.DB.NamedExecContext(m.Ctx)
 //}
 
+// UpdateCache replaces the snapshot with pkgs. An empty list clears the cache:
+// callers decide whether an empty scan is trustworthy, so that a failed scan
+// can keep the previous snapshot while a real "nothing is installed" clears it.
 func (m *Cache) UpdateCache(pkgs []manager.Package) (err error) {
-	if len(pkgs) == 0 {
-		return nil
-	}
 	// begin transaction
 	tx, err := m.db.Beginx()
 	if err != nil {
@@ -56,6 +56,9 @@ func (m *Cache) UpdateCache(pkgs []manager.Package) (err error) {
 	if err != nil {
 		slog.ErrorContext(m.ctx, "Failed to delete from table installed_package_cache", "error", err)
 		return err
+	}
+	if len(pkgs) == 0 {
+		return tx.Commit()
 	}
 	// full update all scanned packages
 	query := `INSERT INTO installed_package_cache 

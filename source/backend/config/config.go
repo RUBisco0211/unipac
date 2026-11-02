@@ -4,19 +4,33 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/cache"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/logging"
 	"github.com/RUBisco0211/unipac/source/backend/util"
-	"github.com/samber/lo"
 )
 
 // Config is the main configuration struct for the application, containing all necessary configuration for different modules and features
 type Config struct {
-	Cache    cache.Config            `json:"cache"`
-	Log      logging.Config          `json:"log"`
-	Managers map[string]manager.Info `json:"adapters"`
+	Cache    cache.Config                `json:"cache"`
+	Log      logging.Config              `json:"log"`
+	Startup  Startup                     `json:"startup"`
+	Managers map[string]manager.Settings `json:"managers"`
+}
+
+// Startup holds what the app does when it opens.
+type Startup struct {
+	// AutoScan is nil in a config written before the setting existed, which
+	// behaves like true.
+	AutoScan *bool `json:"auto_scan,omitempty"`
+}
+
+// ScansOnLaunch reports whether the app should scan for installed packages as
+// soon as it opens.
+func (s Startup) ScansOnLaunch() bool {
+	return s.AutoScan == nil || *s.AutoScan
 }
 
 // Instance exported
@@ -26,6 +40,9 @@ var filePath string
 func Init() error {
 	var err error
 	filePath, err = util.SafeJoin(util.AppRoot, "unipac.json")
+	if err != nil {
+		return err
+	}
 	Instance, err = Load()
 	if err != nil {
 		return err
@@ -34,10 +51,12 @@ func Init() error {
 }
 
 func defaultConfig() Config {
+	autoScan := true
 	return Config{
 		Cache:    cache.DefaultConfig(),
 		Log:      logging.DefaultConfig(),
-		Managers: map[string]manager.Info{},
+		Startup:  Startup{AutoScan: &autoScan},
+		Managers: map[string]manager.Settings{},
 	}
 }
 
@@ -60,16 +79,74 @@ func Load() (Config, error) {
 		}
 		return cfg, nil
 	}
+	if cfg.Managers == nil {
+		cfg.Managers = map[string]manager.Settings{}
+	}
 	return cfg, nil
 }
 
-func SyncManagers(managers []manager.Info) error {
-	Instance.Managers = lo.SliceToMap(managers, func(item manager.Info) (string, manager.Info) {
-		return item.ID, item
-	})
-	if err := Save(Instance); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
+// ManagerSettings returns the saved per-manager settings. It never returns a
+// nil map, so callers can read and copy from it without checking.
+func ManagerSettings() map[string]manager.Settings {
+	if Instance.Managers == nil {
+		return map[string]manager.Settings{}
 	}
+	return Instance.Managers
+}
+
+// SetManagerEnabled turns one manager on or off and saves the config.
+func SetManagerEnabled(id string, enabled bool) error {
+	s := Instance.Managers[id]
+	s.Disabled = !enabled
+	return setManager(id, s)
+}
+
+// SetManagerExecPath overrides one manager's executable and saves the config.
+// An empty path goes back to detecting it.
+func SetManagerExecPath(id string, path string) error {
+	s := Instance.Managers[id]
+	s.ExecPath = strings.TrimSpace(path)
+	return setManager(id, s)
+}
+
+// setManager commits one manager's settings only after they are on disk, so a
+// failed write leaves the running app on the values it was started with.
+func setManager(id string, s manager.Settings) error {
+	managers := make(map[string]manager.Settings, len(Instance.Managers)+1)
+	for key, value := range Instance.Managers {
+		managers[key] = value
+	}
+	managers[id] = s
+
+	cfg := Instance
+	cfg.Managers = managers
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// SetAutoScan saves whether the app scans for installed packages on launch.
+func SetAutoScan(on bool) error {
+	cfg := Instance
+	cfg.Startup.AutoScan = &on
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// SetLogLevel saves the log level. Applying it to the running logger is the
+// caller's job.
+func SetLogLevel(level string) error {
+	cfg := Instance
+	cfg.Log.Level = level
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
 	return nil
 }
 
