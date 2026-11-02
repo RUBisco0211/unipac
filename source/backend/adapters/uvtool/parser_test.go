@@ -3,7 +3,7 @@ package uvtool_test
 import (
 	"testing"
 
-	"github.com/RUBisco0211/unipac/backend/adapters/uvtool"
+	"github.com/RUBisco0211/unipac/source/backend/adapters/uvtool"
 )
 
 func TestParseInstalledToolsEmpty(t *testing.T) {

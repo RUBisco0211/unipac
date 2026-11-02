@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/RUBisco0211/unipac/backend/adapters"
-	"github.com/RUBisco0211/unipac/backend/core/manager"
-	"github.com/RUBisco0211/unipac/backend/util"
+	"github.com/RUBisco0211/unipac/source/backend/adapters"
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/backend/util"
 	"github.com/samber/lo"
 )
 

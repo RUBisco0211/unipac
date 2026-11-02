@@ -3,8 +3,8 @@ package views
 import (
 	"math"
 
-	"github.com/RUBisco0211/unipac/backend/core/manager"
-	"github.com/RUBisco0211/unipac/locales"
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"

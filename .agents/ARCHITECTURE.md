@@ -27,9 +27,10 @@ of the old stack remains, and these are the decisions worth not revisiting:
 - `views/` owns presentation: the shell, one file per page, shared table rendering, and the retained state each page shows.
 - `locales/` holds the ARB catalogs and the Go package MyGo generates from them.
 
-`source/` is the Go module root and holds every Go package, `mygo.json` and the
-app icon; documentation, the screenshot and the build output stay at the
-repository root. Paths in this document are relative to `source/`.
+The repository root is the Go module root and the directory MyGo works in:
+`go.mod`, `mygo.json`, `assets/` and `dist/` sit there. The app's Go packages are
+under `source/`, which `mygo.json` names as its `main`. Paths in this document are
+relative to `source/` unless they are configuration.
 
 The intended dependency direction is:
 

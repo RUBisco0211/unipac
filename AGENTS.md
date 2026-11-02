@@ -27,10 +27,9 @@ Load both before writing or reviewing UI code.
 
 ## Rules
 
-- `source/` is the Go module root: `go.mod`, `mygo.json`, `main.go`, `app/`,
-  `backend/`, `views/` and `locales/` sit there. Run Go and MyGo commands from
-  `source/`, never from the repository root. Documentation, `assets/screenshot.png`
-  and `dist/` stay at the root.
+- The repository root is the Go module root and the directory MyGo works in:
+  `go.mod`, `go.sum`, `mygo.json`, `assets/` and `dist/` sit there. The app's Go
+  packages are under `source/`. Run every Go and MyGo command from the root.
 - Build with `CGO_ENABLED=0`; every platform builds from any machine.
 - The backend registry is the source of truth for managers. Never hardcode a
   manager list, label, icon or command in the UI.
@@ -47,7 +46,6 @@ Load both before writing or reviewing UI code.
 ## Verification
 
 ```sh
-cd source
 gofmt -l .
 CGO_ENABLED=0 go test ./...
 go tool mygo vet .

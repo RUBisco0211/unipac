@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/RUBisco0211/unipac/backend/util"
+	"github.com/RUBisco0211/unipac/source/backend/util"
 )
 
 var AppLogDir string

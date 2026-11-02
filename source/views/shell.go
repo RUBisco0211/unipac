@@ -9,9 +9,9 @@ package views
 import (
 	"log/slog"
 
-	"github.com/RUBisco0211/unipac/app"
-	"github.com/RUBisco0211/unipac/backend/core/manager"
-	"github.com/RUBisco0211/unipac/locales"
+	"github.com/RUBisco0211/unipac/source/app"
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"

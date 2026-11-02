@@ -1,8 +1,8 @@
 package views
 
 import (
-	"github.com/RUBisco0211/unipac/app"
-	"github.com/RUBisco0211/unipac/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/app"
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 )
 
 // data is the package inventory shared by the pages, plus the state of the

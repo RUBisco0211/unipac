@@ -5,8 +5,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/RUBisco0211/unipac/app"
-	"github.com/RUBisco0211/unipac/views"
+	"github.com/RUBisco0211/unipac/source/app"
+	"github.com/RUBisco0211/unipac/source/views"
 	"github.com/egoist/mygo"
 )
 

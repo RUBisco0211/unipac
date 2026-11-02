@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/RUBisco0211/unipac/backend/cache"
-	"github.com/RUBisco0211/unipac/backend/core/manager"
-	"github.com/RUBisco0211/unipac/backend/util"
+	"github.com/RUBisco0211/unipac/source/backend/cache"
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/backend/util"
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
 )
