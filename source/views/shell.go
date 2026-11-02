@@ -12,7 +12,6 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo"
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -271,26 +270,22 @@ func (u *UI) windowTitle(c *ui.Context) {
 func (u *UI) leftHeader(c *ui.Context) {}
 
 func (u *UI) left(c *ui.Context) {
-	// Blur what is under the sidebar instead of relying on the window material:
-	// the shell leaves the sidebar to the window, and that material is not shown
-	// on pages whose content paints opaquely. glass.Blur works on every page.
-	ui.Column(c).Fill().Material(glass.Blur{Radius: 24}).Children(func() {
-		ui.Column(c).Fill().
-			Background(c.Theme().Surface.Alpha(0.1)).
-			Padding(sidebar.HeaderHeight(c), 0, 6, 0).
-			Children(func() {
-				components.Sidebar(c).Children(func() {
-					components.SidebarSection(c, locales.SidebarPackages(), func() {
-						u.nav(c, PagePackages, locales.NavPackages(), lucide.Package())
-						u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp())
-						u.nav(c, PageSearch, locales.NavSearch(), lucide.Search())
-					})
-					components.SidebarSection(c, locales.SidebarApp(), func() {
-						u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings())
-					})
-				})
+	// The sidebar paints no background of its own: the window's sidebar material
+	// shows through it, which is the only thing that can blur the desktop. A
+	// painted blur would sample the app's own transparent layer instead of what
+	// is behind the window.
+	components.Sidebar(c).
+		Padding(sidebar.HeaderHeight(c), 0, 6, 0).
+		Children(func() {
+			components.SidebarSection(c, locales.SidebarPackages(), func() {
+				u.nav(c, PagePackages, locales.NavPackages(), lucide.Package())
+				u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp())
+				u.nav(c, PageSearch, locales.NavSearch(), lucide.Search())
 			})
-	})
+			components.SidebarSection(c, locales.SidebarApp(), func() {
+				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings())
+			})
+		})
 }
 
 func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG) {
