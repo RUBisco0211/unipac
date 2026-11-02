@@ -1,6 +1,9 @@
 package uvtool
 
-type toolRecord struct {
+// ToolRecord is one tool as `uv tool list` prints it, before it becomes a
+// manager.Package. Exported so the parser can be tested from outside the
+// package.
+type ToolRecord struct {
 	Name             string   `json:"name,omitempty"`
 	Version          string   `json:"version,omitempty"`
 	VersionSpecifier string   `json:"version_specifier,omitempty"`

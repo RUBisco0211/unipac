@@ -57,30 +57,36 @@ Support is intentionally uneven while the project is under active development. S
 │   ├── ARCHITECTURE.md
 │   ├── PACKAGE_MANAGER_ADAPTERS.md
 │   └── skills/             # Project-local MyGo and Onevra skills
-├── assets/                 # Build-time inputs: app icon, screenshots
-├── go.mod                  # github.com/RUBisco0211/unipac
-├── mygo.json               # App name, identifier, version, icon, output
-├── main.go                 # App lifecycle: startup, window, shutdown
-├── app/                    # Application service the views call
-├── locales/                # ARB catalogs and the Go package generated from them
-├── backend/
-│   ├── adapters/           # Package-manager adapters
-│   ├── cache/              # SQLite cache
-│   ├── config/             # App config
-│   ├── core/               # Manager domain types and registry
-│   ├── logging/            # Logging setup
-│   └── util/               # Shared backend helpers
-└── views/                  # Native UI: shell, one file per page, shared table
+├── assets/
+│   └── screenshot.png      # The image above
+├── dist/                   # Build output, gitignored
+└── source/                 # Go module root: run Go and MyGo here
+    ├── go.mod              # github.com/RUBisco0211/unipac
+    ├── mygo.json           # App name, identifier, version, icon, output
+    ├── main.go             # App lifecycle: startup, window, shutdown
+    ├── assets/
+    │   └── icon.png        # App icon, 1024 × 1024
+    ├── app/                # Application service the views call
+    ├── locales/            # ARB catalogs and the Go package generated from them
+    ├── backend/
+    │   ├── adapters/       # Package-manager adapters
+    │   ├── cache/          # SQLite cache
+    │   ├── config/         # App config
+    │   ├── core/           # Manager domain types and registry
+    │   ├── logging/        # Logging setup
+    │   └── util/           # Shared backend helpers
+    └── views/              # Native UI: shell, one file per page, shared table
 ```
 
-The repository root is the Go module root. There is no `source/` subdirectory:
-`go.mod`, `mygo.json`, `main.go` and `backend/` all sit together.
+Everything Go lives in `source/`, and `mygo.json` sits beside `go.mod` there.
+Documentation, the screenshot and the build output stay at the repository root.
 
 ## Development
 
-Install Go 1.27.3 or newer, then from the repository root:
+Install Go 1.27.3 or newer, then from the Go module root:
 
 ```sh
+cd source
 go get -tool github.com/egoist/mygo/cmd/mygo
 ```
 
@@ -110,12 +116,6 @@ CGO_ENABLED=0 go test ./...
 go tool mygo vet .
 ```
 
-Regenerate the README screenshot from the real builders, without opening a window:
-
-```sh
-UNIPAC_SCREENSHOT=assets/screenshot.png go test ./views -run TestScreenshot -count=1
-```
-
 If Go cannot write to the default build cache in a sandboxed environment, use a writable cache path:
 
 ```sh
@@ -124,13 +124,13 @@ GOCACHE=/private/tmp/unipac-mygo-go-build go test ./...
 
 ## Development Notes
 
-- The repository root is the Go module root; `mygo.json` sits beside `go.mod`. Go commands run there, not in a `source/` subdirectory.
+- `source/` is the Go module root; `mygo.json` sits beside `go.mod` there. Go and MyGo commands run from `source/`, not from the repository root.
 - Views call methods on `App` in `app/app.go`. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
 - The backend registry is the source of truth for available package managers and capabilities.
 - Adding a package manager is a backend adapter change plus a constructor registration in `backend/adapters/index.go`. No UI change is required.
 - UI availability is driven by backend capabilities, not hardcoded manager names. Unsupported actions stay visible but disabled, with a tooltip naming the missing capability.
 - Irreversible actions such as uninstall open a dialog whose confirm is Onevra's `HoldToConfirm` gesture.
-- Catalogs live in `locales/`. `mygo dev` and `mygo build` generate a typed Go package beside them; commit the generated files so `go build` and `go test` work without the CLI.
+- Catalogs live in `source/locales/`. `mygo dev` and `mygo build` generate a typed Go package beside them; commit the generated files so `go build` and `go test` work without the CLI.
 - `AGENTS.md` and `.agents/ARCHITECTURE.md` describe the boundaries agents should follow.
 - `go tool mygo dev` regenerates `locales/catalog_gen.go` and the packaged app; commit the generated catalog file.
 

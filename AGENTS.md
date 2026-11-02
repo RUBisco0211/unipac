@@ -13,9 +13,8 @@ Read [.agents/ARCHITECTURE.md](.agents/ARCHITECTURE.md) before changing code.
 adapter capability boundaries and per-manager CLI details.
 
 The app was rebuilt from Wails + Vue into MyGo native UI; the architecture
-document records what that settled. Progress is tracked in [TODO.md](TODO.md):
-tick a step in the same change that finishes it, and move anything that needs a
-decision to its Open section.
+document records what that settled. Open questions live in the "Suggested
+Near-Term Cleanup" section there.
 
 ## Skills
 
@@ -28,10 +27,10 @@ Load both before writing or reviewing UI code.
 
 ## Rules
 
-- The repository root is the Go module root: `go.mod`, `mygo.json`, `main.go`,
-  `backend/` and `views/` sit there. Run Go and MyGo commands from the root. The
-  `source/` layout in `.agents/skills/onevra/references/packaging.md` describes
-  Onevra's own repository and does not apply here.
+- `source/` is the Go module root: `go.mod`, `mygo.json`, `main.go`, `app/`,
+  `backend/`, `views/` and `locales/` sit there. Run Go and MyGo commands from
+  `source/`, never from the repository root. Documentation, `assets/screenshot.png`
+  and `dist/` stay at the root.
 - Build with `CGO_ENABLED=0`; every platform builds from any machine.
 - The backend registry is the source of truth for managers. Never hardcode a
   manager list, label, icon or command in the UI.
@@ -48,6 +47,7 @@ Load both before writing or reviewing UI code.
 ## Verification
 
 ```sh
+cd source
 gofmt -l .
 CGO_ENABLED=0 go test ./...
 go tool mygo vet .

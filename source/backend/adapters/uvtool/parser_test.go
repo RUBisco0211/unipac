@@ -1,9 +1,13 @@
-package uvtool
+package uvtool_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/RUBisco0211/unipac/backend/adapters/uvtool"
+)
 
 func TestParseInstalledToolsEmpty(t *testing.T) {
-	records := parseInstalledTools("No tools installed")
+	records := uvtool.ParseInstalledTools("No tools installed")
 	if len(records) != 0 {
 		t.Fatalf("expected no records, got %d", len(records))
 	}
@@ -17,7 +21,7 @@ func TestParseInstalledTools(t *testing.T) {
 httpie v3.2.4 [required: httpie>=3]
   Python: CPython 3.11.9`
 
-	records := parseInstalledTools(output)
+	records := uvtool.ParseInstalledTools(output)
 	if len(records) != 2 {
 		t.Fatalf("expected 2 records, got %d", len(records))
 	}
@@ -51,7 +55,7 @@ netron v9.0.8 [CPython 3.12.12] (/Users/rubisco/.local/share/uv/tools/netron)
 zotero-mcp-server v0.2.2 [CPython 3.12.12] (/Users/rubisco/.local/share/uv/tools/zotero-mcp-server)
 - zotero-mcp (/Users/rubisco/.local/bin/zotero-mcp)`
 
-	records := parseInstalledTools(output)
+	records := uvtool.ParseInstalledTools(output)
 	if len(records) != 3 {
 		t.Fatalf("expected 3 records, got %d: %#v", len(records), records)
 	}
@@ -78,7 +82,7 @@ func TestParseOutdatedTools(t *testing.T) {
 	output := `ruff v0.8.0 -> v0.9.1
 httpie v3.1.0 (latest: v3.2.4)`
 
-	records := parseOutdatedTools(output)
+	records := uvtool.ParseOutdatedTools(output)
 	if len(records) != 2 {
 		t.Fatalf("expected 2 records, got %d", len(records))
 	}

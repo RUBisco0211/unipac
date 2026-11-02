@@ -27,9 +27,9 @@ of the old stack remains, and these are the decisions worth not revisiting:
 - `views/` owns presentation: the shell, one file per page, shared table rendering, and the retained state each page shows.
 - `locales/` holds the ARB catalogs and the Go package MyGo generates from them.
 
-The repository root is the Go module root. There is no `source/` subdirectory: the
-`source/` layout in `.agents/skills/onevra/references/packaging.md` describes
-Onevra's own repository, not applications built with it.
+`source/` is the Go module root and holds every Go package, `mygo.json` and the
+app icon; documentation, the screenshot and the build output stay at the
+repository root. Paths in this document are relative to `source/`.
 
 The intended dependency direction is:
 
@@ -158,7 +158,7 @@ Command helpers are backend-only. Views should request operations through `App` 
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
   so MyGo remembers bounds and maximized state.
-- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme`, with one documented exception: `list.go` builds the table with a square-radius copy of the theme so its rows meet without notches, and restores the real theme inside every cell so the controls keep their rounding.
+- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme` directly, with one documented exception: `list.go` builds the table with a square-radius copy of the theme so its rows meet without notches, then restores the real theme inside every cell so the controls keep their rounding.
 - The app defines no native menus yet. The old `open_settings` Wails event and its
   `useWailsEvents.ts` listener are gone; settings is a page in the sidebar.
 - Dialogs use `mygo.Dialog` with the window as `Parent`, so macOS shows them as sheets.

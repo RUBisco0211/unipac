@@ -22,14 +22,16 @@ var (
 	}
 )
 
-func parseInstalledTools(output string) []toolRecord {
+// ParseInstalledTools reads the tools out of `uv tool list` output. It is
+// exported so tests can drive it without a uv binary.
+func ParseInstalledTools(output string) []ToolRecord {
 	output = strings.TrimSpace(output)
 	if output == "" || strings.EqualFold(output, "No tools installed") {
-		return []toolRecord{}
+		return []ToolRecord{}
 	}
 
-	records := make([]toolRecord, 0)
-	var current *toolRecord
+	records := make([]ToolRecord, 0)
+	var current *ToolRecord
 	inExecutables := false
 
 	flush := func() {
@@ -55,7 +57,7 @@ func parseInstalledTools(output string) []toolRecord {
 		if !isIndented(rawLine) {
 			if matches := toolLinePattern.FindStringSubmatch(line); len(matches) == 3 {
 				flush()
-				current = &toolRecord{Name: matches[1], Version: trimVersion(matches[2])}
+				current = &ToolRecord{Name: matches[1], Version: trimVersion(matches[2])}
 				parseInlineDetails(current, line)
 				inExecutables = false
 				continue
@@ -92,13 +94,14 @@ func parseInstalledTools(output string) []toolRecord {
 	return records
 }
 
-func parseOutdatedTools(output string) []toolRecord {
+// ParseOutdatedTools reads the tools out of `uv tool list --outdated` output.
+func ParseOutdatedTools(output string) []ToolRecord {
 	output = strings.TrimSpace(output)
 	if output == "" || strings.EqualFold(output, "No tools installed") {
-		return []toolRecord{}
+		return []ToolRecord{}
 	}
 
-	records := make([]toolRecord, 0)
+	records := make([]ToolRecord, 0)
 	for _, rawLine := range strings.Split(output, "\n") {
 		line := strings.TrimSpace(rawLine)
 		if line == "" || isIndented(rawLine) {
@@ -106,7 +109,7 @@ func parseOutdatedTools(output string) []toolRecord {
 		}
 		for _, pattern := range latestPatterns {
 			if matches := pattern.FindStringSubmatch(line); len(matches) == 4 {
-				records = append(records, toolRecord{
+				records = append(records, ToolRecord{
 					Name:          matches[1],
 					Version:       trimVersion(matches[2]),
 					LatestVersion: trimVersion(matches[3]),
@@ -118,7 +121,7 @@ func parseOutdatedTools(output string) []toolRecord {
 	return records
 }
 
-func parseInlineDetails(record *toolRecord, line string) {
+func parseInlineDetails(record *ToolRecord, line string) {
 	if matches := requiredSpecPattern.FindStringSubmatch(line); len(matches) == 2 {
 		record.VersionSpecifier = strings.TrimSpace(matches[1])
 	}
@@ -145,7 +148,7 @@ func parseInlineDetails(record *toolRecord, line string) {
 	}
 }
 
-func normalizeInstalled(records []toolRecord) []manager.Package {
+func normalizeInstalled(records []ToolRecord) []manager.Package {
 	pkgs := make([]manager.Package, 0, len(records))
 	for _, record := range records {
 		if record.Name == "" {
@@ -163,7 +166,7 @@ func normalizeInstalled(records []toolRecord) []manager.Package {
 	return pkgs
 }
 
-func normalizeOutdated(records []toolRecord) []manager.Package {
+func normalizeOutdated(records []ToolRecord) []manager.Package {
 	pkgs := make([]manager.Package, 0, len(records))
 	for _, record := range records {
 		if record.Name == "" {
@@ -182,13 +185,13 @@ func normalizeOutdated(records []toolRecord) []manager.Package {
 	return pkgs
 }
 
-func findTool(records []toolRecord, name string) (toolRecord, bool) {
+func findTool(records []ToolRecord, name string) (ToolRecord, bool) {
 	for _, record := range records {
 		if record.Name == name {
 			return record, true
 		}
 	}
-	return toolRecord{}, false
+	return ToolRecord{}, false
 }
 
 func isIndented(line string) bool {

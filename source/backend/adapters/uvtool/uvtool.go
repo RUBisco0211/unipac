@@ -75,7 +75,7 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	return normalizeOutdated(parseOutdatedTools(res.Stdout)), nil
+	return normalizeOutdated(ParseOutdatedTools(res.Stdout)), nil
 }
 
 func (a *Adapter) Search(keyword string) ([]manager.Package, error) {
@@ -112,12 +112,12 @@ func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
 	return nil, fmt.Errorf("list versions not available for uv tool")
 }
 
-func (a *Adapter) listToolRecords() ([]toolRecord, error) {
+func (a *Adapter) listToolRecords() ([]ToolRecord, error) {
 	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"tool", "list", "--show-version-specifiers", "--show-paths", "--show-python"}, uvToolEnv())
 	if err != nil {
 		return nil, err
 	}
-	return parseInstalledTools(res.Stdout), nil
+	return ParseInstalledTools(res.Stdout), nil
 }
 
 func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {

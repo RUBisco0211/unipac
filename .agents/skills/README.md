@@ -14,7 +14,7 @@ tests, and `mygo.json` packaging for `github.com/oneo-me/onevra/source`.
 
 ## Updating
 
-`mygo-maintenance` ships with the MyGo CLI. From the Go module root:
+`mygo-maintenance` ships with the MyGo CLI. From the Go module root, `source/`:
 
 ```sh
 go tool mygo install-skills .
