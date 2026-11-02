@@ -269,16 +269,32 @@ func (reg *Registry) mergeOutdatedPackages(pkgs []manager.Package, list []manage
 	return pkgs
 }
 
-func (reg *Registry) SearchPackages(keyword string) ([]manager.Package, error) {
+// SearchPackages searches the enabled managers that can search. managerIDs
+// restricts it to those managers: nil means every enabled manager, while an
+// empty non-nil slice means none. The managers that are not asked never run a
+// command.
+func (reg *Registry) SearchPackages(keyword string, managerIDs []string) ([]manager.Package, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
+		return []manager.Package{}, nil
+	}
+	restricted := managerIDs != nil
+	allowed := make(map[string]bool, len(managerIDs))
+	for _, id := range managerIDs {
+		allowed[id] = true
+	}
+	if restricted && len(managerIDs) == 0 {
 		return []manager.Package{}, nil
 	}
 
 	list := reg.snapshot()
 	collectTasks := make([]util.Collector[manager.Package], 0, len(list))
 	for _, adp := range list {
-		if !adp.Info().Enabled || !adp.Info().Capabilities.Search {
+		info := adp.Info()
+		if !info.Enabled || !info.Capabilities.Search {
+			continue
+		}
+		if restricted && !allowed[info.ID] {
 			continue
 		}
 		adp := adp
@@ -316,65 +332,47 @@ func (reg *Registry) ListPackageVersions(managerID string, pkg manager.Package) 
 	return adp.ListVersions(pkg)
 }
 
-func (reg *Registry) InstallPackages(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+func (reg *Registry) InstallPackages(ctx context.Context, managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
 	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
 		return cap.Install
 	}, "install")
 	if err != nil {
 		return manager.ErrorResult(err.Error()), nil
 	}
-	return adp.Install(normalizeTargets(managerID, pkgs), opt)
+	return bindActionContext(adp, ctx).Install(normalizeTargets(managerID, pkgs), opt)
 }
 
-func (reg *Registry) UninstallPackages(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+func (reg *Registry) UninstallPackages(ctx context.Context, managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
 	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
 		return cap.Uninstall
 	}, "uninstall")
 	if err != nil {
 		return manager.ErrorResult(err.Error()), nil
 	}
-	return adp.Uninstall(normalizeTargets(managerID, pkgs), opt)
+	return bindActionContext(adp, ctx).Uninstall(normalizeTargets(managerID, pkgs), opt)
 }
 
-func (reg *Registry) UpdatePackages(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+func (reg *Registry) UpdatePackages(ctx context.Context, managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
 	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
 		return cap.Update
 	}, "update")
 	if err != nil {
 		return manager.ErrorResult(err.Error()), nil
 	}
-	return adp.Update(normalizeTargets(managerID, pkgs), opt)
+	return bindActionContext(adp, ctx).Update(normalizeTargets(managerID, pkgs), opt)
 }
 
-func (reg *Registry) BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	return reg.runGroupedAction(pkgs, opt, reg.UninstallPackages)
-}
-
-func (reg *Registry) BatchUpdatePackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	return reg.runGroupedAction(pkgs, opt, reg.UpdatePackages)
-}
-
-type groupedAction func(managerID string, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
-
-func (reg *Registry) runGroupedAction(pkgs []manager.Package, opt manager.ActionOptions, action groupedAction) (manager.ActionResult, error) {
-	groups := lo.GroupBy(pkgs, func(pkg manager.Package) string {
-		return pkg.Manager
-	})
-
-	messages := make([]string, 0, len(groups))
-	for managerID, group := range groups {
-		result, err := action(managerID, group, opt)
-		if err != nil {
-			return result, err
-		}
-		if !result.Success {
-			return result, nil
-		}
-		if result.Message != "" {
-			messages = append(messages, result.Message)
-		}
+// bindActionContext hands the adapter the action's context, when it can take
+// one, so the command output reaches the task that started the action. The
+// published adapter is never edited: WithContext returns a copy.
+func bindActionContext(adp manager.Adapter, ctx context.Context) manager.Adapter {
+	if ctx == nil {
+		return adp
 	}
-	return manager.SuccessResult(strings.Join(messages, "\n")), nil
+	if contextual, ok := adp.(manager.ContextualAdapter); ok {
+		return contextual.WithContext(ctx)
+	}
+	return adp
 }
 
 func normalizeTargets(managerID string, pkgs []manager.Package) []manager.Package {

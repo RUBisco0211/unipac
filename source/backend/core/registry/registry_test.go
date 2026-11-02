@@ -20,6 +20,8 @@ type fakeAdapter struct {
 	preflights int
 	packages   []manager.Package
 	listErr    error
+	searches   int
+	searchHits []manager.Package
 }
 
 func (f *fakeAdapter) Info() *manager.Info { return f.info }
@@ -40,7 +42,10 @@ func (f *fakeAdapter) ListInstalled() ([]manager.Package, error) { return f.pack
 
 func (f *fakeAdapter) ListOutdated() ([]manager.Package, error) { return nil, nil }
 
-func (f *fakeAdapter) Search(string) ([]manager.Package, error) { return nil, nil }
+func (f *fakeAdapter) Search(string) ([]manager.Package, error) {
+	f.searches++
+	return f.searchHits, nil
+}
 
 func (f *fakeAdapter) Install([]manager.Package, manager.ActionOptions) (manager.ActionResult, error) {
 	return manager.SuccessResult(""), nil
@@ -255,5 +260,43 @@ func TestApplyWhileScanning(t *testing.T) {
 		if m.ID == "fake" && m.Enabled {
 			t.Fatal("the setting did not take effect")
 		}
+	}
+}
+
+func TestSearchPackagesFiltersManagersInTheBackend(t *testing.T) {
+	a := fake(true)
+	a.info.ID, a.info.Name = "a", "A"
+	a.info.Available, a.info.Enabled = true, true
+	a.info.Capabilities.Search = true
+	a.searchHits = []manager.Package{{Name: "from-a", Manager: "a"}}
+	b := fake(true)
+	b.info.ID, b.info.Name = "b", "B"
+	b.info.Available, b.info.Enabled = true, true
+	b.info.Capabilities.Search = true
+	b.searchHits = []manager.Package{{Name: "from-b", Manager: "b"}}
+	reg := newTestRegistry(a, b)
+	reg.rebuild(map[string]manager.Settings{"a": {}, "b": {}}, true)
+
+	result, err := reg.SearchPackages("query", []string{"a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.searches != 1 || b.searches != 0 {
+		t.Fatalf("searches a=%d b=%d, want only a", a.searches, b.searches)
+	}
+	if len(result) != 1 || result[0].Name != "from-a" {
+		t.Fatalf("result = %+v", result)
+	}
+
+	a.searches, b.searches = 0, 0
+	_, _ = reg.SearchPackages("query", nil)
+	if a.searches != 1 || b.searches != 1 {
+		t.Fatalf("all managers searched a=%d b=%d", a.searches, b.searches)
+	}
+
+	a.searches, b.searches = 0, 0
+	result, _ = reg.SearchPackages("query", []string{})
+	if len(result) != 0 || a.searches != 0 || b.searches != 0 {
+		t.Fatalf("empty set searched a=%d b=%d, result %+v", a.searches, b.searches, result)
 	}
 }

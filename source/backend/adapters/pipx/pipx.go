@@ -34,6 +34,14 @@ func (a Adapter) Info() *manager.Info {
 	return a.info
 }
 
+// WithContext returns a copy of the adapter whose commands run with ctx, so
+// one action's output goes to that action's console.
+func (a *Adapter) WithContext(ctx context.Context) manager.Adapter {
+	clone := *a
+	clone.ctx = ctx
+	return &clone
+}
+
 func (a Adapter) Preflight() error {
 	return manager.Preflight(a, a.ctx)
 }

@@ -48,10 +48,24 @@ func RunAllowExitCodes(ctx context.Context, bin string, args []string, envs []st
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	stdoutDst, stderrDst := io.Writer(&stdout), io.Writer(&stderr)
+	var sinks []*lineWriter
+	if report := reporterFrom(ctx); report != nil {
+		report(Event{Kind: EventCommand, Command: FormatCommand(bin, args), Path: bin})
+		// One lock for both streams: a line is reported whole, in the order its
+		// stream finished writing it.
+		mu := &sync.Mutex{}
+		so, se := newLineWriter(mu, report), newLineWriter(mu, report)
+		stdoutDst, stderrDst = io.MultiWriter(&stdout, so), io.MultiWriter(&stderr, se)
+		sinks = append(sinks, so, se)
+	}
+	cmd.Stdout = stdoutDst
+	cmd.Stderr = stderrDst
 
 	err := cmd.Run()
+	for _, sink := range sinks {
+		sink.flush()
+	}
 	res := ExecResult{
 		Stdout:   strings.TrimSpace(stdout.String()),
 		Stderr:   strings.TrimSpace(stderr.String()),

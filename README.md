@@ -110,6 +110,44 @@ Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
 go tool mygo build -platform darwin/arm64,windows/amd64
 ```
 
+## Demo Mode
+
+The app can run on simulated packages and tasks, without touching Homebrew, npm,
+pip or any other package manager. This is the quickest way to exercise the
+frontend while working on it:
+
+```sh
+go run ./source -demo
+# or
+UNIPAC_DEMO=1 go run ./source
+```
+
+The demo inventory covers all three task flows:
+
+- **Update**: Installed page → update icon on `ripgrep`, `node`, `typescript` or
+  the GUI cask `iTerm2`. `libpng` fails its first update on purpose; open the
+  failed task and press Retry to see a new task record succeed.
+- **Uninstall**: Installed page → trash icon on `git`, `eslint` or `requests`,
+  then hold to confirm.
+- **Install**: Discover page → search for `fzf`, `httpie`, `prettier`, `vitest`
+  or `black`, then install a result.
+- **Bulk and concurrency**: select several outdated packages and update them;
+  two tasks run at a time and the rest show as waiting.
+- **Cancel and retry**: select a running task and press the stop control in the
+  console panel; select a cancelled or failed task and press Retry to create a
+  new task.
+- **Task page**: search and filter by operation or manager, drag the divider to
+  resize the always-visible console, and watch the old → new version column.
+- **Quit prompt**: start a task and close the window while it runs; interrupted
+  tasks are recorded as cancelled.
+- **Notifications**: a succeeded or failed task raises a system notification.
+  On macOS notifications need a packaged app, so use
+  `UNIPAC_DEMO=1 go tool mygo dev` rather than `go run` to see them.
+
+The demo keeps its tasks in memory; it does not use the real task history or the
+package cache. All managers, packages, console output and settings are local to
+`source/demo.go`.
+
 Run tests and checks:
 
 ```sh

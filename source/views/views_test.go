@@ -30,10 +30,12 @@ func fixture() *data {
 
 func settingsFixture() *settingsView {
 	return &settingsView{
-		data:     fixture(),
-		autoScan: true,
-		logLevel: "info",
-		levels:   []string{"debug", "info", "warn", "error"},
+		data:      fixture(),
+		autoScan:  true,
+		logLevel:  "info",
+		levels:    []string{"debug", "info", "warn", "error"},
+		language:  "",
+		languages: []string{"en", "zh-CN"},
 	}
 }
 
@@ -119,7 +121,7 @@ func TestUpdateActionRespectsCapability(t *testing.T) {
 	d.managers[1].Capabilities.Update = false // npm
 	d.rows = d.rows[1:]                       // typescript is outdated
 	called := 0
-	l := &listView{data: d, onUpdate: func(manager.Package) { called++ }}
+	l := &listView{data: d, onUpdate: func(manager.Package, actionOrigin) { called++ }}
 
 	tt := render(t, l.view, 1000, 500)
 	if err := tt.Click(locales.ActionsUpdate()); err != nil {
@@ -144,7 +146,7 @@ func TestBulkUpdateSendsOnlyUpdatablePackages(t *testing.T) {
 		manager.Package{Name: "stale-crate", Version: "1.0.0", Manager: "cargo", Outdated: true})
 
 	var got []manager.Package
-	l := &listView{data: d, allowRemove: true, onBulkUpdate: func(pkgs []manager.Package) { got = pkgs }}
+	l := &listView{data: d, allowRemove: true, onBulkUpdate: func(pkgs []manager.Package, _ actionOrigin) { got = pkgs }}
 	l.sync()
 	for _, pkg := range l.rows {
 		l.choose(pkg, true)
@@ -235,7 +237,9 @@ func TestOutdatedViewFiltersRows(t *testing.T) {
 }
 
 func TestListViewManagerFilter(t *testing.T) {
-	l := &listView{data: fixture(), manager: "brew"}
+	l := &listView{data: fixture()}
+	l.sync()
+	l.managers["npm"] = false
 	l.sync()
 	if len(l.rows) != 1 || l.rows[0].Name != "ripgrep" {
 		t.Fatalf("manager filter kept %d rows: %+v", len(l.rows), l.rows)
@@ -278,7 +282,7 @@ func TestManagerCountsFollowThePage(t *testing.T) {
 		t.Fatalf("outdated total after query = %d, want 0", total)
 	}
 	outdated.query = ""
-	outdated.manager = "brew"
+	outdated.managers = map[string]bool{"brew": true}
 	if _, total = outdated.managerCounts(); total != 1 {
 		t.Fatalf("manager filter changed the counts: total %d", total)
 	}
@@ -302,7 +306,7 @@ func TestManagerSelectListsManagersWithCounts(t *testing.T) {
 		}
 		return false
 	}
-	if exact("2") || exact("1") {
+	if exact("Homebrew (1)") || exact("NPM (1)") {
 		t.Fatalf("counts shown before opening: %v", tt.Texts())
 	}
 	if err := tt.Click(locales.PackagesAllManagers()); err != nil {
@@ -310,11 +314,11 @@ func TestManagerSelectListsManagersWithCounts(t *testing.T) {
 	}
 	tt.Frame()
 	// Two packages overall, one in each manager.
-	if !exact("2") {
+	if !exact(locales.PackagesAllManagers() + " (2)") {
 		t.Errorf("total count missing: %v", tt.Texts())
 	}
-	if !exact("1") {
-		t.Errorf("per-manager count missing: %v", tt.Texts())
+	if !exact("Homebrew (1)") || !exact("NPM (1)") {
+		t.Errorf("per-manager counts missing: %v", tt.Texts())
 	}
 }
 
@@ -344,7 +348,7 @@ func TestSelectionTracksVisibleRowsOnly(t *testing.T) {
 		t.Fatalf("selectedPackages = %+v", selected)
 	}
 
-	l.manager = "npm"
+	l.managers["brew"] = false
 	l.sync()
 	if len(l.chosen) != 0 {
 		t.Fatalf("selection kept %d hidden rows", len(l.chosen))
@@ -395,7 +399,7 @@ func TestUpdateActionRespectsOutdatedFlag(t *testing.T) {
 	d := fixture()
 	d.rows = d.rows[:1] // ripgrep is up to date
 	called := 0
-	l := &listView{data: d, onUpdate: func(manager.Package) { called++ }}
+	l := &listView{data: d, onUpdate: func(manager.Package, actionOrigin) { called++ }}
 
 	tt := render(t, l.view, 1000, 500)
 	if err := tt.Click(locales.ActionsUpdate()); err != nil {
@@ -412,7 +416,7 @@ func TestUpdateActionFires(t *testing.T) {
 	d.rows = d.rows[1:] // typescript is outdated
 	var got manager.Package
 	called := 0
-	l := &listView{data: d, onUpdate: func(pkg manager.Package) { called++; got = pkg }}
+	l := &listView{data: d, onUpdate: func(pkg manager.Package, _ actionOrigin) { called++; got = pkg }}
 
 	tt := render(t, l.view, 1000, 500)
 	if err := tt.Click(locales.ActionsUpdate()); err != nil {
@@ -435,6 +439,7 @@ func TestSettingsShowsManagers(t *testing.T) {
 		"Homebrew", "NPM", "Cargo",
 		locales.SettingsGeneral(), locales.SettingsManagers(),
 		locales.SettingsStartupScan(), locales.SettingsLogLevel(),
+		locales.SettingsLanguage(), locales.SettingsLanguageSystem(),
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
@@ -514,6 +519,29 @@ func TestSettingsLogLevelReachesBackend(t *testing.T) {
 	}
 }
 
+// Choosing a language reaches the backend, and the trigger shows the choice.
+func TestSettingsLanguageReachesBackend(t *testing.T) {
+	s := settingsFixture()
+	var got string
+	s.onSetLanguage = func(tag string) { got = tag }
+
+	tt := render(t, s.view, 900, 600)
+	if err := tt.Click(locales.SettingsLanguageSystem()); err != nil {
+		t.Fatalf("open the language select: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click("简体中文"); err != nil {
+		t.Fatalf("choose a language: %v", err)
+	}
+	tt.Frame()
+	if got != "zh-CN" {
+		t.Fatalf("language sent %q, want zh-CN", got)
+	}
+	if !tt.HasText("简体中文") {
+		t.Errorf("the trigger kept the old language: %v", tt.Texts())
+	}
+}
+
 // A search can return after a manager was turned off. Its results must not
 // reappear just because the page already rebuilt its rows while it was running.
 func TestSearchResultsArrivingAfterManagerOffAreFiltered(t *testing.T) {
@@ -539,8 +567,9 @@ func TestSearchResultsArrivingAfterManagerOffAreFiltered(t *testing.T) {
 // a filter the manager select no longer offers.
 func TestDisabledManagerFilterResets(t *testing.T) {
 	d := fixture()
-	l := &listView{data: d, manager: "npm", chosen: map[string]struct{}{}}
+	l := &listView{data: d, chosen: map[string]struct{}{}}
 	l.sync()
+	l.managers["brew"] = false // select NPM only
 
 	// The rescan that follows the setting drops the manager's rows.
 	d.rows = d.rows[:1]
@@ -549,8 +578,8 @@ func TestDisabledManagerFilterResets(t *testing.T) {
 	}, map[string]manager.Settings{})
 	l.sync()
 
-	if l.manager != "" {
-		t.Fatalf("filter kept the turned-off manager: %q", l.manager)
+	if l.managers["npm"] || !l.managers["brew"] {
+		t.Fatalf("filter kept the turned-off manager: %+v", l.managers)
 	}
 	if len(l.rows) != 1 || l.rows[0].Manager != "brew" {
 		t.Fatalf("rows after reset = %+v", l.rows)
@@ -644,6 +673,25 @@ func TestLoadingBarPaints(t *testing.T) {
 	}
 }
 
+// A search that is still running shows the same indeterminate bar as a package
+// refresh, over the body that says what is happening.
+func TestSearchViewShowsProgressWhileSearching(t *testing.T) {
+	s := &searchView{data: fixture(), ran: true, searching: true, resultQuery: "rip"}
+	tt := render(t, s.view, 900, 500)
+	if !tt.HasText(locales.SearchSearching()) {
+		t.Fatalf("searching state not shown: %v", tt.Texts())
+	}
+	if _, ok := tt.Find(locales.SearchProgress()); !ok {
+		t.Fatalf("search progress bar missing: %v", tt.Texts())
+	}
+
+	s.searching = false
+	tt.Frame()
+	if _, ok := tt.Find(locales.SearchProgress()); ok {
+		t.Fatalf("search progress bar stayed after the search: %v", tt.Texts())
+	}
+}
+
 func TestSearchViewHintBeforeSearch(t *testing.T) {
 	s := &searchView{data: fixture()}
 	tt := render(t, s.view, 900, 500)
@@ -668,5 +716,83 @@ func TestSearchViewRendersResults(t *testing.T) {
 	// A search result is not installed, so its installed version is not shown.
 	if tt.HasText("14.1.1") {
 		t.Errorf("search results show an installed version: %v", tt.Texts())
+	}
+}
+
+// The search page's manager multi-select sends the selection to the backend and
+// reruns the current query with it.
+func TestSearchManagerFilterGoesToTheBackend(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Search = true // NPM
+	s := &searchView{data: d, ran: true, resultQuery: "query"}
+	var (
+		calls int
+		gotQ  string
+		gotID []string
+	)
+	s.submit = func(query string, managerIDs []string) {
+		calls++
+		gotQ = query
+		gotID = managerIDs
+	}
+	s.syncManagers()
+	if ids := s.selectedManagerIDs(); ids != nil {
+		t.Fatalf("all managers should send nil, got %v", ids)
+	}
+
+	tt := render(t, s.view, 1000, 500)
+	if err := tt.Click(locales.PackagesAllManagers()); err != nil {
+		t.Fatalf("open the filter: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click("Homebrew"); err != nil {
+		t.Fatalf("uncheck Homebrew: %v", err)
+	}
+	tt.Frame()
+
+	if calls != 1 || gotQ != "query" {
+		t.Fatalf("search rerun = %d for %q", calls, gotQ)
+	}
+	if len(gotID) != 1 || gotID[0] != "npm" {
+		t.Fatalf("manager IDs sent = %v, want npm only", gotID)
+	}
+}
+
+// Unchecking every manager is different from "all": the backend is asked for
+// nothing, not for everything.
+func TestSearchNoManagersIsAnEmptySelection(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Search = true
+	s := &searchView{data: d}
+	s.syncManagers()
+	for id := range s.managerFilter {
+		s.managerFilter[id] = false
+	}
+	ids := s.selectedManagerIDs()
+	if ids == nil || len(ids) != 0 {
+		t.Fatalf("empty selection = %v, want a non-nil empty slice", ids)
+	}
+}
+
+// The installed and outdated pages' manager filter is a multi-select; checking
+// and unchecking managers rebuilds the table from the cached rows.
+func TestManagerFilterMultiSelect(t *testing.T) {
+	l := &listView{data: fixture(), chosen: map[string]struct{}{}}
+	tt := render(t, l.view, 1000, 500)
+
+	if err := tt.Click(locales.PackagesAllManagers()); err != nil {
+		t.Fatalf("open the filter: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click("Homebrew (1)"); err != nil {
+		t.Fatalf("uncheck Homebrew: %v", err)
+	}
+	tt.Frame()
+
+	if l.managers["brew"] {
+		t.Fatal("Homebrew stayed selected")
+	}
+	if len(l.rows) != 1 || l.rows[0].Manager != "npm" {
+		t.Fatalf("rows after unchecking = %+v", l.rows)
 	}
 }

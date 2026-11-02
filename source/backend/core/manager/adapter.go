@@ -50,6 +50,14 @@ type Adapter interface {
 	ListVersions(pkg Package) ([]string, error)
 }
 
+// ContextualAdapter is implemented by an adapter that can run one action with
+// its own context. The registry binds the action's context before calling it,
+// so what the action's commands print reaches that action's console and not a
+// later one's.
+type ContextualAdapter interface {
+	WithContext(ctx context.Context) Adapter
+}
+
 // AdapterConstructor builds one adapter. It must stay cheap and free of I/O:
 // the registry calls it for every manager on each settings change, and runs
 // Preflight separately for the managers that actually need checking.

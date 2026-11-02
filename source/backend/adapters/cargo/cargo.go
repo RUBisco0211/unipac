@@ -37,6 +37,14 @@ func (a Adapter) Info() *manager.Info {
 	return a.info
 }
 
+// WithContext returns a copy of the adapter whose commands run with ctx, so
+// one action's output goes to that action's console.
+func (a *Adapter) WithContext(ctx context.Context) manager.Adapter {
+	clone := *a
+	clone.ctx = ctx
+	return &clone
+}
+
 func (a Adapter) Preflight() error {
 	return manager.Preflight(a, a.ctx)
 }
@@ -146,7 +154,8 @@ func parseCargoSearch(output string, managerID string) []manager.Package {
 }
 
 func (a Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, args, nil)
+	// cargo turns color off for a pipe; the console can render it.
+	res, err := util.Run(a.ctx, a.info.ExecPath, args, []string{"CARGO_TERM_COLOR=always"})
 	if err != nil {
 		msg := res.Output()
 		if msg == "" {

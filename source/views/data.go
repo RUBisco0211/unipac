@@ -2,6 +2,7 @@ package views
 
 import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 )
 
 // Service is the part of the application service the views use. It is declared
@@ -10,9 +11,9 @@ type Service interface {
 	ListManagers() []manager.Info
 	GetCachedPackages() ([]manager.Package, error)
 	UpdateCache() error
-	SearchPackages(keyword string) ([]manager.Package, error)
-	InstallPackage(managerID, name string, opt manager.ActionOptions) (manager.ActionResult, error)
-	UpdatePackage(managerID, name string, opt manager.ActionOptions) (manager.ActionResult, error)
+	SearchPackages(keyword string, managerIDs []string) ([]manager.Package, error)
+	InstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
+	UpdatePackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	BatchUpdatePackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
@@ -20,11 +21,20 @@ type Service interface {
 	SetManagerEnabled(id string, enabled bool) error
 	SetManagerExecPath(id string, path string) error
 	ReloadManagers() error
+	Language() string
+	Languages() []string
+	SetLanguage(tag string) error
 	AutoScanOnLaunch() bool
 	SetAutoScanOnLaunch(on bool) error
 	LogLevel() string
 	LogLevels() []string
 	SetLogLevel(level string) error
+	ListTasks() []tasks.Snapshot
+	TaskOutput(id string) tasks.Output
+	SetTaskListener(fn func())
+	UnfinishedTasks() int
+	CancelTask(id string) error
+	StopTasks()
 }
 
 // data is the package inventory shared by the pages, plus the state of the
@@ -42,10 +52,9 @@ type data struct {
 	// refreshPending asks for another scan once the running one finishes, so an
 	// action that lands mid-scan is not left showing pre-action data.
 	refreshPending bool
-	busy           bool
-	// busyKey names the running action, such as "update:brew:git", so only the
-	// control that started it says it is working.
-	busyKey string
+	// active maps a package key to the operation running for it. Different
+	// packages run independently; the backend limiter serializes one manager.
+	active  map[string]string
 	version int
 	// managersVersion changes when the manager list itself changes, so the
 	// settings page rebuilds its rows only then and keeps the path being typed.
@@ -128,6 +137,45 @@ func (d *data) applyRefresh(rows []manager.Package, refreshErr, loadErr error) {
 	d.loadErr = nil
 	d.rows = rows
 	d.version++
+}
+
+// beginAction marks pkgs as running op, unless one of them is already running
+// something. It reports whether the action started.
+func (d *data) beginAction(op string, pkgs []manager.Package) bool {
+	for _, pkg := range pkgs {
+		if _, running := d.active[packageKey(pkg)]; running {
+			return false
+		}
+	}
+	if d.active == nil {
+		d.active = make(map[string]string, len(pkgs))
+	}
+	for _, pkg := range pkgs {
+		d.active[packageKey(pkg)] = op
+	}
+	return true
+}
+
+// finishAction clears what beginAction marked.
+func (d *data) finishAction(pkgs []manager.Package) {
+	for _, pkg := range pkgs {
+		delete(d.active, packageKey(pkg))
+	}
+}
+
+// actionFor names the operation running for a package, "" when none is.
+func (d *data) actionFor(pkg manager.Package) string {
+	return d.active[packageKey(pkg)]
+}
+
+// anyActive reports whether any of pkgs is being operated on.
+func (d *data) anyActive(pkgs []manager.Package) bool {
+	for _, pkg := range pkgs {
+		if _, running := d.active[packageKey(pkg)]; running {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *data) queueToast(title, tone string) {

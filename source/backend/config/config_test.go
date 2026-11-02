@@ -28,6 +28,9 @@ func TestDefaultConfigScansOnLaunch(t *testing.T) {
 	if len(Instance.Managers) != 0 {
 		t.Fatalf("a fresh config has manager settings: %v", Instance.Managers)
 	}
+	if Instance.Language != "" {
+		t.Fatalf("a fresh config chose a language: %q", Instance.Language)
+	}
 }
 
 // A config written by the previous version holds a snapshot of every manager
@@ -73,6 +76,9 @@ func TestManagerSettingsPersist(t *testing.T) {
 	if err := SetLogLevel("warn"); err != nil {
 		t.Fatalf("log level: %v", err)
 	}
+	if err := SetLanguage("zh-CN"); err != nil {
+		t.Fatalf("language: %v", err)
+	}
 
 	loaded, err := Load()
 	if err != nil {
@@ -89,6 +95,9 @@ func TestManagerSettingsPersist(t *testing.T) {
 	}
 	if loaded.Log.Level != "warn" {
 		t.Fatalf("log level = %q, want warn", loaded.Log.Level)
+	}
+	if loaded.Language != "zh-CN" {
+		t.Fatalf("language = %q, want zh-CN", loaded.Language)
 	}
 
 	// The file itself must not keep the manager snapshot from the old version.

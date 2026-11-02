@@ -53,12 +53,25 @@ Exported methods:
 - `ListEnabledManagers() []manager.Info`
 - `GetCachedPackages() ([]manager.Package, error)`
 - `UpdateCache() error`
-- `SearchPackages(keyword) ([]manager.Package, error)`
+- `SearchPackages(keyword, managerIDs) ([]manager.Package, error)`
 - `GetPackageInfo(managerID, name) (string, error)`
 - `ListPackageVersions(managerID, name) ([]string, error)`
-- `InstallPackage(managerID, name, opt)`, `UpdatePackage(managerID, name, opt)`
+- `InstallPackage(pkg, opt)`, `UpdatePackage(pkg, opt)`
 - `UninstallPackage(pkg, opt)`
 - `BatchUninstallPackages(pkgs, opt)`, `BatchUpdatePackages(pkgs, opt)`
+- `ListTasks() []tasks.Snapshot`, `TaskOutput(id) tasks.Output`
+- `SetTaskListener(fn)`, `CancelTask(id) error`
+- `UnfinishedTasks() int`, `StopTasks()`
+
+Every action method records a task per package around the adapter call, so its
+command, outcome and console output outlive the call. The batch methods fan out
+into one task per package; the adapters never receive a multi-package install,
+update or uninstall from the UI. The task listener is how the interface learns
+that output arrived; views register it once when the window opens.
+
+`UnfinishedTasks` and `StopTasks` are the quit contract: the window asks the
+backend whether queued or running tasks remain, and confirming a quit calls
+`StopTasks`, which fails them and cancels their child processes.
 
 `Startup` returns the stage that failed instead of reporting it itself, so each
 entry point chooses how to tell the user. `Startup` does not scan packages; the
@@ -150,6 +163,71 @@ Current behavior:
   previous snapshot and reports the failure instead of storing an empty one.
 - Startup initializes the cache but does not scan. The window opens on cached rows and the first scan runs as a background job.
 
+### Tasks
+
+`backend/tasks/` records what UniPac is doing. One task is one operation on one
+package: an install, an update or an uninstall. A batch is a set of tasks, never
+one task that mixes packages or managers. A target keeps both the old version
+and the version the operation goes to, so the page can show an update as
+`1.2.3 → 1.4.0`.
+
+- `Manager.Begin` captures kind, target, manager display name and start time,
+  writes a queued row, and returns a `*Task`.
+- `Task.Start` moves it to running once the action limiter gives it a slot. It
+  returns false when the task was cancelled while queued.
+- `Task.Context()` carries a reporter. `App` passes the context to the registry,
+  which binds it to the adapter copy that runs the command, so `util.Run`
+  reports the command line, its executable path and every output line while it
+  runs.
+- `Task.Finish(ok, message)` is final: the first outcome wins, and later calls
+  are ignored. Succeeded, failed and cancelled are all final.
+- `Manager.Cancel(id)` stops a queued or running task: its state becomes
+  cancelled, its message says so, and its context is cancelled, which kills the
+  child process.
+- `Manager.StopAll(message)` cancels every queued and running task. The quit flow
+  uses it, so a task interrupted by a quit is recorded as cancelled, not failed.
+- `Manager.List()` returns deep-copied snapshots, running first, then queued,
+  then finished newest first. A snapshot of a task this process ran carries its
+  console; a snapshot loaded from the store carries `OutputKept = false`.
+
+#### Persistence
+
+`cache/tasks.db` (SQLite, pure-Go driver) keeps one row per task: kind, state,
+manager, package, old and new version, GUI flag, command, executable path,
+message, started at, finished at and a truncation flag. Console output lives in
+`package_task_output`, one row per line, so appending never rewrites a log and
+the full console survives a restart. `Manager.Output(id)` answers from memory for
+a live task and from the store for a history task; the page loads it when the
+task is selected. Output is capped at 20,000 lines per task, a safety bound a
+package manager's console will not reach.
+
+At startup `tasks.Init` marks every queued or running row cancelled with
+`InterruptedMessage`: this process is the only one that can be running a task,
+so such a row is a quit or crash leftover. The store keeps the newest 500 rows,
+pruning older finished ones and their output at startup.
+
+#### Concurrency
+
+Every command is a child process through `os/exec`. `App` owns an
+`actionLimiter` with two rules:
+
+- at most `maxConcurrentActions` (8) package tasks run at once;
+- at most one task per manager runs at once. That is about shared state, not
+  about the packages: Homebrew holds a global lock, and npm and pip write the
+  same global prefix, so a second command for the same manager would fail
+  intermittently rather than finish sooner. The limit is the binding one in
+  practice; the global cap only matters across several managers.
+
+A batch creates all its tasks as queued, then runs them through a worker pool;
+the page therefore shows the whole selection immediately, with the waiting ones
+marked queued. A queued task the user cancels never starts: the limiter's wait
+uses the task's context.
+
+The task layer never runs commands and never imports a concrete adapter. It sits
+between `App` and the registry: `App` begins, starts, cancels and finishes tasks,
+the registry carries the report context to the adapter, and the views only read
+snapshots.
+
 ### Config and Logging
 
 `backend/config/config.go` loads or creates `unipac.json` under the app root. The
@@ -157,15 +235,16 @@ file is written to a temporary file beside it and renamed into place, so a crash
 mid-write cannot leave a truncated config that the next load replaces with
 defaults. It
 holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
-file keeps scanning), and `managers`, a map of `manager.Settings` keyed by
+file keeps scanning), `language` (the tag chosen in Settings, absent or empty to
+follow the system), and `managers`, a map of `manager.Settings` keyed by
 manager ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
 paths in it were auto-detected rather than chosen.
 
-`SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan` and `SetLogLevel` write
-a copy and only replace `Instance` after the file write succeeds, so a failed
-save leaves the running app on the values it started with.
+`SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan`, `SetLogLevel` and
+`SetLanguage` write a copy and only replace `Instance` after the file write
+succeeds, so a failed save leaves the running app on the values it started with.
 
 Upgrading from the snapshot format is one-way and lossy on purpose: the old
 `exec_path` values were auto-detected, not chosen, so they are not imported. On
@@ -196,7 +275,7 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 `sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts.
 
-- Four sidebar entries map to the four pages: Packages, Outdated, Search, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`.
+- Five sidebar entries map to the five pages: Packages, Outdated, Search, Tasks, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
 - Give the window a 1024 × 620 minimum; `sidebar.NewShell` defaults to 820 × 740,
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
@@ -214,17 +293,31 @@ One package `views`, split by responsibility rather than by page:
   jobs (`Refresh`, `Search`, `Install`, `Update`, `Remove`, `saveSettings`).
 - `data.go`: the inventory shared by the pages, the manager list and its saved
   settings, the refresh and action state, and capability lookup.
-- `list.go`: the installed and outdated tables: query and manager filters,
+- `list.go`: the installed and outdated tables: query and multi-select manager filters,
   sorting, row checkboxes with select-all, the bulk bar, and the per-row
   actions. Uninstall opens a dialog whose confirm is a hold gesture; the
   outdated page omits uninstall entirely.
-- `search.go`: the search field, its results table, and the install action.
-- `settings.go`: the settings page: startup behavior, the log level, and one row
-  per manager with its switch and executable path.
-- `table.go`: the columns and cell rendering shared by all three tables.
+- `search.go`: the search field, a package-manager multi-select, its results
+  table, and the install action. The manager selection goes to the backend, so
+  unselected managers never run a search command. While a search runs, the same
+  indeterminate bar as a package refresh sweeps over the body.
+- `tasks.go`: the tasks page: one row per package operation, a running count,
+  the retry action for a failure, and a full-height side panel showing the
+  chosen task's command, executable and console. `ansi.go` renders the
+  terminal's SGR colors. The page renders snapshots; it never touches a live
+  task.
+- `settings.go`: the settings page: startup behavior, the log level, the
+  language, and one row per manager with its switch and executable path.
+- `table.go`: the columns and cell rendering shared by the package tables.
 
 The installed and outdated pages are the same `listView` with `outdatedOnly`
 set, so a change to the table applies to both.
+
+Concurrency is per package, not per page: `data.active` maps a package key to the
+operation running for it, `runAction` marks its targets before it starts, and the
+row actions disable only the packages that are busy. Different packages run
+independently; the backend limiter serializes one manager. The tasks page's retry
+uses the same map, so it waits for its own package and not for unrelated work.
 
 Rules that replace the Vue ones:
 
@@ -269,7 +362,8 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 `settings.go` is one scrollable page of sections separated by rules, not cards.
 A section has a title with an optional trailing action, a sentence saying what
 its settings do, and a rule above the rows. The sections are startup behavior,
-the log level, and one row per package manager.
+the log level, the language (the app's languages plus System, named in their own
+language), and one row per package manager.
 
 A manager row holds the name, a status line only when the executable is missing,
 the executable path, an Apply button and a switch. The path field shows the saved
@@ -284,6 +378,100 @@ subprocess and every write touches the config file. The control moves first and
 the job publishes what the backend reports; a failed write puts the rows back and
 shows the error at the top of the page. Turning a manager off or changing its
 path asks for a rescan, so its rows leave the lists.
+
+### Tasks Page
+
+`tasks.go` shows one row per package operation in a `TableVirtualized` with the
+same look as the package tables. Its columns are operation, package, version,
+manager, status, started and finished; an update's version cell joins the old and
+new versions with `→`, and the time cells show the clock today or the date for an
+older task, with the full timestamp in a tooltip. A search field matches package,
+manager and command, and two multi-selects filter by operation kind and by
+package manager; their option counts follow the other filter and the query. The
+install kind uses a download icon.
+
+The console is a permanent panel on the trailing edge: there is no show/hide
+control, and `components.SplitPercent` makes the divider draggable. The panel
+spans the window's height from the top edge like the sidebar, and when no task is
+chosen it shows a "select a task" hint rather than disappearing. The chosen
+task's header carries the cancel control while it runs and the retry control when
+it failed or was cancelled; retrying starts a new task and leaves the old record
+alone.
+
+The table is keyed by task ID, so a task keeps its row identity as running ones
+come and go. Its package cell carries the package name over the command, the
+same two-line shape as the package tables, so rows have the same height. A thin
+indeterminate bar sits over the table's top while tasks are queued or running or
+a stored console is loading, like the refresh bar on the package pages. The
+console is a `components.List` with `FollowEnd`, which keeps the newest line in
+view until the user scrolls up, and starts at the end when a different task is
+chosen. `ansi.go` parses SGR sequences into colored spans, so
+bold, standard and 256/true colors look as the tool meant them; stderr is not
+tinted by itself. The adapter's action commands ask for color (`HOMEBREW_COLOR`,
+`FORCE_COLOR`, `CARGO_TERM_COLOR`) because they print to a pipe. The panel also
+shows the stored command and executable path.
+
+A task this process ran carries its console in the snapshot. A task from the
+store has `OutputKept = false`; choosing it asks `App.TaskOutput`, which reads
+`package_task_output` off the UI thread, and the panel shows a loading state until
+the lines arrive. `tasksView` holds only snapshots and the loaded console; `UI.Run`
+registers the task listener once, and each callback copies the snapshots off the
+UI thread and posts one `Window.Update`, so a command printing hundreds of lines
+cannot post hundreds of frames. Opening the page reloads the snapshots, because
+live updates may have been skipped while another page was shown.
+
+### Notifications
+
+On each listener frame the UI compares the new task states with the previous
+ones. A task that moved from queued/running to succeeded or failed — or that was
+created and finished between two frames — produces a `mygo.Notification` through
+`mygo.NewNotification`, grouped under `unipac.tasks`, with the operation and
+package in the title/body and the error message on a failure. History loaded at
+startup is in the previous-state map, so it stays quiet; cancelled tasks and
+quitting are quiet too. `NotificationsSupported` is checked and `Show` called off
+the UI thread; on macOS notifications require a packaged app, which `mygo dev`
+and `mygo build` produce, not `go run`.
+
+Each notification's ID is `unipac-task-<task id>`. `App.OnNotificationClick`
+strips that prefix and calls `UI.openTask`, which clears the filters, selects the
+task and loads its console, so a click works while the app is running and after
+it has been relaunched.
+
+### Title Bar and Count Badges
+
+The title bar's trailing edge holds an icon-only tasks button, built in
+`windowTitle` after a `Spacer`. It navigates to the tasks page and carries the
+same running-task count as the sidebar's Tasks item. The sidebar's Outdated and
+Tasks entries put that count at the trailing edge, after the label, through
+`SidebarItemWithSlots`: `trailingCount` is a small accent pill, capped at "99+",
+and draws nothing for zero. The title bar button keeps the count over its icon,
+where there is no label to sit beside. Both counts are derived state — outdated
+rows from `data.rows` (enabled managers only), running tasks from the task
+snapshots — so a refresh or a task listener frame updates the badge with the rest
+of the shell.
+
+Starting an action also starts a flight: the control that was pressed reports its
+window point, `UI.runAction` records it with the tasks button's last rectangle,
+and `flightOverlay` animates a circular package icon from the press point to the
+button. It uses a fixed 300 ms ease-out, not a spring, and disappears as it
+arrives, so it is a signal rather than something that sits on the button. `Jump`
+places a new flight at its start, so a second action does not begin at the
+previous flight's end. The overlay is absolute and lives beside the page in the
+content root; it takes no layout room and passes under the transparent part of
+the floating header at the very end, where the tasks button covers it.
+
+### Quitting
+
+`UI.Run` registers both `Window.OnClose` and `App.OnBeforeQuit`. Either one asks
+`App.UnfinishedTasks`; when queued or running tasks remain, it prevents the close
+and calls `askToQuit`. That runs `mygo.Dialog.Message` off the UI thread (the
+dialog blocks its caller) with the window as parent, so the question is visible
+even when the window is minimized. Confirming sets an atomic `quitAccepted`,
+runs `StopTasks`, and then quits: `StopTasks` marks every unfinished task
+cancelled and cancels its context, so `exec.CommandContext` kills the child. A
+crash or a force-quit skips this, and the next startup marks the leftover rows
+cancelled. Cancelled tasks keep their record, can be retried, and are not
+announced by a notification.
 
 ### Table and Actions
 
@@ -306,6 +494,7 @@ Catalogs live in `locales/` as ARB JSON, enabled by `i18n` in `mygo.json`. `mygo
 
 - Keys are flat and named by area: `nav_packages`, `packages_empty`, `settings_capabilities`.
 - This replaces `frontend/src/i18n/` and vue-i18n. Locale resolution is MyGo's; `go tool mygo dev -lang zh-Hans` tries a language without changing the saved preference.
+- The Settings language row writes the chosen tag to `unipac.json` and calls `mygo.App.SetLocale`; startup applies the saved tag before the window opens, and an empty tag follows the system.
 - Component-owned strings follow the window language from Onevra's catalog and are overridden with `onevra.<key>` messages.
 - Keep keys and stored values independent of translated text.
 
@@ -325,6 +514,17 @@ Target behavior:
 
 Views may rebuild several times for one event. Trigger side effects through handled actions or explicit guarded jobs, not from rendering code.
 
+### Demo Mode
+
+`source/demo.go` is a `views.Service` implementation for frontend work, selected
+with `-demo` or `UNIPAC_DEMO=1`. It fakes managers, packages, search results and
+action results, and runs scripted tasks with real ANSI console lines and delays.
+It never starts `App`, the registry, the cache or the task store, so it is a
+frontend fixture, not a second backend: if an App method changes, the demo has
+to implement the new `Service` method or the build tells you. Its tasks are
+memory-only and its task listener drives the same snapshots and badges as the
+real manager.
+
 ## Data Flow
 
 Startup:
@@ -334,9 +534,11 @@ Startup:
 3. Config is loaded or created.
 4. Logging is initialized.
 5. Cache is initialized.
-6. The registry constructs and preflights all adapters.
-7. `sidebar.NewShell` opens the main window on the Packages view.
-8. Cached packages render immediately; a background job refreshes the cache.
+6. The task store opens, loads its history, and marks leftover unfinished rows
+   failed.
+7. The registry constructs and preflights all adapters.
+8. `sidebar.NewShell` opens the main window on the Packages view.
+9. Cached packages render immediately; a background job refreshes the cache.
 
 Installed packages UI:
 
@@ -353,6 +555,18 @@ Manager UI:
    the settings controls show.
 3. Changing a switch or a path saves the config and calls `registry.Apply`, so
    the lists, search and actions follow without a restart.
+
+Task UI:
+
+1. A page action calls an `App` action method off the UI thread.
+2. `App` begins one queued task per package, waits for an action slot, and starts
+   the task.
+3. `App` passes `task.Context()` to the registry; as the command prints,
+   `util.Run` reports the command and its output lines to the task.
+4. The task manager persists the metadata and coalesces changes, then calls the
+   listener, which posts `Window.Update` with a fresh snapshot list.
+5. `tasksView` renders the snapshots, the chosen task's console, and a retry for
+   a failure. Retrying calls the same `App` method, which creates a new task.
 
 ## Design Rules Going Forward
 
@@ -376,10 +590,8 @@ Manager UI:
 
 - Version selection is not implemented: no page offers `ListVersions` yet, even
   for managers that advertise it.
-- `InstallPackage`, `UpdatePackage` and `UninstallPackage` handle one package at
-  a time; the batch `App` methods exist but no page calls them.
-- Actions report their outcome as a status line. A toast would fit the shell's
-  `Toasts` option better once the wording settles.
+- The task store keeps metadata only. A console that survives a restart would
+  need a bounded log file per task.
 - `assets/screenshot.png` still shows the old interface.
 
 ## Resolved

@@ -5,6 +5,7 @@ import (
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 )
@@ -23,10 +24,14 @@ type settingsView struct {
 	onReload      func()
 	onSetAutoScan func(on bool)
 	onSetLogLevel func(level string)
+	onSetLanguage func(tag string)
 
 	autoScan bool
 	logLevel string
 	levels   []string
+	language string
+	// languages are the tags UniPac is written in, in the app's own order.
+	languages []string
 
 	rows []managerRow
 	seen int
@@ -51,10 +56,12 @@ type managerRow struct {
 // newSettings builds the page from the values the app started with.
 func newSettings(service Service, d *data) *settingsView {
 	return &settingsView{
-		data:     d,
-		autoScan: service.AutoScanOnLaunch(),
-		logLevel: service.LogLevel(),
-		levels:   service.LogLevels(),
+		data:      d,
+		autoScan:  service.AutoScanOnLaunch(),
+		logLevel:  service.LogLevel(),
+		levels:    service.LogLevels(),
+		language:  service.Language(),
+		languages: service.Languages(),
 	}
 }
 
@@ -120,6 +127,8 @@ func (s *settingsView) general(c *ui.Context) {
 		})
 		divider(c)
 		s.logLevelRow(c)
+		divider(c)
+		s.languageRow(c)
 	})
 }
 
@@ -219,6 +228,37 @@ func (s *settingsView) logLevelRow(c *ui.Context) {
 	})
 }
 
+func (s *settingsView) languageRow(c *ui.Context) {
+	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			components.Text(c, locales.SettingsLanguage())
+			components.Text(c, locales.SettingsLanguageDesc()).
+				FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
+		})
+		before := s.language
+		sel := components.Select(c, &s.language)
+		sel.Trigger.Label(locales.SettingsLanguage()).Width(150).Children(func() {
+			components.Text(c, languageLabel(s.language)).SingleLine()
+		})
+		sel.Trigger.Disabled(s.busy)
+		sel.Popup(func(panel ui.Element) {
+			item := sel.Item("")
+			item.Label(locales.SettingsLanguageSystem()).Children(func() {
+				components.Text(c, locales.SettingsLanguageSystem()).SingleLine()
+			})
+			for _, tag := range s.languages {
+				option := sel.Item(tag)
+				option.Label(languageLabel(tag)).Children(func() {
+					components.Text(c, languageLabel(tag)).SingleLine()
+				})
+			}
+		})
+		if s.language != before && s.onSetLanguage != nil {
+			s.onSetLanguage(s.language)
+		}
+	})
+}
+
 // managerControl is one manager: its name and state, the executable path, and
 // the switch that turns it on or off.
 func (s *settingsView) managerControl(c *ui.Context, row *managerRow) {
@@ -288,4 +328,22 @@ func logLevelLabel(level string) string {
 		return label()
 	}
 	return locales.LogLevelUnknown()
+}
+
+// languageLabel names a language in that language, so a reader can find their
+// own even when the app currently shows another. The empty tag is the system
+// choice, which the app's own language names.
+func languageLabel(tag string) string {
+	if tag == "" {
+		return locales.SettingsLanguageSystem()
+	}
+	// CLDR knows zh-CN as 中文; the app's Chinese catalog is Simplified, so name
+	// it by its script instead.
+	if tag == "zh-CN" {
+		tag = "zh-Hans"
+	}
+	if name := i18n.Autonym(tag); name != "" {
+		return name
+	}
+	return tag
 }
