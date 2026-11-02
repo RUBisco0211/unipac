@@ -90,13 +90,25 @@ The backend manager registry is the source of truth for which package managers e
 Current behavior:
 
 - Builds adapter instances from `backend/adapters.GetAdapterConstructors()`.
-- Runs adapter `Preflight()` and marks managers enabled or disabled.
-- Returns all manager metadata through `ListManagers()`.
+- Applies the user's saved `manager.Settings` (`Disabled`, `ExecPath`) before preflighting.
+- Runs adapter `Preflight()` and records both states: `Available` is whether the
+  executable answered, `Enabled` is whether UniPac uses the manager (available
+  and not turned off). A turned-off manager keeps `Available`, so the settings
+  page can tell "off" from "missing".
+- Returns all manager metadata through `ListManagers()`, sorted by display name
+  (case-insensitively, ID breaking ties), because adapters live in a map whose
+  iteration order changes between calls.
+- A `sync.RWMutex` guards the adapter map and the `Info` values in it. A
+  published adapter is never edited: `Apply` and `Reprobe` build new adapters and
+  swap the map under the write lock, so a scan already running keeps reading the
+  objects it started with, and a settings change never waits for it.
+- `GetInstalledPackages` returns `reliable`, which is false when every enabled
+  manager failed; `App.UpdateCache` uses it to keep the last good snapshot.
 - Collects installed packages from enabled adapters with `ListInstalled` capability.
-
-Important current issue:
-
-- The closure inside `GetInstalledPackages()` captures the loop variable `adp`. The source comment notes this risk. Future work should pin the per-iteration adapter before appending the collector.
+- `Apply(settings)` installs changed settings and preflights only a manager whose
+  executable changed, so flipping a switch costs no subprocesses.
+- `Reprobe()` preflights every manager again, for a tool installed while the app
+  was open.
 
 The registry should be the only backend component that knows about all adapters as a group. UI-level operations like search/install/update/uninstall should be added as registry methods that route by `manager.ID` and check `Capabilities`.
 
@@ -104,7 +116,10 @@ The registry should be the only backend component that knows about all adapters 
 
 `backend/adapters/` contains concrete package-manager integrations.
 
-- `index.go` statically registers adapter constructors.
+- `index.go` statically registers adapter constructors. A constructor must stay
+  cheap and free of I/O: the registry builds every adapter again on each
+  settings change, and calls `Preflight` separately for the managers that need
+  checking.
 - `brew/` has the most complete implementation for listing installed packages and outdated data.
 - `npm`, `pip`, `pipx`, `cargo`, and `uvtool` are partial implementations or stubs.
 
@@ -128,15 +143,40 @@ No hardcoded manager list is required anywhere in the UI.
 
 Current behavior:
 
-- If `UpdateCache()` receives an empty package list, it returns without clearing old cache data, so a failed scan never wipes a good snapshot.
+- `UpdateCache()` replaces the snapshot with what it is given, including an
+  empty list. The caller decides whether an empty scan is trustworthy:
+  `GetInstalledPackages` reports `reliable = false` when enabled managers were
+  asked and every one of them failed, and `App.UpdateCache` then keeps the
+  previous snapshot and reports the failure instead of storing an empty one.
 - Startup initializes the cache but does not scan. The window opens on cached rows and the first scan runs as a background job.
 
 ### Config and Logging
 
-`backend/config/config.go` loads or creates `unipac.json` under the app root. It writes default cache/log config and snapshots current manager metadata into config.
+`backend/config/config.go` loads or creates `unipac.json` under the app root. The
+file is written to a temporary file beside it and renamed into place, so a crash
+mid-write cannot leave a truncated config that the next load replaces with
+defaults. It
+holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
+file keeps scanning), and `managers`, a map of `manager.Settings` keyed by
+manager ID. Only user choices live there: an absent entry means "on, detected
+automatically". The previous version snapshotted every `manager.Info` into the
+file; that block is ignored on load and gone after the next save, because the
+paths in it were auto-detected rather than chosen.
+
+`SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan` and `SetLogLevel` write
+a copy and only replace `Instance` after the file write succeeds, so a failed
+save leaves the running app on the values it started with.
+
+Upgrading from the snapshot format is one-way and lossy on purpose: the old
+`exec_path` values were auto-detected, not chosen, so they are not imported. On
+macOS a GUI process launched from Finder may not have the terminal's `PATH`, so
+a tool that used to resolve from a snapshot can show as missing after the
+upgrade; the path field or "Detect again" in Settings fixes it.
 
 `backend/logging/logging.go` initializes `slog` to stderr and app log file. It
-creates its log directory and returns the real `OpenFile` error.
+creates its log directory and returns the real `OpenFile` error. `SetLevel`
+rebuilds the default handler over the same writer, so the settings page changes
+the log level without a restart.
 
 ### Util
 
@@ -170,15 +210,17 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 One package `views`, split by responsibility rather than by page:
 
-- `shell.go`: the shell, sidebar navigation, the page switch, the background
-  jobs (`Refresh`, `Search`, `Install`, `Update`, `Remove`), and the settings page.
-- `data.go`: the inventory shared by the pages, the refresh and action state, and
-  capability lookup.
+- `shell.go`: the shell, sidebar navigation, the page switch, and the background
+  jobs (`Refresh`, `Search`, `Install`, `Update`, `Remove`, `saveSettings`).
+- `data.go`: the inventory shared by the pages, the manager list and its saved
+  settings, the refresh and action state, and capability lookup.
 - `list.go`: the installed and outdated tables: query and manager filters,
   sorting, row checkboxes with select-all, the bulk bar, and the per-row
   actions. Uninstall opens a dialog whose confirm is a hold gesture; the
   outdated page omits uninstall entirely.
 - `search.go`: the search field, its results table, and the install action.
+- `settings.go`: the settings page: startup behavior, the log level, and one row
+  per manager with its switch and executable path.
 - `table.go`: the columns and cell rendering shared by all three tables.
 
 The installed and outdated pages are the same `listView` with `outdatedOnly`
@@ -194,8 +236,9 @@ Rules that replace the Vue ones:
 - Keep slow work out of the builder and publish results through `Window.Update`.
 
 Actions are never hidden. A button whose manager lacks the capability stays
-visible and disabled, and a tooltip names the reason: the manager does not
-support it, the package is already current, or another action is running. MyGo
+visible and disabled, and a tooltip names the reason: the manager is turned off,
+it does not support the action, the package is already current, or another
+action is running. MyGo
 shows no tooltip on a disabled element, so the reason hangs on the wrapper row
 that `actionSlot` builds, not on the button.
 
@@ -207,20 +250,49 @@ Use MyGo's `ui` package for layout (`Box`, `Column`, `Row`, `Spacer`, `Grid`, `O
 
 ### Manager Discovery
 
-Views load manager metadata once through `App.ListManagers()` and keep it in retained state:
+Views load manager metadata through `App.ListManagers()` and the user's saved
+overrides through `App.ManagerOverrides()`, and keep both in `data`:
 
-- `managers`
-- `enabledManagers`
-- `managerNameMap`
-- `hasManager`
+- `managers` and `names`
+- `overrides`, a map of `manager.Settings`
+- `managersVersion`, bumped when either changes, so the settings page rebuilds
+  its rows only then
 
-This replaces `composables/useManagers.ts`. Manager IDs stay opaque: display the backend-provided `name`, color a badge from the ID hash, and gate actions on capabilities.
+Manager IDs stay opaque: display the backend-provided `name` and gate actions on
+capabilities. `Info.Available` says whether the executable answered;
+`Info.Enabled` says whether UniPac uses the manager.
 
 The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the frontend and must not be reintroduced in Go.
+
+### Settings Page
+
+`settings.go` is one scrollable page of sections separated by rules, not cards.
+A section has a title with an optional trailing action, a sentence saying what
+its settings do, and a rule above the rows. The sections are startup behavior,
+the log level, and one row per package manager.
+
+A manager row holds the name, a status line only when the executable is missing,
+the executable path, an Apply button and a switch. The path field shows the saved
+override; the detected path is its muted placeholder, so an empty field means
+"detect automatically". Apply stays visible and disabled until the draft differs,
+and the field submits on Enter. Rows are rebuilt only when
+`data.managersVersion` changes, so an unapplied draft survives the frames in
+between.
+
+Writes are background jobs (`UI.saveSettings`): a path change preflights a
+subprocess and every write touches the config file. The control moves first and
+the job publishes what the backend reports; a failed write puts the rows back and
+shows the error at the top of the page. Turning a manager off or changing its
+path asks for a rescan, so its rows leave the lists.
 
 ### Table and Actions
 
 `views/table.go` replaces `PackagesDataTable.vue` and `packages-columns.ts`. Use `TableVirtualized` so a few thousand rows scroll smoothly; keep rows a fixed height, which rules out variable-height cells. Keep row identity stable across refreshes so selection and scroll position survive an update.
+
+The keyed row list also sets `KeepOffset`: with a `Key` and without it, MyGo
+keeps the row at the top of the viewport in place, so sorting a column would
+scroll the table to wherever that row moved. Keeping the offset leaves the
+viewport where it is while the rows under it change order.
 
 `VersionSelectButton.vue` assumed version lookup exists. The Go equivalent must appear only when the selected package's manager reports `listVersions` and the backend exposes version lookup.
 
@@ -275,8 +347,12 @@ Installed packages UI:
 
 Manager UI:
 
-1. `App.ListManagers()` returns adapter metadata from the registry.
-2. Views filter by `enabled` and `capabilities`.
+1. `App.ListManagers()` returns adapter metadata from the registry, including
+   `Available` and the effective `Enabled`.
+2. `App.ManagerOverrides()` returns the saved `manager.Settings`, which is what
+   the settings controls show.
+3. Changing a switch or a path saves the config and calls `registry.Apply`, so
+   the lists, search and actions follow without a restart.
 
 ## Design Rules Going Forward
 
@@ -314,7 +390,9 @@ Kept so nobody re-opens them:
 - `GetInstalledPackages` pins the loop adapter before appending its collector.
 - `logging.Init` creates its log directory and returns the real `OpenFile`
   error instead of calling `Close` on a nil `*os.File`.
-- An empty scan keeps the previous cache; `backend/cache` covers it.
+- An empty scan keeps the previous cache when every manager failed; the
+  registry's `reliable` flag says when that is the case, and a real empty result
+  clears the cache.
 - `App` methods for search, info, versions and the actions exist and route
   through the registry's capability checks.
 - The module path is `github.com/RUBisco0211/unipac` on Go 1.27.3.
