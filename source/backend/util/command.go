@@ -62,9 +62,14 @@ func RunAllowExitCodes(ctx context.Context, bin string, args []string, envs []st
 	}
 
 	if err != nil {
-		for _, code := range allowedExitCodes {
-			if res.ExitCode == code {
-				return res, nil
+		// Only a process that actually ran can match an allowed exit code: a
+		// command that failed to start has no exit code, and the zero value
+		// would otherwise pass for 0.
+		if cmd.ProcessState != nil {
+			for _, code := range allowedExitCodes {
+				if res.ExitCode == code {
+					return res, nil
+				}
 			}
 		}
 		if res.Stderr != "" {
