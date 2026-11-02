@@ -62,6 +62,7 @@ Support is intentionally uneven while the project is under active development. S
 │   └── screenshot.png      # The image above
 ├── go.mod                  # github.com/RUBisco0211/unipac
 ├── go.sum
+├── dist/                   # Build output, gitignored
 ├── mygo.json               # App name, identifier, version, icon, output
 └── source/                 # The app's Go packages
     ├── main.go             # Entry point: startup, window, shutdown
@@ -79,8 +80,8 @@ Support is intentionally uneven while the project is under active development. S
 ```
 
 The Go module, `mygo.json` and the assets sit at the repository root, which is the
-directory MyGo works in; `source/` holds the app's packages. `mygo build` writes
-to `../dist`, outside the checkout, so the tree stays clean.
+directory MyGo works in; `source/` holds the app's packages, so build output and
+sources never mix.
 
 ## Development
 
@@ -103,7 +104,7 @@ go tool mygo build
 ```
 
 Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
-`out` set to `../dist` in `mygo.json`, which keeps build output outside the checkout:
+`out` set to `dist` in `mygo.json`, beside the configuration:
 
 ```sh
 go tool mygo build -platform darwin/arm64,windows/amd64
