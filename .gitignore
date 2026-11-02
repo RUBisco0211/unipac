@@ -1,7 +1,5 @@
-build/bin
-frontend/dist
-frontend/node_modules
-
 .vscode
 .DS_Store
 .idea
+dist/
+.mygo/

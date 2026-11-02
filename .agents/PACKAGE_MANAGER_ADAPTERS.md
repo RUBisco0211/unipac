@@ -1,6 +1,6 @@
 # Package Manager Adapter Implementation Guide
 
-This document defines the backend capability boundaries and CLI implementation plan for package-manager adapters in `unipac-wails`: `npm`, `pip`, `pipx`, `cargo`, and future adapters such as `uv tool`.
+This document defines the backend capability boundaries and CLI implementation plan for package-manager adapters in `unipac`: `npm`, `pip`, `pipx`, `cargo`, and `uv tool`.
 
 Use this guide together with `.agents/ARCHITECTURE.md`. The architecture document remains the source of truth for module boundaries and dependency direction.
 
@@ -27,11 +27,11 @@ Do not scan project-local dependency files such as `package.json`, `package-lock
 7. Adapter methods should never `panic`; unsupported operations should return a clear error or an unsuccessful `manager.ActionResult`.
 8. Normalize all package-manager outputs into `manager.Package`.
 9. Prefer structured CLI output such as JSON whenever the package manager supports it.
-10. Before implementing CLI details, use `ctx7` per the repository instructions to verify current command syntax.
+10. Before implementing CLI details, verify current command syntax against the manager's own `--help` output or documentation rather than relying on memory.
 
 ## Backend API Shape
 
-Expose user workflow methods at the Wails `App` boundary, backed by registry routing methods. Keep adapter internals hidden from the frontend.
+Expose user workflow methods on the `App` service in `app.go`, backed by registry routing methods. Keep adapter internals hidden from the views.
 
 Recommended registry and `App` workflows:
 
@@ -302,9 +302,8 @@ Use direct argv and avoid shell interpolation. Do not set `UV_TOOL_DIR` in produ
    - cargo install/uninstall
 6. Implement search/version/info where capabilities are marked true.
 7. Add registry routing methods with capability checks.
-8. Add Wails-facing `App` methods.
-9. Regenerate Wails bindings.
-10. Wire `frontend/src/lib/api.ts` to the new bindings without adding manager-specific frontend logic.
+8. Expose them as `App` methods in `app.go`.
+9. Call them from the views through guarded background jobs, without adding manager-specific UI logic.
 
 ## Testing Guidance
 
