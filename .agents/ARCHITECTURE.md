@@ -196,7 +196,9 @@ and the version the operation goes to, so the page can show an update as
 manager, package, old and new version, GUI flag, command, executable path,
 message, started at, finished at and a truncation flag. Console output lives in
 `package_task_output`, one row per line, so appending never rewrites a log and
-the full console survives a restart. `Manager.Output(id)` answers from memory for
+the full console survives a restart. A single background writer drains the
+store queue, so the command's output goroutine does not wait for each SQLite
+transaction. `Manager.Output(id)` answers from memory for
 a live task and from the store for a history task; the page loads it when the
 task is selected. Output is capped at 20,000 lines per task, a safety bound a
 package manager's console will not reach.

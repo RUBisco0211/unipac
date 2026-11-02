@@ -142,6 +142,10 @@ type Manager struct {
 	closing   bool
 	closed    bool
 	closeDone chan struct{}
+	// queue serializes store writes off the command's goroutine, so a console
+	// line does not wait for its own database transaction.
+	queue      chan func(*store)
+	writerDone chan struct{}
 }
 
 // Default is the app's task manager. UniPac runs one process, so the tasks are
@@ -186,6 +190,9 @@ func Init(ctx context.Context) error {
 	m := NewManager()
 	m.ctx = ctx
 	m.store = s
+	m.queue = make(chan func(*store), 256)
+	m.writerDone = make(chan struct{})
+	go m.writeLoop()
 	m.tasks = make([]*Task, 0, len(rows))
 	for i := len(rows) - 1; i >= 0; i-- {
 		task := taskFromRow(rows[i], m)
@@ -213,8 +220,16 @@ func (m *Manager) Close() {
 	m.closing = true
 	s := m.store
 	done := m.closeDone
+	queue := m.queue
+	writerDone := m.writerDone
 	m.mu.Unlock()
 
+	if queue != nil {
+		queue <- nil
+	}
+	if writerDone != nil {
+		<-writerDone
+	}
 	m.writes.Wait()
 	if s != nil {
 		s.close()
@@ -240,13 +255,27 @@ func (m *Manager) acquireStore() (*store, func()) {
 	return s, m.writes.Done
 }
 
-func (m *Manager) withStore(fn func(*store)) {
-	s, done := m.acquireStore()
-	if s == nil {
+// submit queues a store write for the background writer. It holds the manager
+// lock only until the queue accepts the work, so a full queue is the only
+// backpressure the command's output goroutine sees.
+func (m *Manager) submit(fn func(*store)) {
+	m.mu.Lock()
+	if m.store == nil || m.closing {
+		m.mu.Unlock()
 		return
 	}
-	defer done()
-	fn(s)
+	m.queue <- fn
+	m.mu.Unlock()
+}
+
+func (m *Manager) writeLoop() {
+	defer close(m.writerDone)
+	for fn := range m.queue {
+		if fn == nil {
+			return
+		}
+		fn(m.store)
+	}
 }
 
 // SetListener registers fn, called after tasks change. It runs off the UI
@@ -480,7 +509,7 @@ func (m *Manager) changed() {
 }
 
 func (m *Manager) storeState(id int64, state State) {
-	m.withStore(func(s *store) {
+	m.submit(func(s *store) {
 		if err := s.markRunning(id); err != nil {
 			slog.Error("tasks: saving task state", "id", id, "state", state, "error", err)
 		}
@@ -488,7 +517,7 @@ func (m *Manager) storeState(id int64, state State) {
 }
 
 func (m *Manager) storeCommand(id int64, command, execPath string) {
-	m.withStore(func(s *store) {
+	m.submit(func(s *store) {
 		if err := s.setCommand(id, command, execPath); err != nil {
 			slog.Error("tasks: saving task command", "id", id, "error", err)
 		}
@@ -496,7 +525,7 @@ func (m *Manager) storeCommand(id int64, command, execPath string) {
 }
 
 func (m *Manager) storeFinish(id int64, state State, message string, at time.Time) {
-	m.withStore(func(s *store) {
+	m.submit(func(s *store) {
 		if err := s.finish(id, state, message, at); err != nil {
 			slog.Error("tasks: saving task outcome", "id", id, "error", err)
 		}
@@ -504,7 +533,7 @@ func (m *Manager) storeFinish(id int64, state State, message string, at time.Tim
 }
 
 func (m *Manager) storeOutput(id int64, seq int, text string) {
-	m.withStore(func(s *store) {
+	m.submit(func(s *store) {
 		if err := s.appendOutput(id, seq, text); err != nil {
 			slog.Error("tasks: saving console output", "id", id, "seq", seq, "error", err)
 		}
@@ -512,7 +541,7 @@ func (m *Manager) storeOutput(id int64, seq int, text string) {
 }
 
 func (m *Manager) storeTruncated(id int64) {
-	m.withStore(func(s *store) {
+	m.submit(func(s *store) {
 		if err := s.setTruncated(id); err != nil {
 			slog.Error("tasks: saving console truncation", "id", id, "error", err)
 		}
