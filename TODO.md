@@ -142,7 +142,7 @@ and then against the review notes on the native window.
       Known limit: the backdrop behind the sidebar is opaque on pages with a
       table and translucent elsewhere, measured as alpha `ff` against `8c` in
       `CapturePage` output, so the blur only reads on the pages without a table.
-      The tint is at 0.82 to keep the difference small.
+      The tint is at 0.5, favouring the blur over a perfectly even surface.
 - [x] Clicking a row does nothing: selection lives in its own set and the
       table's `OnChange` restores it, so only the checkbox and select-all
       change it.

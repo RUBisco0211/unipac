@@ -277,7 +277,7 @@ func (u *UI) left(c *ui.Context) {
 	// on pages whose content paints opaquely. glass.Blur works on every page.
 	ui.Column(c).Fill().Material(glass.Blur{Radius: 24}).Children(func() {
 		ui.Column(c).Fill().
-			Background(c.Theme().Surface.Alpha(0.82)).
+			Background(c.Theme().Surface.Alpha(0.5)).
 			Padding(sidebar.HeaderHeight(c), 0, 6, 0).
 			Children(func() {
 				components.Sidebar(c).Children(func() {
