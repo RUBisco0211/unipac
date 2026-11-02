@@ -430,7 +430,7 @@ func (l *listView) body(c *ui.Context) {
 		flat := *t
 		flat.Radius = 0
 		l.flat = &flat
-		c.SetTheme(l.flat)
+		setTheme(c, l.flat)
 		ui.Column(c).Fill().Children(func() {
 			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
 				l.cell(c, row, col)
@@ -457,7 +457,7 @@ func (l *listView) body(c *ui.Context) {
 				})
 			}
 		})
-		c.SetTheme(t)
+		setTheme(c, t)
 	}
 }
 
@@ -465,11 +465,11 @@ func (l *listView) cell(c *ui.Context, row, col int) {
 	// The row box is already built with the square theme; everything inside it
 	// gets the real one back.
 	if l.theme != nil {
-		c.SetTheme(l.theme)
+		setTheme(c, l.theme)
 	}
 	defer func() {
 		if l.flat != nil {
-			c.SetTheme(l.flat)
+			setTheme(c, l.flat)
 		}
 	}()
 	pkg := l.rows[row]

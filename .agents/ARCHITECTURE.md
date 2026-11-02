@@ -158,7 +158,7 @@ Command helpers are backend-only. Views should request operations through `App` 
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
   so MyGo remembers bounds and maximized state.
-- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme` directly, with one documented exception: `list.go` builds the table with a square-radius copy of the theme so its rows meet without notches, then restores the real theme inside every cell so the controls keep their rounding.
+- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme` directly, with one documented exception: `list.go` builds the table with a square-radius copy of the theme so its rows meet without notches, then restores the real theme inside every cell so the controls keep their rounding. It goes through `views.setTheme`, because `Context.SetTheme` also repaints the root with the theme's opaque background, which covers the window material behind the sidebar and makes the blur disappear.
 - The app defines no native menus yet. The old `open_settings` Wails event and its
   `useWailsEvents.ts` listener are gone; settings is a page in the sidebar.
 - Dialogs use `mygo.Dialog` with the window as `Parent`, so macOS shows them as sheets.
