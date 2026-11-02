@@ -274,9 +274,10 @@ func (u *UI) left(c *ui.Context) {
 	// shows through it, which is the only thing that can blur the desktop. A
 	// painted blur would sample the app's own transparent layer instead of what
 	// is behind the window.
-	components.Sidebar(c).
-		Padding(sidebar.HeaderHeight(c), 0, 6, 0).
-		Children(func() {
+	// The inset lives on a wrapper: components.Sidebar has its own padding, and
+	// applying one to it would replace that instead of adding to it.
+	ui.Column(c).Fill().Padding(sidebar.HeaderHeight(c), 0, 6, 0).Children(func() {
+		components.Sidebar(c).Children(func() {
 			components.SidebarSection(c, locales.SidebarPackages(), func() {
 				u.nav(c, PagePackages, locales.NavPackages(), lucide.Package())
 				u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp())
@@ -286,6 +287,7 @@ func (u *UI) left(c *ui.Context) {
 				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings())
 			})
 		})
+	})
 }
 
 func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG) {
