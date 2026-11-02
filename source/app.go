@@ -1,7 +1,4 @@
-// Package app holds UniPac's application service: the coarse operations the
-// views call. It has no dependency on Wails or on any UI toolkit, so the Wails
-// entry point and the MyGo entry point share the same implementation.
-package app
+package main
 
 import (
 	"context"

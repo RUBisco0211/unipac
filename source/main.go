@@ -5,13 +5,12 @@ import (
 	"context"
 	"log"
 
-	"github.com/RUBisco0211/unipac/source/app"
 	"github.com/RUBisco0211/unipac/source/views"
 	"github.com/egoist/mygo"
 )
 
 func main() {
-	service := app.NewApp()
+	service := NewApp()
 
 	mygo.App.WhenReady(func() {
 		if err := service.Startup(context.Background()); err != nil {
@@ -25,7 +24,7 @@ func main() {
 	mygo.App.OnWindowAllClosed(func() { mygo.App.Quit() })
 
 	err := mygo.App.Run()
-	app.Cleanup()
+	Cleanup()
 	if err != nil {
 		log.Fatal(err)
 	}

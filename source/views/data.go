@@ -1,9 +1,22 @@
 package views
 
 import (
-	"github.com/RUBisco0211/unipac/source/app"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 )
+
+// Service is the part of the application service the views use. It is declared
+// here because the app lives in package main, which cannot be imported.
+type Service interface {
+	ListManagers() []manager.Info
+	GetCachedPackages() ([]manager.Package, error)
+	UpdateCache() error
+	SearchPackages(keyword string) ([]manager.Package, error)
+	InstallPackage(managerID, name string, opt manager.ActionOptions) (manager.ActionResult, error)
+	UpdatePackage(managerID, name string, opt manager.ActionOptions) (manager.ActionResult, error)
+	UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
+	BatchUpdatePackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
+	BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
+}
 
 // data is the package inventory shared by the pages, plus the state of the
 // refresh and action jobs that fill and change it. It changes only on the UI
@@ -35,7 +48,7 @@ type toast struct {
 	tone  string
 }
 
-func newData(service *app.App) *data {
+func newData(service Service) *data {
 	d := &data{names: make(map[string]string)}
 	d.managers = service.ListManagers()
 	for _, m := range d.managers {
@@ -45,7 +58,7 @@ func newData(service *app.App) *data {
 	return d
 }
 
-func (d *data) load(service *app.App) {
+func (d *data) load(service Service) {
 	rows, err := service.GetCachedPackages()
 	if err != nil {
 		d.loadErr = err

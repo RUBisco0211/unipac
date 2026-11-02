@@ -22,13 +22,14 @@ of the old stack remains, and these are the decisions worth not revisiting:
 ## High-Level Shape
 
 - `main.go` configures the app: `mygo.App.WhenReady`, the main window, menus, theme, and shutdown hooks.
-- `app/` is the application service. Its exported methods are plain Go calls that views make directly; there is no binding generation step.
+- `app.go` is the application service, in package main. Views call it through the
+  `views.Service` interface they declare, since package main cannot be imported.
 - `backend/` owns package-manager discovery, command execution, cache persistence, config, and logging.
 - `views/` owns presentation: the shell, one file per page, shared table rendering, and the retained state each page shows.
 - `locales/` holds the ARB catalogs and the Go package MyGo generates from them.
 
 The repository root is the Go module root and the directory MyGo works in:
-`go.mod`, `mygo.json`, `assets/` and `dist/` sit there. The app's Go packages are
+`go.mod`, `mygo.json` and `assets/` sit there. The app's Go packages are
 under `source/`, which `mygo.json` names as its `main`. Paths in this document are
 relative to `source/` unless they are configuration.
 
@@ -42,7 +43,8 @@ Views must not import `backend/adapters`, `backend/cache`, or `backend/core/regi
 
 ### App Boundary
 
-`app/app.go` is the public backend API exposed to the views.
+`app.go` is the public backend API exposed to the views. It sits in package main,
+so `views` declares the `Service` interface it needs and `NewApp()` satisfies it.
 
 Exported methods:
 

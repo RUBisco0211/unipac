@@ -9,7 +9,6 @@ package views
 import (
 	"log/slog"
 
-	"github.com/RUBisco0211/unipac/source/app"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo"
@@ -33,7 +32,7 @@ const (
 
 // UI is the retained state of the main window.
 type UI struct {
-	svc   *app.App
+	svc   Service
 	shell *sidebar.Shell
 
 	page    Page
@@ -48,7 +47,7 @@ type UI struct {
 
 // New builds the window state. Everything the pages need is loaded here, so no
 // builder has to touch the backend.
-func New(service *app.App) *UI {
+func New(service Service) *UI {
 	u := &UI{
 		svc:     service,
 		data:    newData(service),
@@ -277,7 +276,7 @@ func (u *UI) left(c *ui.Context) {
 	// on pages whose content paints opaquely. glass.Blur works on every page.
 	ui.Column(c).Fill().Material(glass.Blur{Radius: 24}).Children(func() {
 		ui.Column(c).Fill().
-			Background(c.Theme().Surface.Alpha(0.5)).
+			Background(c.Theme().Surface.Alpha(0.25)).
 			Padding(sidebar.HeaderHeight(c), 0, 6, 0).
 			Children(func() {
 				components.Sidebar(c).Children(func() {

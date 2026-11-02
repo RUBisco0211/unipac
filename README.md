@@ -60,14 +60,14 @@ Support is intentionally uneven while the project is under active development. S
 ├── assets/
 │   ├── icon.png            # App icon, 1024 × 1024
 │   └── screenshot.png      # The image above
-├── dist/                   # Build output, gitignored
 ├── go.mod                  # github.com/RUBisco0211/unipac
 ├── go.sum
 ├── mygo.json               # App name, identifier, version, icon, output
 └── source/                 # The app's Go packages
-    ├── main.go             # App lifecycle: startup, window, shutdown
-    ├── app/                # Application service the views call
+    ├── main.go             # Entry point: startup, window, shutdown
+    ├── app.go              # Application service the views call
     ├── locales/            # ARB catalogs and the Go package generated from them
+    ├── test/               # Backend tests, outside the packages they exercise
     ├── backend/
     │   ├── adapters/       # Package-manager adapters
     │   ├── cache/          # SQLite cache
@@ -79,7 +79,8 @@ Support is intentionally uneven while the project is under active development. S
 ```
 
 The Go module, `mygo.json` and the assets sit at the repository root, which is the
-directory MyGo works in; `source/` holds the app's packages.
+directory MyGo works in; `source/` holds the app's packages. `mygo build` writes
+to `../dist`, outside the checkout, so the tree stays clean.
 
 ## Development
 
@@ -102,7 +103,7 @@ go tool mygo build
 ```
 
 Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
-`out` set to `dist` in `mygo.json`:
+`out` set to `../dist` in `mygo.json`, which keeps build output outside the checkout:
 
 ```sh
 go tool mygo build -platform darwin/arm64,windows/amd64
@@ -124,7 +125,7 @@ GOCACHE=/private/tmp/unipac-mygo-go-build go test ./...
 ## Development Notes
 
 - The repository root is the Go module root and the directory MyGo works in; the app's packages are under `source/`. Go and MyGo commands run from the root.
-- Views call methods on `App` in `app/app.go`. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
+- Views call methods on `App` in `source/app.go`, through the `views.Service` interface. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
 - The backend registry is the source of truth for available package managers and capabilities.
 - Adding a package manager is a backend adapter change plus a constructor registration in `backend/adapters/index.go`. No UI change is required.
 - UI availability is driven by backend capabilities, not hardcoded manager names. Unsupported actions stay visible but disabled, with a tooltip naming the missing capability.

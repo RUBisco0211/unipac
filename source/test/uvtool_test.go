@@ -1,4 +1,4 @@
-package uvtool_test
+package test
 
 import (
 	"testing"
