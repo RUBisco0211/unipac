@@ -1,139 +1,62 @@
 # UniPac
 
-> Status: Work in Process.
-> Expect incomplete features, rough edges, and changing APIs.
+> Status: Work in Progress. Expect incomplete features, rough edges and
+> changing APIs.
 
-UniPac is a desktop package manager dashboard written in Go. Its windows are
-drawn natively by [MyGo](https://github.com/egoist/mygo) and its controls come
-from [Onevra](https://github.com/oneo-me/onevra), so the app ships as a single Go
-binary with no webview and no JavaScript.
+UniPac is a desktop package manager: one place to inspect and act on packages
+installed by Homebrew, npm, pip, pipx, Cargo and uv tool, without learning each
+manager's command line.
 
-The goal is to provide one place to inspect and operate on packages installed through different package managers, without making users known about each manager's command-line details.
-
+The window is native Go, drawn by [MyGo](https://github.com/egoist/mygo) with
+controls from [Onevra](https://github.com/oneo-me/onevra). One binary, no
+webview, no JavaScript.
 
 ![screenshot](./assets/screenshot.png)
 
-## What It Does
+## Features
 
-UniPac is currently focused on:
+- Discovers the package managers available on the host.
+- Lists installed and outdated packages in a native UI, cached in SQLite.
+- Reports each manager's capabilities so unsupported actions stay disabled.
+- Adds search, install, uninstall, update and version lookup incrementally.
 
-- Discovering available package managers on the host machine.
-- Listing installed packages through backend adapters.
-- Caching installed package snapshots in SQLite.
-- Showing installed and outdated package views in a native desktop UI.
-- Exposing package-manager capabilities so the UI can enable only supported actions.
-- Gradually adding search, install, uninstall, update, and version lookup workflows.
+Support is uneven while the project is under active development: some managers
+list reliably while other actions remain disabled or incomplete.
 
-## Package Manager Support
+## Requirements
 
-The backend is adapter-based. Each adapter reports its own capabilities, and the views treat manager IDs as opaque values returned by the backend.
-
-Current adapter targets include:
-
-- Homebrew
-- npm
-- pip
-- pipx
-- Cargo
-- uv tool
-
-Support is intentionally uneven while the project is under active development. Some managers can list packages reliably while other actions may still be disabled or incomplete.
-
-## Tech Stack
-
-- MyGo for the desktop shell: windows, menus, dialogs, notifications, i18n, and the native `ui` toolkit that draws the interface.
-- Onevra for themed controls, the sidebar window shell, and Lucide icons.
-- Go for package-manager discovery, command execution, registry orchestration, cache persistence, config, and logging.
-- SQLite for cached package snapshots.
-- `mygo.json` and `go tool mygo` for development, packaging, app bundles and installers.
-- Go 1.27.3 or newer, built with `CGO_ENABLED=0`.
-
-## Repository Layout
-
-```text
-.
-├── AGENTS.md               # Agent entry point
-├── .agents/                # Architecture and agent development notes
-│   ├── ARCHITECTURE.md
-│   ├── PACKAGE_MANAGER_ADAPTERS.md
-│   └── skills/             # Project-local MyGo and Onevra skills
-├── assets/
-│   ├── icon.png            # App icon, 1024 × 1024
-│   └── screenshot.png      # The image above
-├── go.mod                  # github.com/RUBisco0211/unipac
-├── go.sum
-├── dist/                   # Build output, gitignored
-├── mygo.json               # App name, identifier, version, icon, output
-└── source/                 # The app's Go packages
-    ├── main.go             # Entry point: startup, window, shutdown
-    ├── app.go              # Application service the views call
-    ├── locales/            # ARB catalogs and the Go package generated from them
-    ├── test/               # Backend tests, outside the packages they exercise
-    ├── backend/
-    │   ├── adapters/       # Package-manager adapters
-    │   ├── cache/          # SQLite cache
-    │   ├── config/         # App config
-    │   ├── core/           # Manager domain types and registry
-    │   ├── logging/        # Logging setup
-    │   └── util/           # Shared backend helpers
-    └── views/              # Native UI: shell, one file per page, shared table
-```
-
-The Go module, `mygo.json` and the assets sit at the repository root, which is the
-directory MyGo works in; `source/` holds the app's packages, so build output and
-sources never mix.
+Go 1.27.3 or newer. Build with `CGO_ENABLED=0`.
 
 ## Development
 
-Install Go 1.27.3 or newer, then from the repository root:
+From the repository root:
 
 ```sh
 go get -tool github.com/egoist/mygo/cmd/mygo
+go tool mygo dev    # run with live reload
+go tool mygo build  # build for this machine
 ```
 
-Run the app with live reload:
-
-```sh
-go tool mygo dev
-```
-
-Build a redistributable app for the current machine:
-
-```sh
-go tool mygo build
-```
-
-Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
-`out` set to `dist` in `mygo.json`, beside the configuration:
+Cross-compile to `dist/<os>-<arch>/`; every platform builds from any machine:
 
 ```sh
 go tool mygo build -platform darwin/arm64,windows/amd64
 ```
 
-## Releases
-
-Pushing a `v*` tag runs `.github/workflows/release.yml`, which checks the tag
-against `version` in `mygo.json`, runs the formatting, vet and test checks,
-builds `unipac-<version>-arm64.dmg` for macOS arm64 on an Apple Silicon runner,
-and publishes it with the run's digests as a GitHub release:
+Before submitting a change, run:
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+gofmt -l .
+CGO_ENABLED=0 go test ./...
+go tool mygo vet .
 ```
 
-The workflow can also be run from the Actions tab, which builds and uploads the
-disk image as an artifact without touching a release. Only macOS arm64 is
-packaged; add targets to the `-platform` flag if that changes. Builds are signed
-ad hoc, so Gatekeeper asks the user to allow the app on other Macs; set
-`macos.signingIdentity` and `macos.notarize` and import the certificate in the
-workflow to ship a signed, notarized build.
+If Go cannot write to its default build cache, point `GOCACHE` at a writable
+path.
 
 ## Demo Mode
 
-The app can run on simulated packages and tasks, without touching Homebrew, npm,
-pip or any other package manager. This is the quickest way to exercise the
-frontend while working on it:
+Run on simulated packages and tasks without touching any real package manager:
 
 ```sh
 go run ./source -demo
@@ -141,64 +64,44 @@ go run ./source -demo
 UNIPAC_DEMO=1 go run ./source
 ```
 
-The demo inventory covers all three task flows:
+The demo exercises update, uninstall, install, bulk and concurrent tasks, cancel
+and retry, task filtering, and the quit prompt. Its data lives in
+`source/demo.go` and is not persisted. On macOS, system notifications need a
+packaged app, so use `UNIPAC_DEMO=1 go tool mygo dev` to see them.
 
-- **Update**: Installed page → update icon on `ripgrep`, `node`, `typescript` or
-  the GUI cask `iTerm2`. `libpng` fails its first update on purpose; open the
-  failed task and press Retry to see a new task record succeed.
-- **Uninstall**: Installed page → trash icon on `git`, `eslint` or `requests`,
-  then hold to confirm.
-- **Install**: Discover page → search for `fzf`, `httpie`, `prettier`, `vitest`
-  or `black`, then install a result.
-- **Bulk and concurrency**: select several outdated packages and update them;
-  two tasks run at a time and the rest show as waiting.
-- **Cancel and retry**: select a running task and press the stop control in the
-  console panel; select a cancelled or failed task and press Retry to create a
-  new task.
-- **Task page**: search and filter by operation or manager, drag the divider to
-  resize the always-visible console, and watch the old → new version column.
-- **Quit prompt**: start a task and close the window while it runs; interrupted
-  tasks are recorded as cancelled.
-- **Notifications**: a succeeded or failed task raises a system notification.
-  On macOS notifications need a packaged app, so use
-  `UNIPAC_DEMO=1 go tool mygo dev` rather than `go run` to see them.
+## Releases
 
-The demo keeps its tasks in memory; it does not use the real task history or the
-package cache. All managers, packages, console output and settings are local to
-`source/demo.go`.
-
-Run tests and checks:
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which checks the tag
+against `version` in `mygo.json`, runs the checks above, and publishes a macOS
+arm64 disk image with checksums to a GitHub release:
 
 ```sh
-CGO_ENABLED=0 go test ./...
-go tool mygo vet .
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
-If Go cannot write to the default build cache in a sandboxed environment, use a writable cache path:
+The workflow can also be run from the Actions tab to build the disk image as an
+artifact. Only macOS arm64 is packaged; builds are ad hoc signed, so Gatekeeper
+asks users on other Macs to allow the app. Add `macos.signingIdentity` and
+`macos.notarize` and import the certificate in the workflow to ship a signed,
+notarized build.
 
-```sh
-GOCACHE=/private/tmp/unipac-mygo-go-build go test ./...
-```
+## Documentation
 
-## Development Notes
-
-- The repository root is the Go module root and the directory MyGo works in; the app's packages are under `source/`. Go and MyGo commands run from the root.
-- Views call methods on `App` in `source/app.go`, through the `views.Service` interface. They must not import `backend/adapters`, `backend/cache` or `backend/core/registry` directly.
-- The backend registry is the source of truth for available package managers and capabilities.
-- Adding a package manager is a backend adapter change plus a constructor registration in `backend/adapters/index.go`. No UI change is required.
-- UI availability is driven by backend capabilities, not hardcoded manager names. Unsupported actions stay visible but disabled, with a tooltip naming the missing capability.
-- Irreversible actions such as uninstall open a dialog whose confirm is Onevra's `HoldToConfirm` gesture.
-- Catalogs live in `source/locales/`, the directory `mygo.json` names. `mygo dev` and `mygo build` generate a typed Go package beside them; commit the generated files so `go build` and `go test` work without the CLI.
-- `AGENTS.md` and `.agents/ARCHITECTURE.md` describe the boundaries agents should follow.
-- `go tool mygo dev` regenerates `locales/catalog_gen.go` and the packaged app; commit the generated catalog file.
+- [.agents/ARCHITECTURE.md](.agents/ARCHITECTURE.md) — architecture and backend
+  boundaries.
+- [.agents/PACKAGE_MANAGER_ADAPTERS.md](.agents/PACKAGE_MANAGER_ADAPTERS.md) —
+  adapter capabilities and per-manager CLI details.
+- [AGENTS.md](AGENTS.md) — repository rules and verification.
+- [.agents/skills/](.agents/skills/) — MyGo and Onevra skills for UI work.
 
 ## Known Limitations
 
-- The project is not production-ready.
-- Package actions may require permissions depending on the package manager and host setup.
-- Startup and refresh behavior may be affected by slow or failing package-manager commands.
-- Some package-manager capabilities are intentionally disabled until their CLI behavior is reliable enough to expose.
-- Native UI layout and platform behavior need manual review on each supported platform; headless tests do not cover them.
+- Not production-ready; package actions may require host permissions.
+- Startup and refresh depend on manager command health.
+- Some capabilities stay disabled until their CLI behavior is reliable.
+- Native layout and platform behavior need manual review; headless tests do not
+  cover them.
 
 ## License
 
