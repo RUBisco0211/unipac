@@ -342,6 +342,8 @@ func (s *searchView) apply(query string, results []manager.Package, err error) {
 	s.ran = true
 	s.resultQuery = query
 	s.results = s.enabledResults(results)
-	s.seenManagers = s.data.managersVersion
+	// Do not mark the manager list as seen here: a manager change may have
+	// happened while the search was in flight, and the next view pass must
+	// reconcile the filter against the new list.
 	s.applySort()
 }

@@ -793,6 +793,25 @@ func TestSearchManagerFilterSurvivesListRefresh(t *testing.T) {
 	}
 }
 
+// A search finishing after a manager change must not tell the view that the new
+// list was already reconciled.
+func TestSearchApplyLeavesManagerReconciliation(t *testing.T) {
+	d := fixture()
+	d.managers[1].Capabilities.Search = true
+	s := &searchView{data: d, activeQuery: "query"}
+	s.syncManagers()
+
+	d.managers[2].Enabled = true
+	d.managers[2].Capabilities.Search = true
+	d.managersVersion++
+	s.apply("query", nil, nil)
+	s.syncManagers()
+
+	if !s.managerFilter["cargo"] {
+		t.Fatal("the manager list was not reconciled after the search finished")
+	}
+}
+
 // A newly searchable manager joins an "all" selection but not a narrowed one.
 func TestSearchManagerAllIncludesNewManager(t *testing.T) {
 	d := fixture()

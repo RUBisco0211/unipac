@@ -48,11 +48,16 @@ type tasksView struct {
 	splitPercent float32
 
 	// output is the selected task's console, loaded on demand from the task
-	// manager. outputSeq is the snapshot sequence it corresponds to.
+	// manager. outputSeq is the sequence it corresponds to; outputWanted is the
+	// newest sequence seen. A refresh keeps output on screen until the newer
+	// lines arrive, and outputRequest discards a stale completion.
 	output        tasks.Output
 	outputFor     string
 	outputSeq     int
+	outputWanted  int
+	outputReady   bool
 	outputLoading bool
+	outputRequest int
 
 	onRetry  func(tasks.Snapshot, actionOrigin)
 	onCancel func(tasks.Snapshot)
@@ -167,7 +172,10 @@ func (s *tasksView) clearSelection() {
 	s.output = tasks.Output{}
 	s.outputFor = ""
 	s.outputSeq = 0
+	s.outputWanted = 0
+	s.outputReady = false
 	s.outputLoading = false
+	s.outputRequest = 0
 }
 
 // choose takes the row the table selected.
@@ -809,7 +817,7 @@ func (s *tasksView) consoleBody(c *ui.Context, task tasks.Snapshot) {
 		}
 
 		output := s.taskOutput(task)
-		if s.outputFor != task.ID || s.outputLoading {
+		if s.outputFor != task.ID || !s.outputReady {
 			consoleNote(c, locales.TasksOutputLoading())
 			return
 		}
@@ -843,6 +851,48 @@ func (s *tasksView) taskOutput(task tasks.Snapshot) tasks.Output {
 		return s.output
 	}
 	return tasks.Output{}
+}
+
+// beginOutput decides whether the selected task's console needs a fetch. It
+// keeps an already displayed console in place while a newer sequence loads,
+// and folds updates that arrive during a fetch into outputWanted.
+func (s *tasksView) beginOutput(id string, seq int) (request int, fetch bool) {
+	if s.outputFor != id {
+		s.output = tasks.Output{}
+		s.outputFor = id
+		s.outputSeq = 0
+		s.outputWanted = seq
+		s.outputReady = false
+		s.outputLoading = true
+		s.outputRequest++
+		return s.outputRequest, true
+	}
+	if seq > s.outputWanted {
+		s.outputWanted = seq
+	}
+	if s.outputLoading {
+		return s.outputRequest, false
+	}
+	if s.outputReady && s.outputSeq >= s.outputWanted {
+		return s.outputRequest, false
+	}
+	s.outputLoading = true
+	s.outputRequest++
+	return s.outputRequest, true
+}
+
+// finishOutput installs a fetch's result. It reports false for a completion
+// that no longer belongs to the selected task or request, and asks for another
+// fetch when newer output arrived while this one was loading.
+func (s *tasksView) finishOutput(id string, request int, output tasks.Output) (reload bool) {
+	if s.outputFor != id || s.outputRequest != request {
+		return false
+	}
+	s.output = output
+	s.outputSeq = output.Seq
+	s.outputReady = true
+	s.outputLoading = false
+	return s.outputWanted > s.outputSeq
 }
 
 func consoleNote(c *ui.Context, text string) {

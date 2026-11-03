@@ -164,12 +164,6 @@ func (u *UI) Run() {
 			u.tasks.apply(list)
 			u.announceTaskResults(previous, list)
 			u.knownTasks = taskStates(list)
-			// A refresh started while another task for the same manager was still
-			// running could race its package manager. Wait for the last task to
-			// finish, then scan once.
-			if unfinishedStates(previous) && !u.hasUnfinishedTasks() && !u.quitAccepted.Load() {
-				u.Refresh()
-			}
 		})
 	})
 	mygo.App.OnNotificationClick(func(id string) {
@@ -289,9 +283,7 @@ func (u *UI) runAction(op string, pkgs []manager.Package, at actionOrigin, fn fu
 			default:
 				u.data.queueToast(done, components.ToastSuccess)
 			}
-			// Do not scan while another task may still be running for the same
-			// manager; the task listener refreshes when the last one finishes.
-			if !u.hasUnfinishedTasks() {
+			if !u.quitAccepted.Load() {
 				u.Refresh()
 			}
 		})
@@ -361,25 +353,17 @@ func (u *UI) loadTaskOutput(id string) {
 	if !ok {
 		return
 	}
-	if u.tasks.outputFor == id && u.tasks.outputLoading {
+	request, fetch := u.tasks.beginOutput(id, task.OutputSeq)
+	if !fetch {
 		return
 	}
-	if u.tasks.outputFor == id && u.tasks.outputSeq == task.OutputSeq {
-		return
-	}
-	u.tasks.output = tasks.Output{}
-	u.tasks.outputFor = id
-	u.tasks.outputSeq = task.OutputSeq
-	u.tasks.outputLoading = true
 	win := u.shell.Window()
 	go func() {
 		output := u.svc.TaskOutput(id)
 		win.Update(func() {
-			if u.tasks.outputFor != id {
-				return
+			if u.tasks.finishOutput(id, request, output) {
+				u.loadTaskOutput(id)
 			}
-			u.tasks.output = output
-			u.tasks.outputLoading = false
 		})
 	}()
 }
@@ -462,19 +446,6 @@ func taskStates(list []tasks.Snapshot) map[string]tasks.State {
 		states[task.ID] = task.State
 	}
 	return states
-}
-
-func unfinishedStates(states map[string]tasks.State) bool {
-	for _, state := range states {
-		if state == tasks.StateQueued || state == tasks.StateRunning {
-			return true
-		}
-	}
-	return false
-}
-
-func (u *UI) hasUnfinishedTasks() bool {
-	return u.svc != nil && u.svc.UnfinishedTasks() > 0
 }
 
 func truncateMessage(message string, limit int) string {

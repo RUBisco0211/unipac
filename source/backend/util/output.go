@@ -3,10 +3,10 @@ package util
 import (
 	"bytes"
 	"context"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // EventKind separates the start of a command from a line it prints.
@@ -52,17 +52,65 @@ func reporterFrom(ctx context.Context) Reporter {
 	return fn
 }
 
-// ansiSGR matches the color and style sequences commands add to stderr when
-// their output is not a terminal. Stripping only SGR leaves other terminal
-// controls alone, which plain text does not normally carry.
-var ansiSGR = regexp.MustCompile(`\x1b\[[0-9;]*m`)
-
-// StripANSI removes SGR color sequences from text shown outside the console.
+// StripANSI removes terminal escape sequences from text shown outside the
+// console. It handles CSI (colors, erasing), OSC (titles, hyperlinks) and
+// two-byte escapes, so a failure message can go to a toast or notification
+// without raw control bytes.
 func StripANSI(s string) string {
 	if !strings.ContainsRune(s, 0x1b) {
 		return s
 	}
-	return ansiSGR.ReplaceAllString(s, "")
+	var out strings.Builder
+	out.Grow(len(s))
+	for i := 0; i < len(s); {
+		if s[i] != 0x1b {
+			out.WriteByte(s[i])
+			i++
+			continue
+		}
+		i = skipANSI(s, i)
+	}
+	return out.String()
+}
+
+// skipANSI returns the index after the escape sequence starting at i.
+func skipANSI(s string, i int) int {
+	if i+1 >= len(s) {
+		return len(s)
+	}
+	switch s[i+1] {
+	case '[':
+		j := i + 2
+		for j < len(s) && !(s[j] >= 0x40 && s[j] <= 0x7e) {
+			j++
+		}
+		if j < len(s) {
+			j++
+		}
+		return j
+	case ']':
+		j := i + 2
+		for j < len(s) {
+			if s[j] == 0x07 {
+				return j + 1
+			}
+			if s[j] == 0x1b && j+1 < len(s) && s[j+1] == '\\' {
+				return j + 2
+			}
+			j++
+		}
+		return len(s)
+	default:
+		j := i + 1
+		for j < len(s) && s[j] >= 0x20 && s[j] <= 0x2f {
+			j++
+		}
+		if j < len(s) {
+			_, size := utf8.DecodeRuneInString(s[j:])
+			j += size
+		}
+		return j
+	}
 }
 
 // FormatCommand renders a command line the way a console would show it,

@@ -10,6 +10,13 @@ func TestStripANSI(t *testing.T) {
 	}
 }
 
+func TestStripANSIRemovesCSIAndOSC(t *testing.T) {
+	in := "a\x1b[2Kb\x1b]8;;https://example.com\x1b\\c\x1b(Bd"
+	if got := StripANSI(in); got != "abcd" {
+		t.Fatalf("StripANSI = %q, want abcd", got)
+	}
+}
+
 func TestStripANSILeavesPlainTextAlone(t *testing.T) {
 	const text = "plain output"
 	if got := StripANSI(text); got != text {

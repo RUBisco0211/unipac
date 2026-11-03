@@ -220,6 +220,12 @@ Every command is a child process through `os/exec`. `App` owns an
   intermittently rather than finish sooner. The limit is the binding one in
   practice; the global cap only matters across several managers.
 
+A task takes its manager slot before the global slot, so a batch for one
+manager queues on that manager without consuming capacity other managers need.
+A cache scan takes every enabled manager's slot for its duration; it waits for
+running actions, and new actions wait for the scan, so a scan never overlaps a
+package-manager command.
+
 A batch creates all its tasks as queued, then runs them through a worker pool;
 the page therefore shows the whole selection immediately, with the waiting ones
 marked queued. A queued task the user cancels never starts: the limiter's wait
@@ -419,9 +425,11 @@ task asks `App.TaskOutput` off the UI thread; a live task answers from memory an
 a stored one from `package_task_output`, and the panel shows a loading state until
 the lines arrive. The listener reloads only the selected console, and only when
 its sequence changed, so a command printing hundreds of lines cannot copy every
-running task's full output on every frame. `tasksView` holds snapshots and the
-one loaded console; `UI.Run` registers the listener once, and each callback posts
-one `Window.Update`. Opening the page reloads the snapshots, because live updates
+running task's full output on every frame. A refresh keeps the displayed lines
+in place; the completion carries a request generation and the sequence it
+loaded, so a stale result is dropped and output that arrived mid-fetch triggers
+one more load. `tasksView` holds snapshots and the one loaded console; `UI.Run`
+registers the listener once, and each callback posts one `Window.Update`. Opening the page reloads the snapshots, because live updates
 may have been skipped while another page was shown.
 
 ### Notifications

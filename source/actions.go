@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"slices"
 	"sync"
 )
 
@@ -53,6 +54,34 @@ func (l *actionLimiter) acquire(ctx context.Context, managerID string) (func(), 
 	return func() {
 		<-manager
 		<-l.slots
+	}, nil
+}
+
+// acquireManagers holds every manager slot for a scan, in ID order so two
+// scans cannot deadlock. An action waits until the scan finishes, and the scan
+// waits for actions already running, so a package-manager command and a cache
+// scan never overlap.
+func (l *actionLimiter) acquireManagers(ctx context.Context, managerIDs []string) (func(), error) {
+	ids := slices.Clone(managerIDs)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	slots := make([]chan struct{}, 0, len(ids))
+	for _, id := range ids {
+		slot := l.managerSlot(id)
+		select {
+		case slot <- struct{}{}:
+			slots = append(slots, slot)
+		case <-ctx.Done():
+			for i := len(slots) - 1; i >= 0; i-- {
+				<-slots[i]
+			}
+			return nil, ctx.Err()
+		}
+	}
+	return func() {
+		for i := len(slots) - 1; i >= 0; i-- {
+			<-slots[i]
+		}
 	}, nil
 }
 

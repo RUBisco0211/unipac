@@ -82,6 +82,9 @@ type Line struct {
 type Output struct {
 	Lines     []Line
 	Truncated bool
+	// Seq is the sequence of the last line in a live task's console. A stored
+	// console reports 0; it has no further updates.
+	Seq int
 }
 
 // Snapshot is a task as the interface shows it. It copies the task's state, so
@@ -143,8 +146,10 @@ type Manager struct {
 	closed    bool
 	closeDone chan struct{}
 	// queue serializes store writes off the command's goroutine, so a console
-	// line does not wait for its own database transaction.
+	// line does not wait for its own database transaction. queueMu serializes
+	// senders with the close sentinel without holding mu on a full queue.
 	queue      chan func(*store)
+	queueMu    sync.Mutex
 	writerDone chan struct{}
 }
 
@@ -225,7 +230,9 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 
 	if queue != nil {
+		m.queueMu.Lock()
 		queue <- nil
+		m.queueMu.Unlock()
 	}
 	if writerDone != nil {
 		<-writerDone
@@ -259,13 +266,15 @@ func (m *Manager) acquireStore() (*store, func()) {
 // lock only until the queue accepts the work, so a full queue is the only
 // backpressure the command's output goroutine sees.
 func (m *Manager) submit(fn func(*store)) {
+	m.queueMu.Lock()
+	defer m.queueMu.Unlock()
 	m.mu.Lock()
 	if m.store == nil || m.closing {
 		m.mu.Unlock()
 		return
 	}
-	m.queue <- fn
 	m.mu.Unlock()
+	m.queue <- fn
 }
 
 func (m *Manager) writeLoop() {
@@ -401,9 +410,10 @@ func (m *Manager) Output(id string) Output {
 	kept := task.outputKept
 	lines := task.orderedOutput()
 	truncated := task.truncated
+	seq := task.nextSeq
 	task.mu.Unlock()
 	if kept {
-		return Output{Lines: lines, Truncated: truncated}
+		return Output{Lines: lines, Truncated: truncated, Seq: seq}
 	}
 	store, done := m.acquireStore()
 	if store == nil {

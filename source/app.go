@@ -257,6 +257,17 @@ func (a *App) GetCachedPackages() ([]manager.Package, error) {
 
 func (a *App) UpdateCache() error {
 	slog.InfoContext(a.ctx, "updating package cache")
+	ids := make([]string, 0)
+	for _, info := range registry.Instance.ListManagers() {
+		if info.Enabled {
+			ids = append(ids, info.ID)
+		}
+	}
+	release, err := a.actions.acquireManagers(a.runCtx, ids)
+	if err != nil {
+		return err
+	}
+	defer release()
 	pkgs, reliable, err := registry.Instance.GetInstalledPackages()
 	if err != nil {
 		slog.ErrorContext(a.ctx, "failed to get installed packages from registry", "error", err)

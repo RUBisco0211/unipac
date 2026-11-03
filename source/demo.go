@@ -743,6 +743,7 @@ func (s *demoService) TaskOutput(id string) tasks.Output {
 			return tasks.Output{
 				Lines:     append([]tasks.Line(nil), task.output...),
 				Truncated: task.truncated,
+				Seq:       len(task.output),
 			}
 		}
 	}

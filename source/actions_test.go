@@ -123,6 +123,37 @@ func TestActionLimiterDoesNotStarveOtherManagers(t *testing.T) {
 	release()
 }
 
+// A scan holds every manager slot; a running action finishes first, and an
+// action that starts during the scan waits.
+func TestActionLimiterScanWaitsForManagers(t *testing.T) {
+	limiter := newActionLimiter(2)
+	release, err := limiter.acquire(context.Background(), "brew")
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+
+	scan := make(chan func())
+	go func() {
+		release, err := limiter.acquireManagers(context.Background(), []string{"npm", "brew"})
+		if err == nil {
+			scan <- release
+		}
+	}()
+	select {
+	case <-scan:
+		t.Fatal("the scan started while an action held a manager")
+	case <-time.After(50 * time.Millisecond):
+	}
+	release()
+
+	select {
+	case release := <-scan:
+		release()
+	case <-time.After(time.Second):
+		t.Fatal("the scan never acquired the manager slots")
+	}
+}
+
 // A cancelled wait must give back the global slot it took.
 func TestActionLimiterReleasesOnCancel(t *testing.T) {
 	limiter := newActionLimiter(1)

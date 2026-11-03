@@ -60,6 +60,7 @@ func tasksViewFixture() *tasksView {
 		splitPercent:  64,
 		outputFor:     "3",
 		outputSeq:     2,
+		outputReady:   true,
 		output: tasks.Output{Lines: []tasks.Line{
 			{Text: "\x1b[32m==>\x1b[0m Upgrading typescript"},
 			{Text: "==> Pouring typescript"},
@@ -149,6 +150,48 @@ func TestTaskClickOpensConsole(t *testing.T) {
 	}
 }
 
+// A live refresh keeps the old console on screen, reloads when output arrives
+// during a fetch, and ignores a completion for a task that is no longer chosen.
+func TestTaskOutputRefreshState(t *testing.T) {
+	v := &tasksView{}
+	request, fetch := v.beginOutput("3", 1)
+	if !fetch {
+		t.Fatal("the first console load did not start")
+	}
+	v.finishOutput("3", request, tasks.Output{Lines: []tasks.Line{{Text: "first"}}, Seq: 1})
+
+	request, fetch = v.beginOutput("3", 2)
+	if !fetch {
+		t.Fatal("a newer sequence did not start a refresh")
+	}
+	if !v.outputReady || len(v.output.Lines) != 1 || v.output.Lines[0].Text != "first" {
+		t.Fatalf("the displayed console was cleared while refreshing: %+v", v.output)
+	}
+
+	// Output arrives during the fetch: fold it into the next request.
+	if _, fetch = v.beginOutput("3", 3); fetch {
+		t.Fatal("a second fetch started while one was in flight")
+	}
+	if !v.finishOutput("3", request, tasks.Output{Lines: []tasks.Line{{Text: "first"}, {Text: "second"}}, Seq: 2}) {
+		t.Fatal("newer output did not ask for another reload")
+	}
+	request, fetch = v.beginOutput("3", 3)
+	if !fetch {
+		t.Fatal("the deferred reload did not start")
+	}
+	v.finishOutput("3", request, tasks.Output{Lines: []tasks.Line{{Text: "first"}, {Text: "second"}, {Text: "third"}}, Seq: 3})
+
+	// A completion for the previous task must not overwrite the new one.
+	stale, _ := v.beginOutput("3", 4)
+	v.beginOutput("4", 0)
+	if v.finishOutput("3", stale, tasks.Output{Lines: []tasks.Line{{Text: "stale"}}, Seq: 4}) {
+		t.Fatal("a stale completion asked for a reload")
+	}
+	if v.outputFor != "4" {
+		t.Fatalf("selected output = %q, want task 4", v.outputFor)
+	}
+}
+
 func TestTaskConsoleStates(t *testing.T) {
 	nodes := []tasks.Snapshot{
 		{
@@ -174,6 +217,7 @@ func TestTaskConsoleStates(t *testing.T) {
 		v.apply(nodes)
 		v.selectedID = id
 		v.outputFor = id
+		v.outputReady = true
 		for i := range v.all {
 			if v.all[i].ID == id {
 				v.selectedIndex = i
@@ -190,6 +234,7 @@ func TestTaskConsoleStates(t *testing.T) {
 	v.apply(nodes)
 	v.selectedID, v.selectedIndex = "2", 1
 	v.outputFor = "2"
+	v.outputReady = true
 	v.output = tasks.Output{Lines: []tasks.Line{{Text: "stored output"}}}
 	tt := render(t, v.view, 1000, 560)
 	if !tt.HasText("stored output") {
@@ -373,6 +418,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 	loaded.apply(nodes)
 	loaded.selectedID = "5"
 	loaded.outputFor = "5"
+	loaded.outputReady = true
 	loaded.output = tasks.Output{Lines: []tasks.Line{{Text: "persisted line"}}}
 	tt = render(t, loaded.view, 1000, 560)
 	if !tt.HasText("persisted line") {
