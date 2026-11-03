@@ -4,8 +4,8 @@
 > changing APIs.
 
 UniPac is a desktop package manager: one place to inspect and act on packages
-installed by Homebrew, npm, pip, pipx, Cargo and uv tool, without learning each
-manager's command line.
+installed through different package managers, without learning each manager's
+command line.
 
 The window is native Go, drawn by [MyGo](https://github.com/egoist/mygo) with
 controls from [Onevra](https://github.com/oneo-me/onevra). One binary, no
@@ -19,6 +19,18 @@ webview, no JavaScript.
 - Lists installed and outdated packages in a native UI, cached in SQLite.
 - Reports each manager's capabilities so unsupported actions stay disabled.
 - Adds search, install, uninstall, update and version lookup incrementally.
+
+## Supported Package Managers
+
+UniPac's backend is adapter-based: each adapter reports its own capabilities,
+and the UI treats manager IDs as opaque values.
+
+- Homebrew
+- npm
+- pip
+- pipx
+- Cargo
+- uv tool
 
 Support is uneven while the project is under active development: some managers
 list reliably while other actions remain disabled or incomplete.
