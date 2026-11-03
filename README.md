@@ -110,6 +110,25 @@ Build for several targets at once; outputs land in `<out>/<os>-<arch>/`, with
 go tool mygo build -platform darwin/arm64,windows/amd64
 ```
 
+## Releases
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which checks the tag
+against `version` in `mygo.json`, runs the formatting, vet and test checks,
+builds `unipac-<version>-arm64.dmg` for macOS arm64 on an Apple Silicon runner,
+and publishes it with the run's digests as a GitHub release:
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow can also be run from the Actions tab, which builds and uploads the
+disk image as an artifact without touching a release. Only macOS arm64 is
+packaged; add targets to the `-platform` flag if that changes. Builds are signed
+ad hoc, so Gatekeeper asks the user to allow the app on other Macs; set
+`macos.signingIdentity` and `macos.notarize` and import the certificate in the
+workflow to ship a signed, notarized build.
+
 ## Demo Mode
 
 The app can run on simulated packages and tasks, without touching Homebrew, npm,
