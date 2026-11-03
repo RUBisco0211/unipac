@@ -36,7 +36,7 @@
   "actionSelectRow": "请先选中一个软件包",
   "actionUnsupported": "该管理器不支持此操作",
   "actionManagerOff": "该管理器已关闭",
-  "actionWorking": "已有操作正在执行",
+  "actionWorking": "该软件包已有操作正在执行",
   "uninstallTitle": "卸载软件包？",
   "uninstallMessage": "将从 {manager} 卸载 {name}。此操作不可撤销。",
   "uninstallBulkTitle": "卸载所选软件包？",
@@ -48,6 +48,7 @@
   "searchField": "搜索软件包名称或关键词",
   "searchAction": "搜索",
   "searchSearching": "正在搜索…",
+  "searchProgress": "搜索进度",
   "searchError": "搜索失败：{error}",
   "searchNoResults": "没有找到与 {query} 匹配的软件包",
   "searchHint": "从软件包名、关键词或想安装的工具开始搜索",
@@ -56,6 +57,9 @@
   "settingsStartupScanDesc": "打开 UniPac 后立即检查已安装的软件包。",
   "settingsLogLevel": "日志级别",
   "settingsLogLevelDesc": "写入日志文件的详细程度。",
+  "settingsLanguage": "语言",
+  "settingsLanguageDesc": "UniPac 的显示语言。跟随系统会使用电脑的语言。",
+  "settingsLanguageSystem": "跟随系统",
   "logLevelDebug": "调试",
   "logLevelInfo": "信息",
   "logLevelWarn": "警告",
@@ -76,5 +80,92 @@
   "commonSelectionCount": "{selected} / {total}",
   "actionUpToDate": "已是最新版本",
   "packagesScanning": "正在扫描已安装软件包…",
-  "actionsInstalling": "正在安装…"
+  "actionsInstalling": "正在安装…",
+  "navTasks": "任务",
+  "tasksEmpty": "暂无任务",
+  "tasksEmptyHint": "安装、更新或卸载软件包后，其控制台输出会显示在这里。",
+  "tasksSelectTask": "请先选择一个任务以查看控制台",
+  "tasksNoOutput": "该任务尚未产生输出。",
+  "tasksOutputTruncated": "较早的输出已被丢弃。",
+  "tasksKindInstall": "安装",
+  "tasksKindUpdate": "更新",
+  "tasksKindUninstall": "卸载",
+  "tasksStatusRunning": "进行中",
+  "tasksStatusCompleted": "成功",
+  "tasksStatusFailed": "失败",
+  "tasksStatusQueued": "等待中",
+  "tasksRetry": "重试",
+  "tasksQueuedHint": "正在等待其他任务完成。",
+  "tasksQuitTitle": "仍有任务在运行",
+  "tasksQuitMessage": "还有 {count} 个任务未完成。仍要退出吗？这些任务会被标记为已取消。",
+  "tasksQuitConfirm": "仍要退出",
+  "@tasksQuitMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tasksInterrupted": "任务未完成即被中断",
+  "tasksFlight": "任务已开始",
+  "tableOperation": "操作类型",
+  "tableVersion": "版本",
+  "tableStatus": "状态",
+  "tasksStatusCancelled": "已取消",
+  "tasksCancel": "取消任务",
+  "tasksCancelMissing": "这个任务已不存在。",
+  "tasksCancelFinished": "这个任务已经结束。",
+  "tasksBatchCancelled": "有任务在完成前被取消。",
+  "tasksAllOperations": "全部操作",
+  "tasksSearchPlaceholder": "按包名或管理器搜索",
+  "tasksNoMatch": "没有符合筛选条件的任务",
+  "tasksConsole": "控制台",
+  "tasksOutputLoading": "正在加载终端输出…",
+  "tasksCancelledByUser": "用户已取消",
+  "tasksResizePanel": "调整控制台宽度",
+  "toastCancelled": "任务已取消",
+  "notificationTaskSucceeded": "{operation}成功",
+  "notificationTaskFailed": "{operation}失败",
+  "@notificationTaskSucceeded": {
+    "placeholders": {
+      "operation": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationTaskFailed": {
+    "placeholders": {
+      "operation": {
+        "type": "String"
+      }
+    }
+  },
+  "tableStarted": "启动时间",
+  "tableFinished": "结束时间",
+  "searchManagers": "包管理器",
+  "searchManagerCount": "{count} 个管理器",
+  "@searchManagerCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "managerCount": "{count} 个管理器",
+  "@managerCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tasksOperations": "操作类型",
+  "operationCount": "{count} 项操作",
+  "@operationCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

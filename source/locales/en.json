@@ -36,7 +36,7 @@
   "actionSelectRow": "Select a package first",
   "actionUnsupported": "This manager does not support that action",
   "actionManagerOff": "This manager is turned off",
-  "actionWorking": "Another action is still running",
+  "actionWorking": "An operation is already running on this package",
   "uninstallTitle": "Uninstall package?",
   "uninstallMessage": "{name} will be removed with {manager}. This cannot be undone.",
   "uninstallBulkTitle": "Uninstall selected packages?",
@@ -55,6 +55,7 @@
   "searchField": "Search package name or keyword",
   "searchAction": "Search",
   "searchSearching": "Searching…",
+  "searchProgress": "Search progress",
   "searchError": "Search failed: {error}",
   "searchNoResults": "No packages found matching {query}",
   "searchHint": "Start with a package name, keyword, or tool you want to install",
@@ -63,6 +64,9 @@
   "settingsStartupScanDesc": "Check installed packages as soon as UniPac opens.",
   "settingsLogLevel": "Log level",
   "settingsLogLevelDesc": "How much detail UniPac writes to its log file.",
+  "settingsLanguage": "Language",
+  "settingsLanguageDesc": "The language UniPac shows. System follows your computer.",
+  "settingsLanguageSystem": "System",
   "logLevelDebug": "Debug",
   "logLevelInfo": "Info",
   "logLevelWarn": "Warning",
@@ -121,5 +125,92 @@
   },
   "actionUpToDate": "Already up to date",
   "packagesScanning": "Scanning installed packages…",
-  "actionsInstalling": "Installing…"
+  "actionsInstalling": "Installing…",
+  "navTasks": "Tasks",
+  "tasksEmpty": "No tasks yet",
+  "tasksEmptyHint": "Install, update or remove a package and its console appears here.",
+  "tasksSelectTask": "Select a task to see its console",
+  "tasksNoOutput": "This task has not written any output.",
+  "tasksOutputTruncated": "Earlier output was dropped.",
+  "tasksKindInstall": "Install",
+  "tasksKindUpdate": "Update",
+  "tasksKindUninstall": "Uninstall",
+  "tasksStatusRunning": "Running",
+  "tasksStatusCompleted": "Succeeded",
+  "tasksStatusFailed": "Failed",
+  "tasksStatusQueued": "Waiting",
+  "tasksRetry": "Retry",
+  "tasksQueuedHint": "Waiting for another task to finish.",
+  "tasksQuitTitle": "Tasks are still running",
+  "tasksQuitMessage": "{count} tasks have not finished. Quit anyway? They will be marked as cancelled.",
+  "tasksQuitConfirm": "Quit anyway",
+  "@tasksQuitMessage": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tasksInterrupted": "Interrupted before completion",
+  "tasksFlight": "Task started",
+  "tableOperation": "Operation",
+  "tableVersion": "Version",
+  "tableStatus": "Status",
+  "tasksStatusCancelled": "Cancelled",
+  "tasksCancel": "Cancel task",
+  "tasksCancelMissing": "This task no longer exists.",
+  "tasksCancelFinished": "This task has already finished.",
+  "tasksBatchCancelled": "Some tasks were cancelled before they finished.",
+  "tasksAllOperations": "All operations",
+  "tasksSearchPlaceholder": "Search by package or manager",
+  "tasksNoMatch": "No tasks match these filters",
+  "tasksConsole": "Console",
+  "tasksOutputLoading": "Loading console output…",
+  "tasksCancelledByUser": "Cancelled by user",
+  "tasksResizePanel": "Resize console panel",
+  "toastCancelled": "Task cancelled",
+  "notificationTaskSucceeded": "{operation} succeeded",
+  "notificationTaskFailed": "{operation} failed",
+  "@notificationTaskSucceeded": {
+    "placeholders": {
+      "operation": {
+        "type": "String"
+      }
+    }
+  },
+  "@notificationTaskFailed": {
+    "placeholders": {
+      "operation": {
+        "type": "String"
+      }
+    }
+  },
+  "tableStarted": "Started",
+  "tableFinished": "Finished",
+  "searchManagers": "Package managers",
+  "searchManagerCount": "{count} managers",
+  "@searchManagerCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "managerCount": "{count} managers",
+  "@managerCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tasksOperations": "Operations",
+  "operationCount": "{count} operations",
+  "@operationCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

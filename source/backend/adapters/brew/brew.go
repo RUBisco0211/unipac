@@ -58,6 +58,14 @@ func (a *Adapter) Info() *manager.Info {
 	return a.info
 }
 
+// WithContext returns a copy of the adapter whose commands run with ctx, so
+// one action's output goes to that action's console.
+func (a *Adapter) WithContext(ctx context.Context) manager.Adapter {
+	clone := *a
+	clone.ctx = ctx
+	return &clone
+}
+
 // Preflight checks if brew is available in the system
 func (a *Adapter) Preflight() error {
 	return manager.Preflight(a, a.ctx)
@@ -365,9 +373,9 @@ func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
 }
 
 func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1"})
+	res, err := util.Run(a.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1", "HOMEBREW_COLOR=1"})
 	if err != nil {
-		msg := res.Output()
+		msg := util.StripANSI(res.Output())
 		if msg == "" {
 			msg = err.Error()
 		}

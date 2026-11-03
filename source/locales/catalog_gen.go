@@ -394,11 +394,11 @@ func (msgs Messages) ActionManagerOff() string {
 	return Catalog.Format(msgs.locale, "actionManagerOff", nil)
 }
 
-// ActionWorking says "Another action is still running"
+// ActionWorking says "An operation is already running on this package"
 // in the language the app shows.
 func ActionWorking() string { return In(i18n.Locale()).ActionWorking() }
 
-// ActionWorking says "Another action is still running"
+// ActionWorking says "An operation is already running on this package"
 // in the language of msgs.
 func (msgs Messages) ActionWorking() string {
 	return Catalog.Format(msgs.locale, "actionWorking", nil)
@@ -516,6 +516,16 @@ func (msgs Messages) SearchSearching() string {
 	return Catalog.Format(msgs.locale, "searchSearching", nil)
 }
 
+// SearchProgress says "Search progress"
+// in the language the app shows.
+func SearchProgress() string { return In(i18n.Locale()).SearchProgress() }
+
+// SearchProgress says "Search progress"
+// in the language of msgs.
+func (msgs Messages) SearchProgress() string {
+	return Catalog.Format(msgs.locale, "searchProgress", nil)
+}
+
 // SearchError says "Search failed: {error}"
 // in the language the app shows.
 func SearchError(error string) string { return In(i18n.Locale()).SearchError(error) }
@@ -594,6 +604,36 @@ func SettingsLogLevelDesc() string { return In(i18n.Locale()).SettingsLogLevelDe
 // in the language of msgs.
 func (msgs Messages) SettingsLogLevelDesc() string {
 	return Catalog.Format(msgs.locale, "settingsLogLevelDesc", nil)
+}
+
+// SettingsLanguage says "Language"
+// in the language the app shows.
+func SettingsLanguage() string { return In(i18n.Locale()).SettingsLanguage() }
+
+// SettingsLanguage says "Language"
+// in the language of msgs.
+func (msgs Messages) SettingsLanguage() string {
+	return Catalog.Format(msgs.locale, "settingsLanguage", nil)
+}
+
+// SettingsLanguageDesc says "The language UniPac shows. System follows your computer."
+// in the language the app shows.
+func SettingsLanguageDesc() string { return In(i18n.Locale()).SettingsLanguageDesc() }
+
+// SettingsLanguageDesc says "The language UniPac shows. System follows your computer."
+// in the language of msgs.
+func (msgs Messages) SettingsLanguageDesc() string {
+	return Catalog.Format(msgs.locale, "settingsLanguageDesc", nil)
+}
+
+// SettingsLanguageSystem says "System"
+// in the language the app shows.
+func SettingsLanguageSystem() string { return In(i18n.Locale()).SettingsLanguageSystem() }
+
+// SettingsLanguageSystem says "System"
+// in the language of msgs.
+func (msgs Messages) SettingsLanguageSystem() string {
+	return Catalog.Format(msgs.locale, "settingsLanguageSystem", nil)
 }
 
 // LogLevelDebug says "Debug"
@@ -806,4 +846,458 @@ func ActionsInstalling() string { return In(i18n.Locale()).ActionsInstalling() }
 // in the language of msgs.
 func (msgs Messages) ActionsInstalling() string {
 	return Catalog.Format(msgs.locale, "actionsInstalling", nil)
+}
+
+// NavTasks says "Tasks"
+// in the language the app shows.
+func NavTasks() string { return In(i18n.Locale()).NavTasks() }
+
+// NavTasks says "Tasks"
+// in the language of msgs.
+func (msgs Messages) NavTasks() string {
+	return Catalog.Format(msgs.locale, "navTasks", nil)
+}
+
+// TasksEmpty says "No tasks yet"
+// in the language the app shows.
+func TasksEmpty() string { return In(i18n.Locale()).TasksEmpty() }
+
+// TasksEmpty says "No tasks yet"
+// in the language of msgs.
+func (msgs Messages) TasksEmpty() string {
+	return Catalog.Format(msgs.locale, "tasksEmpty", nil)
+}
+
+// TasksEmptyHint says "Install, update or remove a package and its console appears here."
+// in the language the app shows.
+func TasksEmptyHint() string { return In(i18n.Locale()).TasksEmptyHint() }
+
+// TasksEmptyHint says "Install, update or remove a package and its console appears here."
+// in the language of msgs.
+func (msgs Messages) TasksEmptyHint() string {
+	return Catalog.Format(msgs.locale, "tasksEmptyHint", nil)
+}
+
+// TasksSelectTask says "Select a task to see its console"
+// in the language the app shows.
+func TasksSelectTask() string { return In(i18n.Locale()).TasksSelectTask() }
+
+// TasksSelectTask says "Select a task to see its console"
+// in the language of msgs.
+func (msgs Messages) TasksSelectTask() string {
+	return Catalog.Format(msgs.locale, "tasksSelectTask", nil)
+}
+
+// TasksNoOutput says "This task has not written any output."
+// in the language the app shows.
+func TasksNoOutput() string { return In(i18n.Locale()).TasksNoOutput() }
+
+// TasksNoOutput says "This task has not written any output."
+// in the language of msgs.
+func (msgs Messages) TasksNoOutput() string {
+	return Catalog.Format(msgs.locale, "tasksNoOutput", nil)
+}
+
+// TasksOutputTruncated says "Earlier output was dropped."
+// in the language the app shows.
+func TasksOutputTruncated() string { return In(i18n.Locale()).TasksOutputTruncated() }
+
+// TasksOutputTruncated says "Earlier output was dropped."
+// in the language of msgs.
+func (msgs Messages) TasksOutputTruncated() string {
+	return Catalog.Format(msgs.locale, "tasksOutputTruncated", nil)
+}
+
+// TasksKindInstall says "Install"
+// in the language the app shows.
+func TasksKindInstall() string { return In(i18n.Locale()).TasksKindInstall() }
+
+// TasksKindInstall says "Install"
+// in the language of msgs.
+func (msgs Messages) TasksKindInstall() string {
+	return Catalog.Format(msgs.locale, "tasksKindInstall", nil)
+}
+
+// TasksKindUpdate says "Update"
+// in the language the app shows.
+func TasksKindUpdate() string { return In(i18n.Locale()).TasksKindUpdate() }
+
+// TasksKindUpdate says "Update"
+// in the language of msgs.
+func (msgs Messages) TasksKindUpdate() string {
+	return Catalog.Format(msgs.locale, "tasksKindUpdate", nil)
+}
+
+// TasksKindUninstall says "Uninstall"
+// in the language the app shows.
+func TasksKindUninstall() string { return In(i18n.Locale()).TasksKindUninstall() }
+
+// TasksKindUninstall says "Uninstall"
+// in the language of msgs.
+func (msgs Messages) TasksKindUninstall() string {
+	return Catalog.Format(msgs.locale, "tasksKindUninstall", nil)
+}
+
+// TasksStatusRunning says "Running"
+// in the language the app shows.
+func TasksStatusRunning() string { return In(i18n.Locale()).TasksStatusRunning() }
+
+// TasksStatusRunning says "Running"
+// in the language of msgs.
+func (msgs Messages) TasksStatusRunning() string {
+	return Catalog.Format(msgs.locale, "tasksStatusRunning", nil)
+}
+
+// TasksStatusCompleted says "Succeeded"
+// in the language the app shows.
+func TasksStatusCompleted() string { return In(i18n.Locale()).TasksStatusCompleted() }
+
+// TasksStatusCompleted says "Succeeded"
+// in the language of msgs.
+func (msgs Messages) TasksStatusCompleted() string {
+	return Catalog.Format(msgs.locale, "tasksStatusCompleted", nil)
+}
+
+// TasksStatusFailed says "Failed"
+// in the language the app shows.
+func TasksStatusFailed() string { return In(i18n.Locale()).TasksStatusFailed() }
+
+// TasksStatusFailed says "Failed"
+// in the language of msgs.
+func (msgs Messages) TasksStatusFailed() string {
+	return Catalog.Format(msgs.locale, "tasksStatusFailed", nil)
+}
+
+// TasksStatusQueued says "Waiting"
+// in the language the app shows.
+func TasksStatusQueued() string { return In(i18n.Locale()).TasksStatusQueued() }
+
+// TasksStatusQueued says "Waiting"
+// in the language of msgs.
+func (msgs Messages) TasksStatusQueued() string {
+	return Catalog.Format(msgs.locale, "tasksStatusQueued", nil)
+}
+
+// TasksRetry says "Retry"
+// in the language the app shows.
+func TasksRetry() string { return In(i18n.Locale()).TasksRetry() }
+
+// TasksRetry says "Retry"
+// in the language of msgs.
+func (msgs Messages) TasksRetry() string {
+	return Catalog.Format(msgs.locale, "tasksRetry", nil)
+}
+
+// TasksQueuedHint says "Waiting for another task to finish."
+// in the language the app shows.
+func TasksQueuedHint() string { return In(i18n.Locale()).TasksQueuedHint() }
+
+// TasksQueuedHint says "Waiting for another task to finish."
+// in the language of msgs.
+func (msgs Messages) TasksQueuedHint() string {
+	return Catalog.Format(msgs.locale, "tasksQueuedHint", nil)
+}
+
+// TasksQuitTitle says "Tasks are still running"
+// in the language the app shows.
+func TasksQuitTitle() string { return In(i18n.Locale()).TasksQuitTitle() }
+
+// TasksQuitTitle says "Tasks are still running"
+// in the language of msgs.
+func (msgs Messages) TasksQuitTitle() string {
+	return Catalog.Format(msgs.locale, "tasksQuitTitle", nil)
+}
+
+// TasksQuitMessage says "{count} tasks have not finished. Quit anyway? They will be marked as cancelled."
+// in the language the app shows.
+func TasksQuitMessage(count int) string { return In(i18n.Locale()).TasksQuitMessage(count) }
+
+// TasksQuitMessage says "{count} tasks have not finished. Quit anyway? They will be marked as cancelled."
+// in the language of msgs.
+func (msgs Messages) TasksQuitMessage(count int) string {
+	return Catalog.Format(msgs.locale, "tasksQuitMessage", map[string]any{"count": count})
+}
+
+// TasksQuitConfirm says "Quit anyway"
+// in the language the app shows.
+func TasksQuitConfirm() string { return In(i18n.Locale()).TasksQuitConfirm() }
+
+// TasksQuitConfirm says "Quit anyway"
+// in the language of msgs.
+func (msgs Messages) TasksQuitConfirm() string {
+	return Catalog.Format(msgs.locale, "tasksQuitConfirm", nil)
+}
+
+// TasksInterrupted says "Interrupted before completion"
+// in the language the app shows.
+func TasksInterrupted() string { return In(i18n.Locale()).TasksInterrupted() }
+
+// TasksInterrupted says "Interrupted before completion"
+// in the language of msgs.
+func (msgs Messages) TasksInterrupted() string {
+	return Catalog.Format(msgs.locale, "tasksInterrupted", nil)
+}
+
+// TasksFlight says "Task started"
+// in the language the app shows.
+func TasksFlight() string { return In(i18n.Locale()).TasksFlight() }
+
+// TasksFlight says "Task started"
+// in the language of msgs.
+func (msgs Messages) TasksFlight() string {
+	return Catalog.Format(msgs.locale, "tasksFlight", nil)
+}
+
+// TableOperation says "Operation"
+// in the language the app shows.
+func TableOperation() string { return In(i18n.Locale()).TableOperation() }
+
+// TableOperation says "Operation"
+// in the language of msgs.
+func (msgs Messages) TableOperation() string {
+	return Catalog.Format(msgs.locale, "tableOperation", nil)
+}
+
+// TableVersion says "Version"
+// in the language the app shows.
+func TableVersion() string { return In(i18n.Locale()).TableVersion() }
+
+// TableVersion says "Version"
+// in the language of msgs.
+func (msgs Messages) TableVersion() string {
+	return Catalog.Format(msgs.locale, "tableVersion", nil)
+}
+
+// TableStatus says "Status"
+// in the language the app shows.
+func TableStatus() string { return In(i18n.Locale()).TableStatus() }
+
+// TableStatus says "Status"
+// in the language of msgs.
+func (msgs Messages) TableStatus() string {
+	return Catalog.Format(msgs.locale, "tableStatus", nil)
+}
+
+// TasksStatusCancelled says "Cancelled"
+// in the language the app shows.
+func TasksStatusCancelled() string { return In(i18n.Locale()).TasksStatusCancelled() }
+
+// TasksStatusCancelled says "Cancelled"
+// in the language of msgs.
+func (msgs Messages) TasksStatusCancelled() string {
+	return Catalog.Format(msgs.locale, "tasksStatusCancelled", nil)
+}
+
+// TasksCancel says "Cancel task"
+// in the language the app shows.
+func TasksCancel() string { return In(i18n.Locale()).TasksCancel() }
+
+// TasksCancel says "Cancel task"
+// in the language of msgs.
+func (msgs Messages) TasksCancel() string {
+	return Catalog.Format(msgs.locale, "tasksCancel", nil)
+}
+
+// TasksCancelMissing says "This task no longer exists."
+// in the language the app shows.
+func TasksCancelMissing() string { return In(i18n.Locale()).TasksCancelMissing() }
+
+// TasksCancelMissing says "This task no longer exists."
+// in the language of msgs.
+func (msgs Messages) TasksCancelMissing() string {
+	return Catalog.Format(msgs.locale, "tasksCancelMissing", nil)
+}
+
+// TasksCancelFinished says "This task has already finished."
+// in the language the app shows.
+func TasksCancelFinished() string { return In(i18n.Locale()).TasksCancelFinished() }
+
+// TasksCancelFinished says "This task has already finished."
+// in the language of msgs.
+func (msgs Messages) TasksCancelFinished() string {
+	return Catalog.Format(msgs.locale, "tasksCancelFinished", nil)
+}
+
+// TasksBatchCancelled says "Some tasks were cancelled before they finished."
+// in the language the app shows.
+func TasksBatchCancelled() string { return In(i18n.Locale()).TasksBatchCancelled() }
+
+// TasksBatchCancelled says "Some tasks were cancelled before they finished."
+// in the language of msgs.
+func (msgs Messages) TasksBatchCancelled() string {
+	return Catalog.Format(msgs.locale, "tasksBatchCancelled", nil)
+}
+
+// TasksAllOperations says "All operations"
+// in the language the app shows.
+func TasksAllOperations() string { return In(i18n.Locale()).TasksAllOperations() }
+
+// TasksAllOperations says "All operations"
+// in the language of msgs.
+func (msgs Messages) TasksAllOperations() string {
+	return Catalog.Format(msgs.locale, "tasksAllOperations", nil)
+}
+
+// TasksSearchPlaceholder says "Search by package or manager"
+// in the language the app shows.
+func TasksSearchPlaceholder() string { return In(i18n.Locale()).TasksSearchPlaceholder() }
+
+// TasksSearchPlaceholder says "Search by package or manager"
+// in the language of msgs.
+func (msgs Messages) TasksSearchPlaceholder() string {
+	return Catalog.Format(msgs.locale, "tasksSearchPlaceholder", nil)
+}
+
+// TasksNoMatch says "No tasks match these filters"
+// in the language the app shows.
+func TasksNoMatch() string { return In(i18n.Locale()).TasksNoMatch() }
+
+// TasksNoMatch says "No tasks match these filters"
+// in the language of msgs.
+func (msgs Messages) TasksNoMatch() string {
+	return Catalog.Format(msgs.locale, "tasksNoMatch", nil)
+}
+
+// TasksConsole says "Console"
+// in the language the app shows.
+func TasksConsole() string { return In(i18n.Locale()).TasksConsole() }
+
+// TasksConsole says "Console"
+// in the language of msgs.
+func (msgs Messages) TasksConsole() string {
+	return Catalog.Format(msgs.locale, "tasksConsole", nil)
+}
+
+// TasksOutputLoading says "Loading console output…"
+// in the language the app shows.
+func TasksOutputLoading() string { return In(i18n.Locale()).TasksOutputLoading() }
+
+// TasksOutputLoading says "Loading console output…"
+// in the language of msgs.
+func (msgs Messages) TasksOutputLoading() string {
+	return Catalog.Format(msgs.locale, "tasksOutputLoading", nil)
+}
+
+// TasksCancelledByUser says "Cancelled by user"
+// in the language the app shows.
+func TasksCancelledByUser() string { return In(i18n.Locale()).TasksCancelledByUser() }
+
+// TasksCancelledByUser says "Cancelled by user"
+// in the language of msgs.
+func (msgs Messages) TasksCancelledByUser() string {
+	return Catalog.Format(msgs.locale, "tasksCancelledByUser", nil)
+}
+
+// TasksResizePanel says "Resize console panel"
+// in the language the app shows.
+func TasksResizePanel() string { return In(i18n.Locale()).TasksResizePanel() }
+
+// TasksResizePanel says "Resize console panel"
+// in the language of msgs.
+func (msgs Messages) TasksResizePanel() string {
+	return Catalog.Format(msgs.locale, "tasksResizePanel", nil)
+}
+
+// ToastCancelled says "Task cancelled"
+// in the language the app shows.
+func ToastCancelled() string { return In(i18n.Locale()).ToastCancelled() }
+
+// ToastCancelled says "Task cancelled"
+// in the language of msgs.
+func (msgs Messages) ToastCancelled() string {
+	return Catalog.Format(msgs.locale, "toastCancelled", nil)
+}
+
+// NotificationTaskSucceeded says "{operation} succeeded"
+// in the language the app shows.
+func NotificationTaskSucceeded(operation string) string {
+	return In(i18n.Locale()).NotificationTaskSucceeded(operation)
+}
+
+// NotificationTaskSucceeded says "{operation} succeeded"
+// in the language of msgs.
+func (msgs Messages) NotificationTaskSucceeded(operation string) string {
+	return Catalog.Format(msgs.locale, "notificationTaskSucceeded", map[string]any{"operation": operation})
+}
+
+// NotificationTaskFailed says "{operation} failed"
+// in the language the app shows.
+func NotificationTaskFailed(operation string) string {
+	return In(i18n.Locale()).NotificationTaskFailed(operation)
+}
+
+// NotificationTaskFailed says "{operation} failed"
+// in the language of msgs.
+func (msgs Messages) NotificationTaskFailed(operation string) string {
+	return Catalog.Format(msgs.locale, "notificationTaskFailed", map[string]any{"operation": operation})
+}
+
+// TableStarted says "Started"
+// in the language the app shows.
+func TableStarted() string { return In(i18n.Locale()).TableStarted() }
+
+// TableStarted says "Started"
+// in the language of msgs.
+func (msgs Messages) TableStarted() string {
+	return Catalog.Format(msgs.locale, "tableStarted", nil)
+}
+
+// TableFinished says "Finished"
+// in the language the app shows.
+func TableFinished() string { return In(i18n.Locale()).TableFinished() }
+
+// TableFinished says "Finished"
+// in the language of msgs.
+func (msgs Messages) TableFinished() string {
+	return Catalog.Format(msgs.locale, "tableFinished", nil)
+}
+
+// SearchManagers says "Package managers"
+// in the language the app shows.
+func SearchManagers() string { return In(i18n.Locale()).SearchManagers() }
+
+// SearchManagers says "Package managers"
+// in the language of msgs.
+func (msgs Messages) SearchManagers() string {
+	return Catalog.Format(msgs.locale, "searchManagers", nil)
+}
+
+// SearchManagerCount says "{count} managers"
+// in the language the app shows.
+func SearchManagerCount(count int) string { return In(i18n.Locale()).SearchManagerCount(count) }
+
+// SearchManagerCount says "{count} managers"
+// in the language of msgs.
+func (msgs Messages) SearchManagerCount(count int) string {
+	return Catalog.Format(msgs.locale, "searchManagerCount", map[string]any{"count": count})
+}
+
+// ManagerCount says "{count} managers"
+// in the language the app shows.
+func ManagerCount(count int) string { return In(i18n.Locale()).ManagerCount(count) }
+
+// ManagerCount says "{count} managers"
+// in the language of msgs.
+func (msgs Messages) ManagerCount(count int) string {
+	return Catalog.Format(msgs.locale, "managerCount", map[string]any{"count": count})
+}
+
+// TasksOperations says "Operations"
+// in the language the app shows.
+func TasksOperations() string { return In(i18n.Locale()).TasksOperations() }
+
+// TasksOperations says "Operations"
+// in the language of msgs.
+func (msgs Messages) TasksOperations() string {
+	return Catalog.Format(msgs.locale, "tasksOperations", nil)
+}
+
+// OperationCount says "{count} operations"
+// in the language the app shows.
+func OperationCount(count int) string { return In(i18n.Locale()).OperationCount(count) }
+
+// OperationCount says "{count} operations"
+// in the language of msgs.
+func (msgs Messages) OperationCount(count int) string {
+	return Catalog.Format(msgs.locale, "operationCount", map[string]any{"count": count})
 }

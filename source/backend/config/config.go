@@ -18,6 +18,8 @@ type Config struct {
 	Log      logging.Config              `json:"log"`
 	Startup  Startup                     `json:"startup"`
 	Managers map[string]manager.Settings `json:"managers"`
+	// Language is the tag chosen in Settings, "" to follow the system.
+	Language string `json:"language,omitempty"`
 }
 
 // Startup holds what the app does when it opens.
@@ -131,6 +133,18 @@ func setManager(id string, s manager.Settings) error {
 func SetAutoScan(on bool) error {
 	cfg := Instance
 	cfg.Startup.AutoScan = &on
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// SetLanguage saves the language UniPac shows, "" to follow the system.
+// Applying it to the running app is the caller's job.
+func SetLanguage(tag string) error {
+	cfg := Instance
+	cfg.Language = tag
 	if err := Save(cfg); err != nil {
 		return err
 	}

@@ -5,13 +5,18 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
+	"sync"
 
 	"github.com/RUBisco0211/unipac/source/backend/cache"
 	"github.com/RUBisco0211/unipac/source/backend/config"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/core/registry"
 	"github.com/RUBisco0211/unipac/source/backend/logging"
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/backend/util"
+	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/egoist/mygo"
 	"github.com/samber/lo"
 )
 
@@ -19,10 +24,22 @@ import (
 // the views; there is no binding layer between them.
 type App struct {
 	ctx context.Context
+	// runCtx is the parent of every action. Cancelling it stops the commands a
+	// quit interrupts, and wakes workers waiting for a free slot.
+	runCtx  context.Context
+	cancel  context.CancelFunc
+	actions *actionLimiter
 }
 
 func NewApp() *App {
-	return &App{ctx: context.Background()}
+	ctx := context.Background()
+	runCtx, cancel := context.WithCancel(ctx)
+	return &App{
+		ctx:     ctx,
+		runCtx:  runCtx,
+		cancel:  cancel,
+		actions: newActionLimiter(maxConcurrentActions),
+	}
 }
 
 // Startup prepares the app root, config, logging, cache and manager registry.
@@ -33,6 +50,7 @@ func (a *App) Startup(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	a.ctx = ctx
+	a.runCtx, a.cancel = context.WithCancel(ctx)
 
 	if err := util.InitAppRoot("unipac"); err != nil {
 		return a.fail("init app root dir", err)
@@ -41,6 +59,13 @@ func (a *App) Startup(ctx context.Context) error {
 	if err := config.Init(); err != nil {
 		return a.fail("load app config", err)
 	}
+	// The config is the source of the language choice; an unknown tag follows
+	// the system rather than making the app unusable.
+	language := config.Instance.Language
+	if language != "" && !slices.Contains(mygo.App.Languages(), language) {
+		language = ""
+	}
+	mygo.App.SetLocale(language)
 
 	if err := logging.Init(config.Instance.Log); err != nil {
 		return a.fail("init logging", err)
@@ -51,6 +76,11 @@ func (a *App) Startup(ctx context.Context) error {
 		return a.fail("init cache", err)
 	}
 	slog.InfoContext(a.ctx, "cache initialized")
+
+	if err := tasks.Init(a.ctx); err != nil {
+		return a.fail("init task history", err)
+	}
+	slog.InfoContext(a.ctx, "task history initialized")
 
 	slog.InfoContext(a.ctx, "initializing manager registry")
 	registry.Init(a.ctx, config.ManagerSettings())
@@ -69,8 +99,10 @@ func (a *App) Shutdown() {
 	Cleanup()
 }
 
-// Cleanup closes the log file. It is safe to call more than once.
+// Cleanup closes the task store and the log file. It is safe to call more than
+// once.
 func Cleanup() {
+	tasks.Default.Close()
 	if logging.LogFile == nil {
 		return
 	}
@@ -135,6 +167,38 @@ func (a *App) ReloadManagers() error {
 	return nil
 }
 
+// Language is the saved language tag, "" to follow the system. A tag this
+// build no longer ships reads as the system choice, so the Settings select can
+// still show and replace it.
+func (a *App) Language() string {
+	tag := config.Instance.Language
+	if tag != "" && !slices.Contains(mygo.App.Languages(), tag) {
+		return ""
+	}
+	return tag
+}
+
+// Languages lists the languages UniPac is written in.
+func (a *App) Languages() []string {
+	return mygo.App.Languages()
+}
+
+// SetLanguage saves the chosen language and applies it at once. An empty tag
+// follows the system again.
+func (a *App) SetLanguage(tag string) error {
+	tag = strings.TrimSpace(tag)
+	if tag != "" && !slices.Contains(mygo.App.Languages(), tag) {
+		return fmt.Errorf("unknown language: %q", tag)
+	}
+	slog.InfoContext(a.ctx, "changing language", "language", tag)
+	if err := config.SetLanguage(tag); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save language", "error", err)
+		return err
+	}
+	mygo.App.SetLocale(tag)
+	return nil
+}
+
 // AutoScanOnLaunch reports whether the app scans for installed packages when
 // it opens.
 func (a *App) AutoScanOnLaunch() bool {
@@ -193,6 +257,17 @@ func (a *App) GetCachedPackages() ([]manager.Package, error) {
 
 func (a *App) UpdateCache() error {
 	slog.InfoContext(a.ctx, "updating package cache")
+	ids := make([]string, 0)
+	for _, info := range registry.Instance.ListManagers() {
+		if info.Enabled {
+			ids = append(ids, info.ID)
+		}
+	}
+	release, err := a.actions.acquireManagers(a.runCtx, ids)
+	if err != nil {
+		return err
+	}
+	defer release()
 	pkgs, reliable, err := registry.Instance.GetInstalledPackages()
 	if err != nil {
 		slog.ErrorContext(a.ctx, "failed to get installed packages from registry", "error", err)
@@ -213,9 +288,9 @@ func (a *App) UpdateCache() error {
 	return nil
 }
 
-func (a *App) SearchPackages(keyword string) ([]manager.Package, error) {
-	slog.InfoContext(a.ctx, "searching packages", "keyword", keyword)
-	pkgs, err := registry.Instance.SearchPackages(keyword)
+func (a *App) SearchPackages(keyword string, managerIDs []string) ([]manager.Package, error) {
+	slog.InfoContext(a.ctx, "searching packages", "keyword", keyword, "managers", managerIDs)
+	pkgs, err := registry.Instance.SearchPackages(keyword, managerIDs)
 	if err != nil {
 		slog.ErrorContext(a.ctx, "package search failed", "keyword", keyword, "error", err)
 		return nil, err
@@ -244,20 +319,20 @@ func (a *App) ListPackageVersions(managerID string, name string) ([]string, erro
 	return versions, nil
 }
 
-func (a *App) InstallPackage(managerID string, name string, opt manager.ActionOptions) (manager.ActionResult, error) {
-	slog.InfoContext(a.ctx, "installing package", "manager", managerID, "package", name, "version", opt.Version)
-	result, err := registry.Instance.InstallPackages(managerID, []manager.Package{{Name: name}}, opt)
+func (a *App) InstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	slog.InfoContext(a.ctx, "installing package", "manager", pkg.Manager, "package", pkg.Name, "version", opt.Version)
+	result, err := a.runPackageTask(tasks.KindInstall, pkg, opt)
 	if err != nil {
-		slog.ErrorContext(a.ctx, "package install failed", "manager", managerID, "package", name, "error", err)
+		slog.ErrorContext(a.ctx, "package install failed", "manager", pkg.Manager, "package", pkg.Name, "error", err)
 	} else {
-		slog.InfoContext(a.ctx, "package install completed", "manager", managerID, "package", name, "success", result.Success)
+		slog.InfoContext(a.ctx, "package install completed", "manager", pkg.Manager, "package", pkg.Name, "success", result.Success)
 	}
 	return result, err
 }
 
 func (a *App) UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
 	slog.InfoContext(a.ctx, "uninstalling package", "manager", pkg.Manager, "package", pkg.Name)
-	result, err := registry.Instance.UninstallPackages(pkg.Manager, []manager.Package{pkg}, opt)
+	result, err := a.runPackageTask(tasks.KindUninstall, pkg, opt)
 	if err != nil {
 		slog.ErrorContext(a.ctx, "package uninstall failed", "manager", pkg.Manager, "package", pkg.Name, "error", err)
 	} else {
@@ -266,21 +341,24 @@ func (a *App) UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (
 	return result, err
 }
 
-func (a *App) UpdatePackage(managerID string, name string, opt manager.ActionOptions) (manager.ActionResult, error) {
-	slog.InfoContext(a.ctx, "updating package", "manager", managerID, "package", name)
-	result, err := registry.Instance.UpdatePackages(managerID, []manager.Package{{Name: name}}, opt)
+func (a *App) UpdatePackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	slog.InfoContext(a.ctx, "updating package", "manager", pkg.Manager, "package", pkg.Name)
+	result, err := a.runPackageTask(tasks.KindUpdate, pkg, opt)
 	if err != nil {
-		slog.ErrorContext(a.ctx, "package update failed", "manager", managerID, "package", name, "error", err)
+		slog.ErrorContext(a.ctx, "package update failed", "manager", pkg.Manager, "package", pkg.Name, "error", err)
 	} else {
-		slog.InfoContext(a.ctx, "package update completed", "manager", managerID, "package", name, "success", result.Success)
+		slog.InfoContext(a.ctx, "package update completed", "manager", pkg.Manager, "package", pkg.Name, "success", result.Success)
 	}
 	return result, err
 }
 
+// BatchUninstallPackages fans a selection out into one task per package. The
+// adapter never receives a batch, so every task has its own command, state and
+// console.
 func (a *App) BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	names := lo.Map(pkgs, func(p manager.Package, _ int) string { return p.Name })
+	names := packageNames(pkgs)
 	slog.InfoContext(a.ctx, "batch uninstalling packages", "count", len(pkgs), "packages", names)
-	result, err := registry.Instance.BatchUninstallPackages(pkgs, opt)
+	result, err := a.runPackageBatch(tasks.KindUninstall, pkgs, opt)
 	if err != nil {
 		slog.ErrorContext(a.ctx, "batch uninstall failed", "error", err)
 	} else {
@@ -289,14 +367,234 @@ func (a *App) BatchUninstallPackages(pkgs []manager.Package, opt manager.ActionO
 	return result, err
 }
 
+// BatchUpdatePackages fans a selection out into one task per package.
 func (a *App) BatchUpdatePackages(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	names := lo.Map(pkgs, func(p manager.Package, _ int) string { return p.Name })
+	names := packageNames(pkgs)
 	slog.InfoContext(a.ctx, "batch updating packages", "count", len(pkgs), "packages", names)
-	result, err := registry.Instance.BatchUpdatePackages(pkgs, opt)
+	result, err := a.runPackageBatch(tasks.KindUpdate, pkgs, opt)
 	if err != nil {
 		slog.ErrorContext(a.ctx, "batch update failed", "error", err)
 	} else {
 		slog.InfoContext(a.ctx, "batch update completed", "success", result.Success)
 	}
 	return result, err
+}
+
+// ListTasks returns the tasks of this session and the stored history, with the
+// console output of the ones this process ran.
+func (a *App) ListTasks() []tasks.Snapshot {
+	return tasks.Default.List()
+}
+
+// SetTaskListener registers a callback for task changes, so the page can
+// repaint while a command prints. It is called off the UI thread.
+func (a *App) SetTaskListener(fn func()) {
+	tasks.Default.SetListener(fn)
+}
+
+// TaskOutput returns a task's console lines, including a task from a previous
+// session whose output lives in the store.
+func (a *App) TaskOutput(id string) tasks.Output {
+	return tasks.Default.Output(id)
+}
+
+// CancelTask stops one running or queued task and records it as cancelled.
+func (a *App) CancelTask(id string) error {
+	return tasks.Default.Cancel(id)
+}
+
+// UnfinishedTasks reports queued and running tasks. The window asks before it
+// closes and before the app quits.
+func (a *App) UnfinishedTasks() int {
+	return tasks.Default.PendingCount()
+}
+
+// StopTasks cancels every unfinished task and kills the commands still
+// running, so the child processes are not orphaned.
+func (a *App) StopTasks() {
+	tasks.Default.StopAll(tasks.InterruptedMessage)
+	a.cancel()
+}
+
+// runPackageTask creates one task for one package and runs it.
+func (a *App) runPackageTask(kind tasks.Kind, pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	task := a.beginTask(kind, pkg, opt)
+	// The task's own context wakes a queued acquire when the user cancels it.
+	release, err := a.actions.acquire(task.Context(), pkg.Manager)
+	if err != nil {
+		if task.Cancelled() {
+			return manager.ErrorResult(tasks.CancelledMessage), nil
+		}
+		task.Finish(false, tasks.InterruptedMessage)
+		return manager.ErrorResult(err.Error()), err
+	}
+	defer release()
+
+	if !task.Start() {
+		return manager.ErrorResult(tasks.CancelledMessage), nil
+	}
+	result, err := a.runRegistryAction(task.Context(), kind, pkg, opt)
+	if task.Cancelled() {
+		return manager.ErrorResult(tasks.CancelledMessage), nil
+	}
+	task.Finish(err == nil && result.Success, actionMessage(result, err))
+	return result, err
+}
+
+// batchJob is one package's task in a batch.
+type batchJob struct {
+	task *tasks.Task
+	pkg  manager.Package
+}
+
+// runPackageBatch creates a task per package first, so the page shows the whole
+// selection as queued, then runs them with the action limit.
+func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	if len(pkgs) == 0 {
+		return manager.SuccessResult(""), nil
+	}
+	jobs := make([]batchJob, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		jobs = append(jobs, batchJob{task: a.beginTask(kind, pkg, opt), pkg: pkg})
+	}
+
+	workers := min(maxConcurrentActions, len(jobs))
+	queue := make(chan batchJob)
+	var (
+		mu        sync.Mutex
+		failures  []string
+		cancelled int
+		wg        sync.WaitGroup
+	)
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for job := range queue {
+				release, err := a.actions.acquire(job.task.Context(), job.pkg.Manager)
+				if err != nil {
+					if job.task.Cancelled() {
+						mu.Lock()
+						cancelled++
+						mu.Unlock()
+						continue
+					}
+					job.task.Finish(false, tasks.InterruptedMessage)
+					continue
+				}
+				if !job.task.Start() {
+					release()
+					mu.Lock()
+					cancelled++
+					mu.Unlock()
+					continue
+				}
+				result, runErr := a.runRegistryAction(job.task.Context(), kind, job.pkg, opt)
+				release()
+				if job.task.Cancelled() {
+					mu.Lock()
+					cancelled++
+					mu.Unlock()
+					continue
+				}
+				job.task.Finish(runErr == nil && result.Success, actionMessage(result, runErr))
+
+				if runErr == nil && result.Success {
+					continue
+				}
+				message := actionMessage(result, runErr)
+				if message == "" {
+					message = "failed"
+				}
+				mu.Lock()
+				failures = append(failures, job.pkg.Name+": "+message)
+				mu.Unlock()
+			}
+		}()
+	}
+	for _, job := range jobs {
+		queue <- job
+	}
+	close(queue)
+	wg.Wait()
+
+	if len(failures) > 0 {
+		return manager.ErrorResult(strings.Join(failures, "\n")), nil
+	}
+	switch {
+	case cancelled == len(jobs):
+		return manager.ErrorResult(tasks.CancelledMessage), nil
+	case cancelled > 0:
+		return manager.ErrorResult(locales.TasksBatchCancelled()), nil
+	default:
+		return manager.SuccessResult(""), nil
+	}
+}
+
+// runRegistryAction calls the registry for one task. Every call carries exactly
+// one package: batch commands are gone from the UI's path.
+func (a *App) runRegistryAction(ctx context.Context, kind tasks.Kind, pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	switch kind {
+	case tasks.KindInstall:
+		return registry.Instance.InstallPackages(ctx, pkg.Manager, []manager.Package{pkg}, opt)
+	case tasks.KindUpdate:
+		return registry.Instance.UpdatePackages(ctx, pkg.Manager, []manager.Package{pkg}, opt)
+	case tasks.KindUninstall:
+		return registry.Instance.UninstallPackages(ctx, pkg.Manager, []manager.Package{pkg}, opt)
+	default:
+		return manager.ErrorResult("unknown task kind: " + string(kind)), nil
+	}
+}
+
+// beginTask records a queued task, naming the manager as the interface shows it
+// rather than exposing an ID.
+func (a *App) beginTask(kind tasks.Kind, pkg manager.Package, opt manager.ActionOptions) *tasks.Task {
+	oldVersion, newVersion := pkg.Version, pkg.LatestVersion
+	switch kind {
+	case tasks.KindInstall:
+		oldVersion = ""
+		if opt.Version != "" {
+			newVersion = opt.Version
+		}
+	case tasks.KindUninstall:
+		newVersion = ""
+	case tasks.KindUpdate:
+		// A requested version belongs to an install; an update goes to the
+		// latest version the list knows.
+		if newVersion == "" {
+			newVersion = pkg.Version
+		}
+	}
+	return tasks.Default.Begin(a.runCtx, kind, tasks.Target{
+		ManagerID:   pkg.Manager,
+		ManagerName: a.managerLabel(pkg.Manager),
+		Name:        pkg.Name,
+		Version:     oldVersion,
+		NewVersion:  newVersion,
+		IsGUI:       pkg.IsGUI,
+	})
+}
+
+// managerLabel resolves a manager ID to the backend-provided display name. An
+// unknown ID stays as it is, so a task never loses its manager.
+func (a *App) managerLabel(id string) string {
+	for _, info := range registry.Instance.ListManagers() {
+		if info.ID == id {
+			return info.Name
+		}
+	}
+	return id
+}
+
+// actionMessage is what the task records when it ends: the adapter's result or
+// the error that stopped it.
+func actionMessage(result manager.ActionResult, err error) string {
+	if err != nil {
+		return util.StripANSI(err.Error())
+	}
+	return util.StripANSI(result.Message)
+}
+
+func packageNames(pkgs []manager.Package) []string {
+	return lo.Map(pkgs, func(pkg manager.Package, _ int) string { return pkg.Name })
 }
