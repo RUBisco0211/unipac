@@ -219,6 +219,19 @@ func (a *App) SetLanguage(tag string) error {
 
 // AutoScanOnLaunch reports whether the app scans for installed packages when
 // it opens.
+func (a *App) HoldToConfirm() bool {
+	return config.Instance.HoldsToConfirm()
+}
+
+func (a *App) SetHoldToConfirm(on bool) error {
+	slog.InfoContext(a.ctx, "changing hold to confirm", "on", on)
+	if err := config.SetHoldToConfirm(on); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save hold to confirm", "error", err)
+		return err
+	}
+	return nil
+}
+
 func (a *App) AutoScanOnLaunch() bool {
 	return config.Instance.Startup.ScansOnLaunch()
 }

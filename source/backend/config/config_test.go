@@ -198,3 +198,22 @@ func TestMissingConfigLeavesNoCopy(t *testing.T) {
 		t.Errorf("no config was written: %v", err)
 	}
 }
+
+// Holding to confirm is on unless a config says otherwise, so a file written
+// before the setting existed keeps the safer answer.
+func TestHoldToConfirmDefaultsOn(t *testing.T) {
+	useTempRoot(t)
+	if !Instance.HoldsToConfirm() {
+		t.Fatal("a fresh config does not hold to confirm")
+	}
+	if err := SetHoldToConfirm(false); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.HoldsToConfirm() {
+		t.Error("the saved off was lost")
+	}
+}

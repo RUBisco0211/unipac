@@ -11,6 +11,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
+	"github.com/RUBisco0211/unipac/source/views/settings"
 	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
@@ -507,5 +508,92 @@ func TestTitleBarWithoutPageActions(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText(locales.NavPackages()) || !tt.HasText(locales.NavTasks()) {
 		t.Errorf("the title bar lost its parts: %v", tt.Texts())
+	}
+}
+
+// quitService stands in for the app: it reports the pending tasks the dialog is
+// about and remembers being asked to stop them.
+type quitService struct {
+	inventory.Service
+	pending int
+	stopped bool
+}
+
+func (s *quitService) UnfinishedTasks() int           { return s.pending }
+func (s *quitService) StopTasks()                     { s.stopped = true }
+func (s *quitService) ListTasks() []tasks.Snapshot    { return nil }
+func (s *quitService) TaskOutput(string) tasks.Output { return tasks.Output{} }
+
+// uiWithQuitPrompt is a window showing the quit dialog for two tasks.
+func uiWithQuitPrompt(t *testing.T, hold bool) (*UI, *quitService, *ui.Tester) {
+	t.Helper()
+	svc := &quitService{pending: 2}
+	u := uiWithPages()
+	u.svc = svc
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, SplitPercent: 64}
+	u.settings = &settings.View{HoldToConfirm: hold}
+	quit := 0
+	u.quitApp = func() { quit++ }
+	u.quitPending, u.quitOpen = 2, true
+
+	tt := render(t, u.content, 900, 520)
+	tt.Frame()
+	return u, svc, tt
+}
+
+// The window asks in its own dialog, and keeping running closes it with the
+// tasks untouched.
+func TestQuitDialogKeepsRunning(t *testing.T) {
+	u, svc, tt := uiWithQuitPrompt(t, true)
+	if !tt.HasText(locales.TasksQuitTitle()) {
+		t.Fatalf("the question is missing: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.TasksQuitCancel()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if u.quitOpen {
+		t.Error("the dialog stayed open")
+	}
+	if svc.stopped || u.quitAccepted.Load() {
+		t.Error("keeping running stopped the tasks")
+	}
+}
+
+// With holding on, the confirm is a hold: pressing it briefly does nothing.
+func TestQuitConfirmNeedsAHold(t *testing.T) {
+	u, svc, tt := uiWithQuitPrompt(t, true)
+	confirm, ok := tt.Find(locales.TasksQuitConfirm())
+	if !ok {
+		t.Fatalf("the confirm control is missing: %v", tt.Texts())
+	}
+	tt.ClickAt(confirm.X+confirm.W/2, confirm.Y+confirm.H/2)
+	tt.Frame()
+	if svc.stopped || u.quitAccepted.Load() {
+		t.Error("a click confirmed a hold")
+	}
+
+	// Held long enough, it confirms: the tasks are stopped and the app leaves.
+	tt.Press(confirm.X+confirm.W/2, confirm.Y+confirm.H/2)
+	tt.Advance(2 * time.Second)
+	tt.Release(confirm.X+confirm.W/2, confirm.Y+confirm.H/2)
+	tt.Frame()
+	if !svc.stopped {
+		t.Error("the hold did not stop the tasks")
+	}
+	if !u.quitAccepted.Load() {
+		t.Error("the hold did not accept the quit")
+	}
+}
+
+// With holding off, the confirm is a button and one click answers it.
+func TestQuitConfirmClicksWhenHoldingIsOff(t *testing.T) {
+	u, svc, tt := uiWithQuitPrompt(t, false)
+	if err := tt.Click(locales.TasksQuitConfirm()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if !svc.stopped || !u.quitAccepted.Load() {
+		t.Error("the click did not confirm the quit")
 	}
 }

@@ -29,15 +29,19 @@ type View struct {
 	OnSetAutoScan func(on bool)
 	OnSetLogLevel func(level string)
 	OnSetLanguage func(tag string)
+	OnSetHold     func(on bool)
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
 
 	// AutoScan is the saved startup behavior; the shell reads it to decide
 	// whether to scan on launch.
 	AutoScan bool
-	logLevel string
-	levels   []string
-	language string
+	// HoldToConfirm is how a destructive confirmation is answered, a hold or a
+	// click; the shell reads it for the quit dialog.
+	HoldToConfirm bool
+	logLevel      string
+	levels        []string
+	language      string
 	// languages are the tags UniPac is written in, in the app's own order.
 	languages []string
 
@@ -64,21 +68,23 @@ type managerRow struct {
 // New builds the page from the values the app started with.
 func New(service inventory.Service, d *inventory.Data) *View {
 	return &View{
-		Data:      d,
-		AutoScan:  service.AutoScanOnLaunch(),
-		logLevel:  service.LogLevel(),
-		levels:    service.LogLevels(),
-		language:  service.Language(),
-		languages: service.Languages(),
+		Data:          d,
+		AutoScan:      service.AutoScanOnLaunch(),
+		HoldToConfirm: service.HoldToConfirm(),
+		logLevel:      service.LogLevel(),
+		levels:        service.LogLevels(),
+		language:      service.Language(),
+		languages:     service.Languages(),
 	}
 }
 
 // Snapshot is the settings state the backend reports after a write. It comes
 // from the backend either way, so a failed write puts the controls back.
 type Snapshot struct {
-	AutoScan bool
-	LogLevel string
-	Language string
+	AutoScan      bool
+	LogLevel      string
+	Language      string
+	HoldToConfirm bool
 }
 
 // BeginSave marks the page busy for one settings write and reports false when
@@ -101,6 +107,7 @@ func (s *View) EndSave(err error, saved Snapshot) {
 	s.AutoScan = saved.AutoScan
 	s.logLevel = saved.LogLevel
 	s.language = saved.Language
+	s.HoldToConfirm = saved.HoldToConfirm
 	if err != nil {
 		s.err = err.Error()
 		s.Invalidate()
@@ -165,6 +172,12 @@ func (s *View) general(c *ui.Context) {
 		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.AutoScan, func(on bool) {
 			if s.OnSetAutoScan != nil {
 				s.OnSetAutoScan(on)
+			}
+		})
+		parts.Divider(c)
+		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), &s.HoldToConfirm, func(on bool) {
+			if s.OnSetHold != nil {
+				s.OnSetHold(on)
 			}
 		})
 		parts.Divider(c)

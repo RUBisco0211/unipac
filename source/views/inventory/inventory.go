@@ -32,6 +32,8 @@ type Service interface {
 	SetLanguage(tag string) error
 	AutoScanOnLaunch() bool
 	SetAutoScanOnLaunch(on bool) error
+	HoldToConfirm() bool
+	SetHoldToConfirm(on bool) error
 	LogLevel() string
 	LogLevels() []string
 	SetLogLevel(level string) error

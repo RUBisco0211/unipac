@@ -23,6 +23,15 @@ type Config struct {
 	Managers map[string]manager.Settings `json:"managers"`
 	// Language is the tag chosen in Settings, "" to follow the system.
 	Language string `json:"language,omitempty"`
+	// HoldToConfirm is nil in a config written before the setting existed, which
+	// behaves like true: the destructive confirmations hold rather than click.
+	HoldToConfirm *bool `json:"hold_to_confirm,omitempty"`
+}
+
+// HoldsToConfirm reports whether a destructive confirmation is a hold rather
+// than a click.
+func (c Config) HoldsToConfirm() bool {
+	return c.HoldToConfirm == nil || *c.HoldToConfirm
 }
 
 // Startup holds what the app does when it opens.
@@ -159,6 +168,17 @@ func setManager(id string, s manager.Settings) error {
 func SetAutoScan(on bool) error {
 	cfg := Instance
 	cfg.Startup.AutoScan = &on
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// SetHoldToConfirm saves whether destructive confirmations hold or click.
+func SetHoldToConfirm(on bool) error {
+	cfg := Instance
+	cfg.HoldToConfirm = &on
 	if err := Save(cfg); err != nil {
 		return err
 	}

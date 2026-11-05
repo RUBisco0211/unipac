@@ -86,11 +86,15 @@ type UI struct {
 	tasks     *taskspage.View
 	settings  *settings.View
 
-	// quitPrompting keeps one quit dialog open at a time. quitAccepted is set
-	// once the user chose to leave anyway, so the close and quit handlers stop
-	// standing in the way. Both are touched from the quit goroutine.
-	quitPrompting atomic.Bool
-	quitAccepted  atomic.Bool
+	// quitOpen shows the window's own quit dialog, and quitPending says how many
+	// tasks it is about. quitAccepted is set once the user chose to leave
+	// anyway, so the close and quit handlers stop standing in the way.
+	quitOpen     bool
+	quitPending  int
+	quitAccepted atomic.Bool
+	// quitApp leaves the app. It is a field so a test can answer the dialog
+	// without an event loop behind it.
+	quitApp func()
 
 	// jobTarget is the title bar's tasks button rectangle, laid out each frame;
 	// jobFlight carries a package icon from a task's control to it.
@@ -149,6 +153,10 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetAutoScan = u.SetAutoScanOnLaunch
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
+	holds := func() bool { return u.settings.HoldToConfirm }
+	u.installed.HoldsToConfirm = holds
+	u.outdated.HoldsToConfirm = holds
+	u.settings.OnSetHold = u.SetHoldToConfirm
 	return u
 }
 
@@ -176,7 +184,7 @@ func (u *UI) Run() {
 		slog.Info("views: window close requested", "pending", pending)
 		if pending > 0 {
 			e.PreventDefault()
-			u.askToQuit(pending)
+			u.askToQuit(win, pending)
 		}
 	})
 	// Cmd+Q and the app menu quit without asking the window first.
@@ -188,7 +196,7 @@ func (u *UI) Run() {
 		slog.Info("views: quit requested", "pending", pending)
 		if pending > 0 {
 			e.PreventDefault()
-			u.askToQuit(pending)
+			u.askToQuit(win, pending)
 		}
 	})
 	win.OnClosed(func() { mygo.App.Quit() })
@@ -616,34 +624,71 @@ func (u *UI) RetryTask(task tasks.Snapshot, at flight.Origin) {
 	}
 }
 
-// askToQuit asks before leaving with unfinished tasks. It uses a native dialog
-// so the question is visible even when the window is minimized, and runs off
-// the UI thread because the dialog blocks until it is answered.
-func (u *UI) askToQuit(pending int) {
-	if u.shell == nil || !u.quitPrompting.CompareAndSwap(false, true) {
+// askToQuit opens the window's quit dialog for the tasks still running. The
+// dialog is the app's own, not a native one, so it can ask for a hold: a quit
+// that stops work is destructive, and the interface already answers uninstalling
+// that way. The event that asked is prevented before this, so the window stays.
+func (u *UI) askToQuit(win *mygo.Window, pending int) {
+	if u.quitOpen {
 		return
 	}
-	win := u.shell.Window()
-	go func() {
-		result, err := mygo.Dialog.Message(mygo.MessageOptions{
-			Parent:        win,
-			Type:          mygo.MessageWarning,
-			Message:       locales.TasksQuitTitle(),
-			Detail:        locales.TasksQuitMessage(pending),
-			Buttons:       []string{locales.CommonCancel(), locales.TasksQuitConfirm()},
-			DefaultButton: 0,
-			CancelButton:  0,
-			// "Quit anyway" leaves unfinished work behind.
-			DestructiveButtons: []int{1},
+	u.quitPending = pending
+	u.quitOpen = true
+	win.Invalidate()
+}
+
+// quitDialog draws the question, and answers it: keep running, or quit and let
+// the tasks be marked cancelled.
+func (u *UI) quitDialog(c *ui.Context) {
+	t := c.Theme()
+	components.Dialog(c, &u.quitOpen, components.DialogOptions{Label: locales.TasksQuitTitle()}, func(panel ui.Element) {
+		pending := u.quitPending
+		panel.Width(420).Padding(20).Children(func() {
+			ui.Column(c).Gap(12).Children(func() {
+				components.Text(c, locales.TasksQuitTitle()).FontSize(16).Bold()
+				components.Text(c, locales.TasksQuitMessage(pending)).TextColor(t.TextMuted)
+				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+					if components.Button(c, locales.TasksQuitCancel(), components.ButtonOutline).Clicked() {
+						u.quitOpen = false
+						u.quitPending = 0
+					}
+					u.quitConfirm(c)
+				})
+			})
 		})
-		u.quitPrompting.Store(false)
-		if err != nil || result.Button != 1 {
-			return
+	})
+}
+
+// quitConfirm is the confirm control: a hold, or a click when the user turned
+// holding off.
+func (u *UI) quitConfirm(c *ui.Context) {
+	if u.settings == nil || !u.settings.HoldToConfirm {
+		confirm := components.Button(c, locales.TasksQuitConfirm(), components.ButtonOutline)
+		confirm.TextColor(c.Theme().Danger)
+		if confirm.Clicked() {
+			u.confirmQuit()
 		}
-		u.quitAccepted.Store(true)
-		u.svc.StopTasks()
-		win.Update(func() { mygo.App.Quit() })
-	}()
+		return
+	}
+	var held bool
+	hold := components.HoldToConfirm(c, &held, locales.TasksQuitConfirm(),
+		components.HoldToConfirmOptions{Tone: components.HoldDanger})
+	if hold.Changed() {
+		u.confirmQuit()
+	}
+}
+
+// confirmQuit leaves: the tasks are stopped, which cancels the ones running, and
+// the accepted flag lets the window close without asking again.
+func (u *UI) confirmQuit() {
+	u.quitOpen = false
+	u.quitAccepted.Store(true)
+	u.svc.StopTasks()
+	if u.quitApp != nil {
+		u.quitApp()
+		return
+	}
+	mygo.App.Quit()
 }
 
 func (u *UI) back() {
@@ -857,6 +902,7 @@ func (u *UI) content(c *ui.Context) {
 	for _, t := range u.data.DrainToasts() {
 		c.AddToast(u.toastFor(t))
 	}
+	u.quitDialog(c)
 	// The tasks page keeps its own top inset: its console surface runs to the
 	// window's top edge, like the sidebar's.
 	top := sidebar.HeaderHeight(c) + 16
@@ -923,6 +969,13 @@ func (u *UI) SetLogLevel(level string) {
 	})
 }
 
+// SetHoldToConfirm saves whether a destructive confirmation holds or clicks.
+func (u *UI) SetHoldToConfirm(on bool) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetHoldToConfirm(on)
+	})
+}
+
 func (u *UI) SetLanguage(tag string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetLanguage(tag)
@@ -946,9 +999,10 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 		managers := u.svc.ListManagers()
 		overrides := u.svc.ManagerOverrides()
 		saved := settings.Snapshot{
-			AutoScan: u.svc.AutoScanOnLaunch(),
-			LogLevel: u.svc.LogLevel(),
-			Language: u.svc.Language(),
+			AutoScan:      u.svc.AutoScanOnLaunch(),
+			LogLevel:      u.svc.LogLevel(),
+			Language:      u.svc.Language(),
+			HoldToConfirm: u.svc.HoldToConfirm(),
 		}
 		win.Update(func() {
 			s.EndSave(err, saved)

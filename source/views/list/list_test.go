@@ -597,3 +597,24 @@ func TestVersionAndDescriptionHaveTooltips(t *testing.T) {
 		}
 	}
 }
+
+// The uninstall confirm follows the same setting as the quit dialog: a click
+// when holding is off, a hold otherwise.
+func TestUninstallConfirmFollowsTheHoldingSetting(t *testing.T) {
+	var removed []string
+	l := &View{Data: fixture(), AllowRemove: true, HoldsToConfirm: func() bool { return false }}
+	l.OnRemove = func(pkg manager.Package, _ flight.Origin) { removed = append(removed, pkg.Name) }
+	l.uninstallOpen, l.uninstallTarget = true, fixture().Rows[0]
+
+	tt := render(t, func(c *ui.Context) { l.uninstallDialog(c) }, 900, 500)
+	if err := tt.Click(locales.UninstallConfirm()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if len(removed) != 1 || removed[0] != "ripgrep" {
+		t.Errorf("removed = %v, want ripgrep", removed)
+	}
+	if l.uninstallOpen {
+		t.Error("the dialog stayed open")
+	}
+}

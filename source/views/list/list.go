@@ -37,6 +37,9 @@ type View struct {
 	// TitleActions builds the buttons this page puts in the title bar, beside
 	// its title and before the tasks button.
 	TitleActions func(*ui.Context)
+	// HoldsToConfirm reports whether answering a destructive confirmation is a
+	// hold rather than a click; nil means a hold.
+	HoldsToConfirm func() bool
 
 	query    string
 	managers map[string]bool
@@ -670,6 +673,12 @@ func (l *View) rowActions(c *ui.Context, pkg manager.Package) {
 
 // uninstallDialog asks before removing one package; the removal itself is a
 // hold, so a stray click cannot confirm it.
+// holdsToConfirm reports whether the confirm is a hold; the shell wires it to
+// the setting, and a nil wiring keeps the hold.
+func (l *View) holdsToConfirm() bool {
+	return l.HoldsToConfirm == nil || l.HoldsToConfirm()
+}
+
 func (l *View) uninstallDialog(c *ui.Context) {
 	components.Dialog(c, &l.uninstallOpen, components.DialogOptions{Label: locales.UninstallTitle()}, func(panel ui.Element) {
 		pkg := l.uninstallTarget
@@ -685,6 +694,19 @@ func (l *View) uninstallDialog(c *ui.Context) {
 						l.uninstallOpen = false
 					}
 					var confirmed bool
+					if !l.holdsToConfirm() {
+						// The setting answers destructive confirmations with a
+						// click; it is still the danger action.
+						remove := components.Button(c, locales.UninstallConfirm(), components.ButtonOutline)
+						remove.TextColor(t.Danger)
+						if remove.Clicked() {
+							l.uninstallOpen = false
+							if l.OnRemove != nil {
+								l.OnRemove(pkg, flight.OriginOf(remove))
+							}
+						}
+						return
+					}
 					hold := components.HoldToConfirm(c, &confirmed, locales.UninstallConfirm(),
 						components.HoldToConfirmOptions{Tone: components.HoldDanger})
 					if hold.Changed() {

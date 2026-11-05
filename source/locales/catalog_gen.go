@@ -1377,3 +1377,43 @@ func SearchUpdateAvailable() string { return In(i18n.Locale()).SearchUpdateAvail
 func (msgs Messages) SearchUpdateAvailable() string {
 	return Catalog.Format(msgs.locale, "searchUpdateAvailable", nil)
 }
+
+// SettingsHoldToConfirm says "Hold to confirm"
+// in the language the app shows.
+func SettingsHoldToConfirm() string { return In(i18n.Locale()).SettingsHoldToConfirm() }
+
+// SettingsHoldToConfirm says "Hold to confirm"
+// in the language of msgs.
+func (msgs Messages) SettingsHoldToConfirm() string {
+	return Catalog.Format(msgs.locale, "settingsHoldToConfirm", nil)
+}
+
+// SettingsHoldToConfirmDesc says "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it."
+// in the language the app shows.
+func SettingsHoldToConfirmDesc() string { return In(i18n.Locale()).SettingsHoldToConfirmDesc() }
+
+// SettingsHoldToConfirmDesc says "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it."
+// in the language of msgs.
+func (msgs Messages) SettingsHoldToConfirmDesc() string {
+	return Catalog.Format(msgs.locale, "settingsHoldToConfirmDesc", nil)
+}
+
+// TasksQuitCancel says "Keep running"
+// in the language the app shows.
+func TasksQuitCancel() string { return In(i18n.Locale()).TasksQuitCancel() }
+
+// TasksQuitCancel says "Keep running"
+// in the language of msgs.
+func (msgs Messages) TasksQuitCancel() string {
+	return Catalog.Format(msgs.locale, "tasksQuitCancel", nil)
+}
+
+// CommonClickConfirm says "Confirm"
+// in the language the app shows.
+func CommonClickConfirm() string { return In(i18n.Locale()).CommonClickConfirm() }
+
+// CommonClickConfirm says "Confirm"
+// in the language of msgs.
+func (msgs Messages) CommonClickConfirm() string {
+	return Catalog.Format(msgs.locale, "commonClickConfirm", nil)
+}
