@@ -87,16 +87,27 @@ func View(c *ui.Context, s *State, content, side func(*ui.Context)) {
 	shown := float32(math.Round(float64(width * progress)))
 	row.Children(func() {
 		// The content grows into whatever the panel leaves, and keeps the same
-		// parent whether the panel is there or not.
-		ui.Column(c).Key(s.key("content")).Grow(1).MinWidth(0).Children(func() {
+		// parent whether the panel is there or not. It is clipped on the trailing
+		// edge: a table wider than the room, or a row of toolbar controls that do
+		// not wrap, would otherwise draw under the panel, which paints over them
+		// only where its own background is opaque.
+		ui.Column(c).Key(s.key("content")).Grow(1).MinWidth(0).ClipX().Children(func() {
 			if content != nil {
 				content(c)
 			}
 		})
 		if shown > 0 {
 			// The panel keeps its width as it slides: this row narrowing is what
-			// moves it out past the window's edge, clipped.
-			ui.Row(c).Key(s.key("pane")).Width(shown).Shrink(0).AlignItems(ui.Stretch).ClipX().Children(func() {
+			// moves it out past the window's edge, clipped. A hairline on its own
+			// edge is what tells it from the content beside it.
+			t := c.Theme()
+			pane := ui.Row(c).Key(s.key("pane")).Width(shown).Shrink(0).AlignItems(ui.Stretch).ClipX()
+			pane.Draw(func(p *ui.Painter, r ui.Rect) {
+				if r.W > 0 && r.H > 0 {
+					p.Fill(ui.Rect{X: r.X, Y: r.Y, W: 1, H: r.H}, t.Border, 0)
+				}
+			})
+			pane.Children(func() {
 				ui.Column(c).Width(width).Shrink(0).AlignItems(ui.Stretch).
 					Opacity(0.4 + 0.6*progress).Children(func() {
 					if side != nil {

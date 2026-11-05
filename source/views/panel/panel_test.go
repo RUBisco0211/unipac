@@ -7,6 +7,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
+	"github.com/oneo-me/onevra/source/theme"
 )
 
 // page builds a content area and a panel, each with a text of its own.
@@ -145,5 +146,42 @@ func TestTitleActionToggles(t *testing.T) {
 	}
 	if !tt.HasText(labels.Show) {
 		t.Errorf("the toggle still offers to hide a closed panel: %v", tt.Texts())
+	}
+}
+
+// A hairline on the panel's edge tells it from the content beside it, and it
+// travels with the edge as the panel slides.
+func TestPanelDrawsItsEdge(t *testing.T) {
+	const width = 1000
+	pal := theme.Palette(false)
+	s := &State{Width: 380}
+	tt := testui.Render(page(s), width, 400)
+	tt.Frame()
+
+	// The theme's 8-bit channels against the image's 16-bit ones.
+	c16 := func(v uint8) uint32 { return uint32(v) * 257 }
+	br, bg, bb := c16(pal.Border.R), c16(pal.Border.G), c16(pal.Border.B)
+	line := func() int {
+		img := tt.Image()
+		for x := 1; x < width; x++ {
+			r, g, b, _ := img.At(x, 200).RGBA()
+			if r == br && g == bg && b == bb {
+				return x
+			}
+		}
+		return -1
+	}
+	if got := line(); got != width-380 {
+		t.Errorf("the edge is at %d, want the panel's own edge at %d", got, width-380)
+	}
+
+	// Halfway through closing, the line has moved with the edge, not stayed put.
+	s.Toggle()
+	tt.Frame()
+	tt.Advance(100 * time.Millisecond)
+	tt.Frame()
+	moved := line()
+	if moved <= width-380 {
+		t.Errorf("the edge stayed at %d while the panel slid", moved)
 	}
 }
