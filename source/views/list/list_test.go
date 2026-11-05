@@ -505,3 +505,29 @@ func TestFilterKeepsScrollWithinRange(t *testing.T) {
 		t.Fatalf("visible %d..%d of %d rows, want the end of the list", first, last, len(l.rows))
 	}
 }
+
+// The row buttons belong to the actions column, and the trailing pad column
+// holds nothing: with the buttons drawn in the pad they are squeezed to a
+// sliver at the window edge, which is what a stale column index does.
+func TestRowActionsStayInTheActionsColumn(t *testing.T) {
+	const width = 900
+	l := &View{Data: fixture(), AllowRemove: true}
+	tt := render(t, l.Build, width, 500)
+
+	if _, ok := tt.Find(locales.TableActions()); !ok {
+		t.Fatal("the actions header is missing")
+	}
+	for _, want := range []string{locales.ActionsUpdate(), locales.ActionsRemove()} {
+		button, ok := tt.Find(want)
+		if !ok {
+			t.Fatalf("%q is missing", want)
+		}
+		if button.W == 0 || button.H == 0 {
+			t.Errorf("%q is clipped to %+v", want, button)
+		}
+		// 12 DIPs of pad follow the table, so nothing may reach its right edge.
+		if right := button.X + button.W; right > width-12 {
+			t.Errorf("%q ends at %.0f, inside the trailing pad of a %d window: %+v", want, right, width, button)
+		}
+	}
+}

@@ -45,9 +45,13 @@ type View struct {
 	// the old selection meant "all" before a new manager joins the list.
 	knownManagers map[string]bool
 	table         components.TableVirtualizedState
-	chosen        map[string]struct{}
-	selection     ui.Selection[any]
-	sortOrder     ui.SortOrder
+	// actions is the column the row's buttons are built in, worked out where the
+	// columns are built: the select checkbox, the shared fields, then this one,
+	// then the trailing pad.
+	actions   int
+	chosen    map[string]struct{}
+	selection ui.Selection[any]
+	sortOrder ui.SortOrder
 
 	uninstallOpen   bool
 	uninstallTarget manager.Package
@@ -256,6 +260,7 @@ const selectColumnWidth = 40
 func (l *View) columns() []ui.TableColumn {
 	columns := []ui.TableColumn{{Title: "", ID: "select", Width: selectColumnWidth, Fixed: true}}
 	columns = append(columns, parts.Fields()...)
+	l.actions = len(columns)
 	columns = append(columns, ui.TableColumn{
 		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
 	})
@@ -582,7 +587,7 @@ func (l *View) cell(c *ui.Context, row, col int) {
 				l.choose(pkg, checked)
 			}
 		})
-	case 6:
+	case l.actions:
 		l.rowActions(c, pkg)
 	default:
 		parts.Cell(c, pkg, col-1, l.Data.Name)
