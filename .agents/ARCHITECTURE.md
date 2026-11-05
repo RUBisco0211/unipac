@@ -333,11 +333,12 @@ together, and nothing has to be found across a 900-line file:
 | --- | --- | --- |
 | `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling and task notifications | every view package below |
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
+| `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed, install | `inventory`, `parts`, `flight` |
 | `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
-| `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the selected task's console | `inventory`, `parts`, `ansi`, `flight` |
+| `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
 | `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |
 | `views/internal/testui` | the fixtures the page tests share: inventory, task list, headless window | `inventory` |

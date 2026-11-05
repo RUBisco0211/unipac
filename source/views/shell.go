@@ -23,6 +23,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
+	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
 	"github.com/RUBisco0211/unipac/source/views/settings"
@@ -140,7 +141,7 @@ func New(service inventory.Service) *UI {
 	u.tasks = &taskspage.View{
 		Data:          u.data,
 		SelectedIndex: -1,
-		ConsoleWidth:  380,
+		Console:       panel.State{Width: 380},
 		OnRetry:       u.RetryTask,
 		OnCancel:      u.CancelTask,
 		OnSelect:      u.loadTaskOutput,
