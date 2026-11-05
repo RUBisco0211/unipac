@@ -62,7 +62,8 @@ type View struct {
 func (s *View) Build(c *ui.Context) {
 	s.syncManagers()
 	ui.Column(c).Fill().Gap(12).Children(func() {
-		ui.Column(c).Shrink(0).Gap(12).Padding(0, 16, 0, 16).Children(func() {
+		// The page inset the toolbar and the table both start from.
+		ui.Column(c).Shrink(0).Gap(12).Padding(0, c.Theme().Space(4), 0, c.Theme().Space(4)).Children(func() {
 			s.toolbar(c)
 			s.chips(c)
 		})
@@ -310,7 +311,7 @@ func (s *View) body(c *ui.Context) {
 				// The list is what a manager had to give within its limit, so say
 				// so rather than looking like the whole answer.
 				components.Text(c, locales.SearchTruncated(strconv.Itoa(manager.MaxSearchResults))).
-					FontSize(12).TextColor(c.Theme().TextMuted).Shrink(0).Padding(0, 16, 6, 16)
+					FontSize(12).TextColor(c.Theme().TextMuted).Shrink(0).Padding(0, c.Theme().Space(4), c.Theme().Space(1.5), c.Theme().Space(4))
 			}
 			// The same insets as the package tables: the table brings its own
 			// cell padding, and the trailing pad column keeps the last control

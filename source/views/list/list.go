@@ -79,7 +79,8 @@ type View struct {
 func (l *View) Build(c *ui.Context) {
 	l.Sync()
 	ui.Column(c).Fill().Gap(12).Children(func() {
-		ui.Column(c).Shrink(0).Gap(12).Padding(0, 16, 0, 16).Children(func() {
+		// The page inset the toolbar and the table both start from.
+		ui.Column(c).Shrink(0).Gap(12).Padding(0, c.Theme().Space(4), 0, c.Theme().Space(4)).Children(func() {
 			l.toolbar(c)
 			if l.Data.RefreshErr != nil {
 				components.Text(c, locales.PackagesRefreshError(l.Data.RefreshErr.Error())).
