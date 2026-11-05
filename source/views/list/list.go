@@ -262,7 +262,7 @@ const selectColumnWidth = 40
 // padding, then the column's own. The header's controls are laid out absolutely,
 // so they take this rather than the container's padding.
 func firstCellInset(t *ui.Theme) float32 {
-	return t.Space(1.5) + t.Space(2.5)
+	return t.Space(2) + t.Space(2.5)
 }
 
 func (l *View) columns() []ui.TableColumn {
@@ -272,9 +272,7 @@ func (l *View) columns() []ui.TableColumn {
 	columns = append(columns, ui.TableColumn{
 		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
 	})
-	// A hair of trailing space so the last header and the row buttons do not
-	// touch the window edge.
-	return append(columns, ui.TableColumn{Title: "", ID: "pad", Width: 12, Fixed: true})
+	return columns
 }
 
 func (l *View) applySort() {
@@ -554,10 +552,10 @@ func (l *View) body(c *ui.Context) {
 		// with that item to wherever the sort puts it.
 		l.table.List.KeepOffset = true
 		t := c.Theme()
-		// Space(1.5) of leading padding for the first cell, header and rows
-		// alike: Onevra gives a header cell and a row cell the same padding and
-		// has no per-column inset, so it goes on the table's own edge.
-		ui.Column(c).Fill().Padding(0, 0, 0, t.Space(1.5)).Children(func() {
+		// Space(2) either side of the table: Onevra gives a header cell and a row
+		// cell the same padding and has no per-column inset, so the table's own
+		// edge is where the first cell's padding, header included, goes.
+		ui.Column(c).Fill().Padding(0, t.Space(2), 0, t.Space(2)).Children(func() {
 			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
 				l.cell(c, row, col)
 			}).Fill()

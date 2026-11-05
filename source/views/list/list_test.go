@@ -553,7 +553,7 @@ func TestSelectAllAlignsWithTheRowCheckboxes(t *testing.T) {
 	}
 	// The table's leading padding and the column's, which the header's absolute
 	// control adds for itself.
-	if want := theme.Palette(false).Space(1.5) + theme.Palette(false).Space(2.5); header.X != want {
+	if want := theme.Palette(false).Space(2) + theme.Palette(false).Space(2.5); header.X != want {
 		t.Errorf("the first cell starts at %.0f, want %.0f", header.X, want)
 	}
 	// And the header's own text stays to the right of it.

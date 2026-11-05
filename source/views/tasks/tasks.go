@@ -670,8 +670,8 @@ func (s *View) body(c *ui.Context) {
 		s.table.List.KeepOffset = true
 		s.table.List.OnChange = s.choose
 		// The table's inset from the page, as the package tables have.
-		// The same leading padding as the package tables.
-		ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
+		// The same padding either side as the package tables.
+		ui.Box(c).Fill().MinHeight(0).Padding(0, c.Theme().Space(2), 0, c.Theme().Space(2)).Children(func() {
 			components.TableVirtualized(c, &s.table, s.columns(), len(s.rows), func(row, col int) {
 				s.cell(c, row, col)
 			}).Fill()
@@ -700,7 +700,6 @@ func (s *View) columns() []ui.TableColumn {
 		{Title: locales.TableStatus(), ID: "status", Width: 92, Fixed: true},
 		{Title: locales.TableStarted(), ID: "started", Width: 84, Fixed: true},
 		{Title: locales.TableFinished(), ID: "finished", Width: 84, Fixed: true},
-		{Title: "", ID: "pad", Width: 4, Fixed: true},
 	}
 }
 

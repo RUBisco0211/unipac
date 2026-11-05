@@ -264,9 +264,7 @@ func (s *View) columns() []ui.TableColumn {
 	columns = append(columns, ui.TableColumn{
 		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
 	})
-	// The same trailing space the package tables have, so the last header and
-	// the row button do not touch the window edge.
-	return append(columns, ui.TableColumn{Title: "", ID: "pad", Width: 12, Fixed: true})
+	return columns
 }
 
 func (s *View) applySort() {
@@ -315,9 +313,9 @@ func (s *View) body(c *ui.Context) {
 			// The same insets as the package tables: the table brings its own
 			// cell padding, and the trailing pad column keeps the last control
 			// off the window edge.
-			// The same leading padding as the package tables, for the header's
-			// first cell and the rows together.
-			ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
+			// The same padding either side as the package tables, for the
+			// header's first cell and the rows together.
+			ui.Box(c).Fill().MinHeight(0).Padding(0, c.Theme().Space(2), 0, c.Theme().Space(2)).Children(func() {
 				components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
 					pkg := s.results[row]
 					switch {
