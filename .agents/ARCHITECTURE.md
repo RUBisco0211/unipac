@@ -437,13 +437,21 @@ scanning on launch, and whether a destructive confirmation is a hold or a click 
 the log level, the language (the app's languages plus System, named in their own
 language), and one row per package manager.
 
-A manager row holds the name, a status line only when the executable is missing,
-the executable path, an Apply button and a switch. The path field shows the saved
-override; the detected path is its muted placeholder, so an empty field means
-"detect automatically". Apply stays visible and disabled until the draft differs,
-and the field submits on Enter. Rows are rebuilt only when
-`Data.ManagersVersion` changes, so an unapplied draft survives the frames in
-between.
+A manager row is three lines. The first holds the name with what the manager
+contributes and a switch: `Homebrew · 12 packages`, counted from `Data.Rows` and
+rebuilt only when `Data.Version` changes, and a red "executable not found" when
+preflight failed. The second holds the executable path and its Apply button, at
+the row's full width so a long path reads. The third names the capabilities the
+manager does not advertise — the capability matrix's order, joined with the
+catalog's list separator, and absent entirely when the manager offers every one —
+because a button disabled elsewhere in the window should have its reason here,
+where the manager is configured.
+
+The path field shows the saved override; the detected path is its muted
+placeholder, so an empty field means "detect automatically". Apply stays visible
+and disabled until the draft differs, and the field submits on Enter. Rows are
+rebuilt only when `Data.ManagersVersion` changes, so an unapplied draft survives
+the frames in between.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
 subprocess and every write touches the config file. The control moves first and

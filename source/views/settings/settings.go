@@ -47,6 +47,10 @@ type View struct {
 
 	rows []managerRow
 	seen int
+	// counts is how many installed packages each manager contributes, built from
+	// the inventory version it was counted at.
+	counts     map[string]int
+	countsSeen int
 	// busy is true while a save or a preflight runs; controls stay in place and
 	// are disabled instead of vanishing.
 	busy bool
@@ -310,42 +314,110 @@ func (s *View) languageRow(c *ui.Context) {
 	})
 }
 
-// managerControl is one manager: its name and state, the executable path, and
-// the switch that turns it on or off.
+// managerControl is one manager: what it is and what it holds, the executable
+// path, what it cannot do, and the switch that turns it on or off.
+//
+// The row is three lines rather than one. The name and its switch own the first,
+// so the path gets the row's whole width on the second, and a manager that cannot
+// answer an action says so on the third instead of leaving the page to explain a
+// disabled button somewhere else.
 func (s *View) managerControl(c *ui.Context, row *managerRow) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(12).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Width(150).Shrink(0).Gap(2).Children(func() {
-			components.Text(c, row.info.Name).SingleLine()
+	ui.Column(c).FillWidth().Padding(12, 0).Gap(8).Children(func() {
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
+			ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
+				components.Text(c, row.info.Name).SingleLine()
+				// A dot, not a column: the count is a note about the name, and
+				// the name is what the row is.
+				components.Text(c, "·").TextColor(t.TextMuted)
+				components.Text(c, s.packageCount(row.info.ID)).
+					FontSize(12).TextColor(t.TextMuted).SingleLine()
+			})
 			if !row.info.Available {
 				components.Text(c, locales.SettingsNotFound()).
 					FontSize(11).TextColor(t.Danger).SingleLine()
 			}
+			before := row.enabled
+			sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
+			sw.Disabled(s.busy)
+			if row.enabled != before && s.OnSetEnabled != nil {
+				s.OnSetEnabled(row.info.ID, row.enabled)
+			}
 		})
 
-		box := components.TextBox(c, &row.path, components.TextBoxOptions{}).
-			Label(locales.SettingsExecPathLabel(row.info.Name)).
-			Placeholder(s.pathHint(row)).
-			PlaceholderColor(t.TextMuted).
-			FillWidth().MinWidth(0)
-		if box.Submitted() {
-			s.applyPath(row)
-		}
+		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
+			box := components.TextBox(c, &row.path, components.TextBoxOptions{}).
+				Label(locales.SettingsExecPathLabel(row.info.Name)).
+				Placeholder(s.pathHint(row)).
+				PlaceholderColor(t.TextMuted).
+				FillWidth().MinWidth(0)
+			if box.Submitted() {
+				s.applyPath(row)
+			}
 
-		apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
-		apply.Label(locales.SettingsApplyPathFor(row.info.Name))
-		apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
-		if apply.Clicked() {
-			s.applyPath(row)
-		}
+			apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
+			apply.Label(locales.SettingsApplyPathFor(row.info.Name))
+			apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
+			if apply.Clicked() {
+				s.applyPath(row)
+			}
+		})
 
-		before := row.enabled
-		sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
-		sw.Disabled(s.busy)
-		if row.enabled != before && s.OnSetEnabled != nil {
-			s.OnSetEnabled(row.info.ID, row.enabled)
+		if missing := unsupportedCapabilities(row.info.Capabilities); missing != "" {
+			components.Text(c, missing).FontSize(12).TextColor(t.TextMuted).Wrap()
 		}
 	})
+}
+
+// packageCount says how many installed packages a manager contributes, which is
+// how a user sees that detection works and what turning a manager off would take
+// away.
+func (s *View) packageCount(id string) string {
+	return locales.SettingsPackageCount(s.managerCounts()[id])
+}
+
+// managerCounts counts the inventory's rows per manager, rebuilt only when the
+// inventory changed: a refresh must move the numbers, and a frame that changes
+// nothing must not walk the rows again.
+func (s *View) managerCounts() map[string]int {
+	if s.counts != nil && s.countsSeen == s.Data.Version {
+		return s.counts
+	}
+	counts := make(map[string]int, len(s.Data.Managers))
+	for _, pkg := range s.Data.Rows {
+		counts[pkg.Manager]++
+	}
+	s.counts, s.countsSeen = counts, s.Data.Version
+	return counts
+}
+
+// unsupportedCapabilities names the actions a manager does not advertise, in the
+// order the adapter guide's capability matrix lists them, and is empty when the
+// manager offers every one: a row says what is missing rather than listing what
+// is there.
+func unsupportedCapabilities(cap manager.Capabilities) string {
+	missing := make([]string, 0, 8)
+	for _, item := range []struct {
+		supported bool
+		label     func() string
+	}{
+		{cap.ListInstalled, locales.CapabilityInstalled},
+		{cap.ListOutdated, locales.CapabilityOutdated},
+		{cap.GetPackageInfo, locales.CapabilityPackageInfo},
+		{cap.Search, locales.CapabilitySearch},
+		{cap.Install, locales.CapabilityInstall},
+		{cap.Uninstall, locales.CapabilityUninstall},
+		{cap.Update, locales.CapabilityUpdate},
+		{cap.ListVersions, locales.CapabilityVersions},
+	} {
+		if !item.supported {
+			missing = append(missing, item.label())
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return locales.SettingsUnsupported(strings.Join(missing, locales.CommonListSeparator()))
 }
 
 // pathHint shows what automatic detection resolves to, so an empty field is not

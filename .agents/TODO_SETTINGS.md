@@ -9,18 +9,18 @@ Branch: `feature/settings`.
 
 ## Phase A — frontend only
 
-- [ ] **Manager row: what the manager holds.** A muted `· 27 packages` beside the
+- [x] **Manager row: what the manager holds.** A muted `· 27 packages` beside the
       name, counted from `Data.Rows` and rebuilt only when `Data.Version` changes
       (the pattern `list.managerCounts` already uses).
-- [ ] **Manager row: what it cannot do.** A muted line naming the capabilities the
+- [x] **Manager row: what it cannot do.** A muted line naming the capabilities the
       manager does not advertise, in the capability matrix's order, and nothing at
       all when it advertises every one: the row should say what is missing rather
       than list what is there.
-- [ ] **Manager row layout.** Name, stats, state and switch on the first line, the
+- [x] **Manager row layout.** Name, stats, state and switch on the first line, the
       executable path and its Apply on a second line of its own, the unsupported
       capabilities under them. The path field was 150 DIPs narrower than this and
       now has the row's full width.
-- [ ] Tests in `views/settings`: the count follows the inventory, the unsupported
+- [x] Tests in `views/settings`: the count follows the inventory, the unsupported
       line names exactly the missing ones and is absent when nothing is missing.
 
 ## Phase B — backend, in this order

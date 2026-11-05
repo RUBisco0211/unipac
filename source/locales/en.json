@@ -213,6 +213,31 @@
   "commonClickConfirm": "Confirm",
   "tasksConsoleShow": "Show console",
   "tasksConsoleHide": "Hide console",
+  "settingsPackageCount": "{count, plural, =0 {no packages} one {# package} other {# packages}}",
+  "@settingsPackageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsUnsupported": "Not supported: {list}",
+  "@settingsUnsupported": {
+    "placeholders": {
+      "list": {
+        "type": "String"
+      }
+    }
+  },
+  "commonListSeparator": ", ",
+  "capabilityInstalled": "package list",
+  "capabilityOutdated": "outdated list",
+  "capabilityPackageInfo": "package info",
+  "capabilitySearch": "search",
+  "capabilityInstall": "install",
+  "capabilityUninstall": "uninstall",
+  "capabilityUpdate": "update",
+  "capabilityVersions": "version list",
   "versionsTitle": "Install a version",
   "versionsFor": "Choose a version of {name} from {manager}",
   "@versionsFor": {

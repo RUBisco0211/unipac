@@ -25,7 +25,8 @@ func Data() *inventory.Data {
 				Capabilities: manager.Capabilities{ListInstalled: true, ListOutdated: true, Search: true, Update: true, Uninstall: true}},
 			{ID: "npm", Name: "NPM", Enabled: true, Available: true,
 				Capabilities: manager.Capabilities{ListInstalled: true, Update: true, Uninstall: true}},
-			{ID: "cargo", Name: "Cargo", Enabled: false},
+			{ID: "cargo", Name: "Cargo", Enabled: false,
+				Capabilities: manager.Capabilities{ListInstalled: true, Search: true, Install: true, Uninstall: true}},
 		},
 		Rows: []manager.Package{
 			{Name: "ripgrep", Version: "14.1.1", Manager: "brew", Installed: true, Description: "Line-oriented search tool"},

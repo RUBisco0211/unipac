@@ -1438,6 +1438,116 @@ func (msgs Messages) TasksConsoleHide() string {
 	return Catalog.Format(msgs.locale, "tasksConsoleHide", nil)
 }
 
+// SettingsPackageCount says "{count, plural, =0 {no packages} one {# package} other {# packages}}"
+// in the language the app shows.
+func SettingsPackageCount(count int) string { return In(i18n.Locale()).SettingsPackageCount(count) }
+
+// SettingsPackageCount says "{count, plural, =0 {no packages} one {# package} other {# packages}}"
+// in the language of msgs.
+func (msgs Messages) SettingsPackageCount(count int) string {
+	return Catalog.Format(msgs.locale, "settingsPackageCount", map[string]any{"count": count})
+}
+
+// SettingsUnsupported says "Not supported: {list}"
+// in the language the app shows.
+func SettingsUnsupported(list string) string { return In(i18n.Locale()).SettingsUnsupported(list) }
+
+// SettingsUnsupported says "Not supported: {list}"
+// in the language of msgs.
+func (msgs Messages) SettingsUnsupported(list string) string {
+	return Catalog.Format(msgs.locale, "settingsUnsupported", map[string]any{"list": list})
+}
+
+// CommonListSeparator says ", "
+// in the language the app shows.
+func CommonListSeparator() string { return In(i18n.Locale()).CommonListSeparator() }
+
+// CommonListSeparator says ", "
+// in the language of msgs.
+func (msgs Messages) CommonListSeparator() string {
+	return Catalog.Format(msgs.locale, "commonListSeparator", nil)
+}
+
+// CapabilityInstalled says "package list"
+// in the language the app shows.
+func CapabilityInstalled() string { return In(i18n.Locale()).CapabilityInstalled() }
+
+// CapabilityInstalled says "package list"
+// in the language of msgs.
+func (msgs Messages) CapabilityInstalled() string {
+	return Catalog.Format(msgs.locale, "capabilityInstalled", nil)
+}
+
+// CapabilityOutdated says "outdated list"
+// in the language the app shows.
+func CapabilityOutdated() string { return In(i18n.Locale()).CapabilityOutdated() }
+
+// CapabilityOutdated says "outdated list"
+// in the language of msgs.
+func (msgs Messages) CapabilityOutdated() string {
+	return Catalog.Format(msgs.locale, "capabilityOutdated", nil)
+}
+
+// CapabilityPackageInfo says "package info"
+// in the language the app shows.
+func CapabilityPackageInfo() string { return In(i18n.Locale()).CapabilityPackageInfo() }
+
+// CapabilityPackageInfo says "package info"
+// in the language of msgs.
+func (msgs Messages) CapabilityPackageInfo() string {
+	return Catalog.Format(msgs.locale, "capabilityPackageInfo", nil)
+}
+
+// CapabilitySearch says "search"
+// in the language the app shows.
+func CapabilitySearch() string { return In(i18n.Locale()).CapabilitySearch() }
+
+// CapabilitySearch says "search"
+// in the language of msgs.
+func (msgs Messages) CapabilitySearch() string {
+	return Catalog.Format(msgs.locale, "capabilitySearch", nil)
+}
+
+// CapabilityInstall says "install"
+// in the language the app shows.
+func CapabilityInstall() string { return In(i18n.Locale()).CapabilityInstall() }
+
+// CapabilityInstall says "install"
+// in the language of msgs.
+func (msgs Messages) CapabilityInstall() string {
+	return Catalog.Format(msgs.locale, "capabilityInstall", nil)
+}
+
+// CapabilityUninstall says "uninstall"
+// in the language the app shows.
+func CapabilityUninstall() string { return In(i18n.Locale()).CapabilityUninstall() }
+
+// CapabilityUninstall says "uninstall"
+// in the language of msgs.
+func (msgs Messages) CapabilityUninstall() string {
+	return Catalog.Format(msgs.locale, "capabilityUninstall", nil)
+}
+
+// CapabilityUpdate says "update"
+// in the language the app shows.
+func CapabilityUpdate() string { return In(i18n.Locale()).CapabilityUpdate() }
+
+// CapabilityUpdate says "update"
+// in the language of msgs.
+func (msgs Messages) CapabilityUpdate() string {
+	return Catalog.Format(msgs.locale, "capabilityUpdate", nil)
+}
+
+// CapabilityVersions says "version list"
+// in the language the app shows.
+func CapabilityVersions() string { return In(i18n.Locale()).CapabilityVersions() }
+
+// CapabilityVersions says "version list"
+// in the language of msgs.
+func (msgs Messages) CapabilityVersions() string {
+	return Catalog.Format(msgs.locale, "capabilityVersions", nil)
+}
+
 // VersionsTitle says "Install a version"
 // in the language the app shows.
 func VersionsTitle() string { return In(i18n.Locale()).VersionsTitle() }
