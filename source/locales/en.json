@@ -288,5 +288,6 @@
   "settingsManagerExecutable": "Executable",
   "settingsManagerPackages": "Packages",
   "settingsManagerEnabled": "Enabled",
-  "settingsCapabilities": "Capabilities"
+  "settingsCapabilities": "Capabilities",
+  "navManagers": "Managers"
 }

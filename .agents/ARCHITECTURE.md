@@ -324,7 +324,7 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 `sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts, which `ShellOptions.Toasts` places at the bottom right.
 
-- Five sidebar entries map to the five pages: Packages, Outdated, Search, Tasks, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
+- Six sidebar entries map to the six pages: Packages, Outdated, Search, Tasks, Managers, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
 - Give the window a 1024 × 620 minimum; `sidebar.NewShell` defaults to 820 × 740,
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
@@ -350,7 +350,8 @@ together, and nothing has to be found across a 900-line file:
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update | `inventory`, `parts`, `flight` |
-| `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
+| `views/managers` | the package managers page: one tab per manager, its facts as key-value rows, the capability badges, and the save state machine | `inventory`, `parts` |
+| `views/settings` | the settings page: appearance, language, startup behavior, log level, the task history hold, and About | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
 | `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |
@@ -444,26 +445,30 @@ one, applied with `mygo.Theme.SetSource` before the window opens and again when 
 changes), the language (the app's languages plus System, named in their own
 language), and then startup behavior — scanning on launch, and whether a
 destructive confirmation is a hold or a click — the notifications switch, and the
-log level. Then the package managers, a Tasks section whose only job is the hold
-that clears the finished task history, and an About section: the app's version
-(from `mygo.App.Version`, which the build links in from `mygo.json`), the Go it was
-built with, the toolkit versions from the build's own module info, and the data and
-log folders with a button that opens each and one that copies the lot — with every
+log level. Then a Tasks section whose only job is the hold that clears the
+finished task history, and an About section: the app's version (from
+`mygo.App.Version`, which the build links in from `mygo.json`), the Go it was built
+with, the toolkit versions from the build's own module info, and the data and log
+folders with a button that opens each and one that copies the lot — with every
 manager's name, version, state, package count and gaps — into a bug report.
 
-The package managers are segmented tabs, one per manager, with the first chosen.
-A tab holds a panel of key-value rows, because the page is read as a list of
-answers: Status (available, or the red "executable not found"), the Enabled
-switch, Version, Executable with its path field and Apply, Packages (counted from
-`Data.Rows` and rebuilt only when `Data.Version` changes), and Capabilities. The
-switch sits second, under the state it explains, so turning a manager off is where
-the eye lands first. The tabs follow the manager's ID rather than its position, so
-a rescan that reorders or adds managers keeps the tab the user was on.
+The package managers have a page of their own, beside Settings in the sidebar, and
+it is tabs: one per manager with the first chosen, centred over the panel, which is
+a list of key-value rows, because the page is read as a list of answers — Status
+(available, or the red "executable not found"), the Enabled switch, Version,
+Executable with its path field and Apply, Packages (counted from `Data.Rows` and
+rebuilt only when `Data.Version` changes), and Capabilities. The switch sits
+second, under the state it explains, so turning a manager off is where the eye
+lands first. The tabs follow the manager's ID rather than its position, so a rescan
+that reorders or adds managers keeps the tab the user was on. Detecting every
+manager again is the page's title-bar action, which is where a re-probe belongs:
+it is about the managers, not about the rest of the settings.
 
 Capabilities are badges, one per capability in the adapter guide's order: a check
 in green for what the manager offers and a cross in red for what it does not. That
 is where a button disabled elsewhere in the window has its reason, and it costs a
-glance instead of reading the sentence this page used to carry.
+glance instead of reading a sentence. `parts` builds them, because the diagnostics
+text names the same gaps and both must read the same way.
 
 The path field shows the saved override; the detected path is its muted
 placeholder, so an empty field means "detect automatically". Apply stays visible
@@ -472,10 +477,12 @@ rebuilt only when `Data.ManagersVersion` changes, so an unapplied draft survives
 the frames in between, and the chosen tab is restored from the ID it was on.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
-subprocess and every write touches the config file. The control moves first and
-the job publishes what the backend reports; a failed write puts the rows back and
-shows the error at the top of the page. Turning a manager off or changing its
-path asks for a rescan, so its rows leave the lists.
+subprocess and every write touches the config file. The guard is one write at a
+time, whichever page asked — the settings page and the managers page share it,
+since both write the same config — and the control moves first while the job
+publishes what the backend reports; a failed write puts the rows back and shows
+the error where the change was made. Turning a manager off or changing its path
+asks for a rescan, so its rows leave the lists.
 
 ### Tasks Page
 

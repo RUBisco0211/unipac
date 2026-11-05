@@ -23,6 +23,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
+	managerspage "github.com/RUBisco0211/unipac/source/views/managers"
 	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
@@ -44,6 +45,7 @@ const (
 	PageOutdated
 	PageSearch
 	PageTasks
+	PageManagers
 	PageSettings
 )
 
@@ -90,7 +92,12 @@ type UI struct {
 	outdated  *list.View
 	search    *search.View
 	tasks     *taskspage.View
+	managers  *managerspage.View
 	settings  *settings.View
+
+	// saving says a settings write is running, so a second change waits rather
+	// than racing the config file.
+	saving bool
 
 	// quitOpen shows the window's own quit dialog, and quitPending says how many
 	// tasks it is about. quitAccepted is set once the user chose to leave
@@ -155,10 +162,14 @@ func New(service inventory.Service) *UI {
 	u.tasks.TitleActions = u.tasks.TitleAction
 	u.tasks.Apply(service.ListTasks())
 	u.knownTasks = taskStates(u.tasks.All())
+	u.managers = &managerspage.View{
+		Data:         u.data,
+		OnSetEnabled: u.SetManagerEnabled,
+		OnSetPath:    u.SetManagerExecPath,
+		OnReload:     u.ReloadManagers,
+	}
+	u.managers.TitleActions = u.managers.TitleAction
 	u.settings = settings.New(service, u.data)
-	u.settings.OnSetEnabled = u.SetManagerEnabled
-	u.settings.OnSetPath = u.SetManagerExecPath
-	u.settings.OnReload = u.ReloadManagers
 	u.settings.OnSetAutoScan = u.SetAutoScanOnLaunch
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
@@ -762,6 +773,8 @@ func (u *UI) pageTitle() string {
 		return locales.NavSearch()
 	case PageTasks:
 		return locales.NavTasks()
+	case PageManagers:
+		return locales.NavManagers()
 	case PageSettings:
 		return locales.NavSettings()
 	default:
@@ -795,6 +808,10 @@ func (u *UI) titleActions() func(*ui.Context) {
 	case PageTasks:
 		if u.tasks != nil {
 			return u.tasks.TitleActions
+		}
+	case PageManagers:
+		if u.managers != nil {
+			return u.managers.TitleActions
 		}
 	case PageSettings:
 		if u.settings != nil {
@@ -862,6 +879,7 @@ func (u *UI) left(c *ui.Context) {
 				u.nav(c, PageTasks, locales.NavTasks(), lucide.ListTodo(), u.runningTasks())
 			})
 			components.SidebarSection(c, locales.SidebarApp(), func() {
+				u.nav(c, PageManagers, locales.NavManagers(), lucide.Blocks(), 0)
 				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings(), 0)
 			})
 		})
@@ -968,6 +986,8 @@ func (u *UI) content(c *ui.Context) {
 					u.search.Build(c)
 				case PageTasks:
 					u.tasks.Build(c)
+				case PageManagers:
+					u.managers.Build(c)
 				case PageSettings:
 					u.settings.Build(c)
 				}
@@ -1085,13 +1105,16 @@ func (u *UI) SetLanguage(tag string) {
 // backend now reports. rescan asks for a new package scan, which is what makes
 // a turned-off manager's rows leave the lists.
 func (u *UI) saveSettings(rescan bool, fn func() error) {
-	if u.shell == nil || u.settings == nil {
+	if u.shell == nil || u.settings == nil || u.managers == nil || u.saving {
 		return
 	}
+	// One write at a time, whichever page asked: a second change while the first
+	// is in flight would race the config file, so the controls go back to the
+	// saved state instead of being silently dropped.
+	u.saving = true
 	s := u.settings
-	if !s.BeginSave() {
-		return
-	}
+	s.BeginSave()
+	u.managers.BeginSave()
 	win := u.shell.Window()
 	go func() {
 		err := fn()
@@ -1106,7 +1129,9 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			Notifications: u.svc.Notifications(),
 		}
 		win.Update(func() {
+			u.saving = false
 			s.EndSave(err, saved)
+			u.managers.EndSave(err)
 			if err != nil {
 				return
 			}

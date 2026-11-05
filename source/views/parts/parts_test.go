@@ -1,9 +1,12 @@
 package parts
 
 import (
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -98,5 +101,44 @@ func TestTitleButtonsShareOneBox(t *testing.T) {
 	// height of one unit less, centred on the bar.
 	if want := theme.Palette(false).Space(8); tasks.W != want {
 		t.Errorf("button width = %.0f, want %.0f", tasks.W, want)
+	}
+}
+
+// The capability badges name every capability in the adapter guide's order, and
+// the text form says which are missing.
+func TestCapabilityBadges(t *testing.T) {
+	tt := ui.NewTester(func(c *ui.Context) {
+		CapabilityBadges(c, manager.Capabilities{ListInstalled: true, Search: true, Update: true})
+	}, 600, 120)
+	tt.Frame()
+
+	for _, want := range []string{
+		locales.CapabilityInstalled(), locales.CapabilityOutdated(), locales.CapabilityPackageInfo(),
+		locales.CapabilitySearch(), locales.CapabilityInstall(), locales.CapabilityUninstall(),
+		locales.CapabilityUpdate(), locales.CapabilityVersions(),
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("capability %q is missing: %v", want, tt.Texts())
+		}
+	}
+}
+
+// The text form names the gaps for a place with no room for badges, in the same
+// order, and says nothing when there are none.
+func TestUnsupportedCapabilities(t *testing.T) {
+	all := manager.Capabilities{
+		ListInstalled: true, ListOutdated: true, GetPackageInfo: true, Search: true,
+		Install: true, Uninstall: true, Update: true, ListVersions: true,
+	}
+	if got := UnsupportedCapabilities(all); got != "" {
+		t.Errorf("a manager offering everything says %q", got)
+	}
+	want := locales.SettingsUnsupported(strings.Join([]string{
+		locales.CapabilityOutdated(), locales.CapabilityPackageInfo(),
+		locales.CapabilityInstall(), locales.CapabilityUninstall(),
+		locales.CapabilityVersions(),
+	}, locales.CommonListSeparator()))
+	if got := UnsupportedCapabilities(manager.Capabilities{ListInstalled: true, Search: true, Update: true}); got != want {
+		t.Errorf("unsupported list = %q, want %q", got, want)
 	}
 }

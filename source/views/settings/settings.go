@@ -5,14 +5,12 @@ package settings
 import (
 	"strings"
 
-	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
-	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // View is the settings page. Sections are stacked on one scrollable
@@ -24,9 +22,6 @@ import (
 type View struct {
 	Data *inventory.Data
 
-	OnSetEnabled  func(id string, enabled bool)
-	OnSetPath     func(id, path string)
-	OnReload      func()
 	OnSetAutoScan func(on bool)
 	OnSetLogLevel func(level string)
 	OnSetLanguage func(tag string)
@@ -57,35 +52,13 @@ type View struct {
 	// languages are the tags UniPac is written in, in the app's own order.
 	languages []string
 
-	rows []managerRow
-	seen int
-	// tab is the chosen manager's tab and tabID the manager it belongs to, so a
-	// rescan that reorders or adds managers keeps the tab the user was on.
-	tab   int
-	tabID string
 	// about is what the build is and where it keeps its files, loaded once when
 	// the page is built.
 	about inventory.About
-	// counts is how many installed packages each manager contributes, built from
-	// the inventory version it was counted at.
-	counts     map[string]int
-	countsSeen int
-	// busy is true while a save or a preflight runs; controls stay in place and
-	// are disabled instead of vanishing.
+	// busy is true while a save runs; controls stay in place and are disabled
+	// instead of vanishing.
 	busy bool
-	// detecting says the running job is a full re-probe, so only that action
-	// reports it as detecting.
-	detecting bool
-	err       string
-}
-
-// managerRow is one manager's retained state: the switch the user sees, the
-// path they are typing, and the path last saved.
-type managerRow struct {
-	info    manager.Info
-	enabled bool
-	path    string
-	saved   string
+	err  string
 }
 
 // New builds the page from the values the app started with.
@@ -115,23 +88,16 @@ type Snapshot struct {
 	Notifications bool
 }
 
-// BeginSave marks the page busy for one settings write and reports false when
-// another is still running: a second change would race the config write, so the
-// controls go back to the saved state instead of being silently dropped.
-func (s *View) BeginSave() bool {
-	if s.busy {
-		s.Invalidate()
-		return false
-	}
+// BeginSave marks the page busy for one settings write. The shell owns the guard
+// that keeps two writes from racing; this only disables the controls.
+func (s *View) BeginSave() {
 	s.busy = true
 	s.err = ""
-	return true
 }
 
 // EndSave installs what the backend now reports and the write's error, if any.
 func (s *View) EndSave(err error, saved Snapshot) {
 	s.busy = false
-	s.detecting = false
 	s.AutoScan = saved.AutoScan
 	s.logLevel = saved.LogLevel
 	s.language = saved.Language
@@ -140,12 +106,10 @@ func (s *View) EndSave(err error, saved Snapshot) {
 	s.Notifications = saved.Notifications
 	if err != nil {
 		s.err = err.Error()
-		s.Invalidate()
 	}
 }
 
 func (s *View) Build(c *ui.Context) {
-	s.Sync()
 	components.ScrollView(c, components.ScrollViewOptions{}).Fill().Children(func() {
 		ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(760).Gap(28).Padding(0, 16, 24, 16).Children(func() {
@@ -154,57 +118,11 @@ func (s *View) Build(c *ui.Context) {
 						FontSize(12).TextColor(c.Theme().Danger).Wrap()
 				}
 				s.general(c)
-				s.managers(c)
 				s.tasks(c)
 				s.aboutSection(c)
 			})
 		})
 	})
-}
-
-// sync rebuilds the rows when the backend reported a different manager list.
-// An unapplied path edit is carried over, so a rebuild never eats typing.
-func (s *View) Sync() {
-	if s.rows != nil && s.seen == s.Data.ManagersVersion {
-		return
-	}
-	s.seen = s.Data.ManagersVersion
-
-	drafts := make(map[string]string, len(s.rows))
-	for _, row := range s.rows {
-		if row.path != row.saved {
-			drafts[row.info.ID] = row.path
-		}
-	}
-	rows := make([]managerRow, 0, len(s.Data.Managers))
-	for _, m := range s.Data.Managers {
-		saved := s.Data.Overrides[m.ID]
-		row := managerRow{
-			info:    m,
-			enabled: !saved.Disabled,
-			path:    saved.ExecPath,
-			saved:   saved.ExecPath,
-		}
-		if draft, ok := drafts[m.ID]; ok {
-			row.path = draft
-		}
-		rows = append(rows, row)
-	}
-	s.rows = rows
-	// The chosen tab belongs to a manager, not to a position.
-	s.tab = 0
-	for i, row := range s.rows {
-		if row.info.ID == s.tabID {
-			s.tab = i
-			break
-		}
-	}
-}
-
-// invalidate makes the next build rebuild the rows from the backend, which is
-// how a failed save puts the switches back.
-func (s *View) Invalidate() {
-	s.seen = -1
 }
 
 func (s *View) general(c *ui.Context) {
@@ -235,106 +153,6 @@ func (s *View) general(c *ui.Context) {
 	})
 }
 
-func (s *View) managers(c *ui.Context) {
-	s.section(c, locales.SettingsManagers(), "", func() {
-		label := locales.SettingsRedetect()
-		if s.detecting {
-			label = locales.SettingsDetecting()
-		}
-		button := components.Button(c, label, components.ButtonGhost)
-		button.Disabled(s.busy)
-		if button.Clicked() && s.OnReload != nil {
-			s.detecting = true
-			s.OnReload()
-		}
-	}, func() {
-		s.managerTabs(c)
-	})
-}
-
-// managerTabs puts one tab per manager above the panel of the chosen one: a page
-// of five managers is five screens of settings, and one of them is being changed
-// at a time. The choice follows the manager's ID, so a rescan that reorders or
-// adds managers keeps the tab the user was on.
-func (s *View) managerTabs(c *ui.Context) {
-	if len(s.rows) == 0 {
-		return
-	}
-	if s.tab < 0 || s.tab >= len(s.rows) {
-		s.tab = 0
-	}
-	labels := make([]string, len(s.rows))
-	for i := range s.rows {
-		labels[i] = s.rows[i].info.Name
-	}
-	components.Tabs(c, &s.tab, components.TabsSegmented, labels...)
-	if s.tab >= 0 && s.tab < len(s.rows) {
-		s.tabID = s.rows[s.tab].info.ID
-	}
-	ui.Column(c).FillWidth().Children(func() {
-		s.managerPanel(c, &s.rows[s.tab])
-	})
-}
-
-// managerPanel is one manager's settings as a list of answers: whether it runs,
-// what it is, what it can do, and the two controls that change it. A label and a
-// value rather than a form, because most of the page is information and the parts
-// that are not are obvious as controls. The switch sits second, under the state it
-// explains, so turning a manager off is where the eye lands first.
-func (s *View) managerPanel(c *ui.Context, row *managerRow) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().Children(func() {
-		s.field(c, locales.SettingsManagerStatus(), func() {
-			status, color := locales.SettingsManagerAvailable(), t.Success
-			if !row.info.Available {
-				status, color = locales.SettingsNotFound(), t.Danger
-			}
-			components.Text(c, status).FontSize(12).TextColor(color)
-		})
-		parts.Divider(c)
-		parts.Divider(c)
-		s.field(c, locales.SettingsManagerEnabled(), func() {
-			before := row.enabled
-			sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
-			sw.Disabled(s.busy)
-			if row.enabled != before && s.OnSetEnabled != nil {
-				s.OnSetEnabled(row.info.ID, row.enabled)
-			}
-		})
-		parts.Divider(c)
-		s.field(c, locales.SettingsManagerVersion(), func() {
-			components.Text(c, parts.OrDash(row.info.Version)).FontSize(12)
-		})
-		parts.Divider(c)
-		s.field(c, locales.SettingsManagerExecutable(), func() {
-			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-				box := components.TextBox(c, &row.path, components.TextBoxOptions{}).
-					Label(locales.SettingsExecPathLabel(row.info.Name)).
-					Placeholder(s.pathHint(row)).
-					PlaceholderColor(t.TextMuted).
-					Grow(1).MinWidth(0)
-				if box.Submitted() {
-					s.applyPath(row)
-				}
-				apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
-				apply.Label(locales.SettingsApplyPathFor(row.info.Name))
-				apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
-				if apply.Clicked() {
-					s.applyPath(row)
-				}
-			})
-		})
-		parts.Divider(c)
-		s.field(c, locales.SettingsManagerPackages(), func() {
-			components.Text(c, s.packageCount(row.info.ID)).FontSize(12)
-		})
-		parts.Divider(c)
-		s.field(c, locales.SettingsCapabilities(), func() {
-			s.capabilityBadges(c, row.info.Capabilities)
-		})
-	})
-}
-
 // field is one line of a key-value block: what it is on the leading side, what it
 // says across the rest of the row, so a long path has room and badges can wrap.
 func (s *View) field(c *ui.Context, label string, value func()) {
@@ -342,21 +160,6 @@ func (s *View) field(c *ui.Context, label string, value func()) {
 	ui.Row(c).FillWidth().Padding(10, 0).Gap(16).AlignItems(ui.Center).Children(func() {
 		components.Text(c, label).FontSize(12).TextColor(t.TextMuted).Width(100).Shrink(0)
 		ui.Box(c).Grow(1).MinWidth(0).Children(value)
-	})
-}
-
-// capabilityBadges shows what a manager offers, one badge per capability: a check
-// in green for what it does and a cross in red for what it does not, so a gap is
-// visible without reading a sentence about it.
-func (s *View) capabilityBadges(c *ui.Context, caps manager.Capabilities) {
-	ui.Row(c).FillWidth().Gap(6).Wrap().Children(func() {
-		for _, item := range capabilitiesOf(caps) {
-			tone, icon := components.BadgeSuccess, lucide.Check()
-			if !item.supported {
-				tone, icon = components.BadgeDanger, lucide.X()
-			}
-			components.Badge(c, item.name, components.BadgeOptions{Tone: tone, Icon: icon})
-		}
 	})
 }
 
@@ -574,160 +377,26 @@ func (s *View) diagnostics() string {
 	}
 	line(locales.AboutDataDir(), s.about.DataDir)
 	line(locales.AboutLogDir(), s.about.LogDir)
-	counts := s.managerCounts()
-	for _, row := range s.rows {
-		state := "off"
-		switch {
-		case !row.info.Available:
-			state = "missing"
-		case row.info.Enabled:
-			state = "on"
-		}
-		parts := []string{row.info.Name, row.info.Version, state,
-			locales.SettingsPackageCount(counts[row.info.ID])}
-		if missing := unsupportedCapabilities(row.info.Capabilities); missing != "" {
-			parts = append(parts, missing)
-		}
-		b.WriteString(strings.Join(parts, " · ") + "\n")
-	}
-	return b.String()
-}
-
-// managerControl is one manager: what it is and what it holds, the executable
-// path, what it cannot do, and the switch that turns it on or off.
-//
-// The row is three lines rather than one. The name and its switch own the first,
-// so the path gets the row's whole width on the second, and a manager that cannot
-// answer an action says so on the third instead of leaving the page to explain a
-// disabled button somewhere else.
-func (s *View) managerControl(c *ui.Context, row *managerRow) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().Padding(12, 0).Gap(8).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
-			ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
-				components.Text(c, row.info.Name).SingleLine()
-				if row.info.Version != "" {
-					// The version is what tells "this feature arrived in bun 1.3"
-					// from "my bun is older than this page assumes".
-					components.Text(c, row.info.Version).
-						FontSize(12).TextColor(t.TextMuted).SingleLine()
-				}
-				// A dot, not a column: what follows is a note about the name, and
-				// the name is what the row is.
-				components.Text(c, "·").TextColor(t.TextMuted)
-				components.Text(c, s.packageCount(row.info.ID)).
-					FontSize(12).TextColor(t.TextMuted).SingleLine()
-			})
-			if !row.info.Available {
-				components.Text(c, locales.SettingsNotFound()).
-					FontSize(11).TextColor(t.Danger).SingleLine()
-			}
-			before := row.enabled
-			sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
-			sw.Disabled(s.busy)
-			if row.enabled != before && s.OnSetEnabled != nil {
-				s.OnSetEnabled(row.info.ID, row.enabled)
-			}
-		})
-
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-			box := components.TextBox(c, &row.path, components.TextBoxOptions{}).
-				Label(locales.SettingsExecPathLabel(row.info.Name)).
-				Placeholder(s.pathHint(row)).
-				PlaceholderColor(t.TextMuted).
-				FillWidth().MinWidth(0)
-			if box.Submitted() {
-				s.applyPath(row)
-			}
-
-			apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
-			apply.Label(locales.SettingsApplyPathFor(row.info.Name))
-			apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
-			if apply.Clicked() {
-				s.applyPath(row)
-			}
-		})
-
-		if missing := unsupportedCapabilities(row.info.Capabilities); missing != "" {
-			components.Text(c, missing).FontSize(12).TextColor(t.TextMuted).Wrap()
-		}
-	})
-}
-
-// packageCount says how many installed packages a manager contributes, which is
-// how a user sees that detection works and what turning a manager off would take
-// away.
-func (s *View) packageCount(id string) string {
-	return locales.SettingsPackageCount(s.managerCounts()[id])
-}
-
-// managerCounts counts the inventory's rows per manager, rebuilt only when the
-// inventory changed: a refresh must move the numbers, and a frame that changes
-// nothing must not walk the rows again.
-func (s *View) managerCounts() map[string]int {
-	if s.counts != nil && s.countsSeen == s.Data.Version {
-		return s.counts
-	}
 	counts := make(map[string]int, len(s.Data.Managers))
 	for _, pkg := range s.Data.Rows {
 		counts[pkg.Manager]++
 	}
-	s.counts, s.countsSeen = counts, s.Data.Version
-	return counts
-}
-
-// capability is one thing a manager may offer, named the way the page shows it
-// and the copied diagnostics spell it.
-type capability struct {
-	name      string
-	supported bool
-}
-
-// capabilitiesOf names what a manager advertises, in the order the adapter
-// guide's capability matrix lists them.
-func capabilitiesOf(caps manager.Capabilities) []capability {
-	return []capability{
-		{locales.CapabilityInstalled(), caps.ListInstalled},
-		{locales.CapabilityOutdated(), caps.ListOutdated},
-		{locales.CapabilityPackageInfo(), caps.GetPackageInfo},
-		{locales.CapabilitySearch(), caps.Search},
-		{locales.CapabilityInstall(), caps.Install},
-		{locales.CapabilityUninstall(), caps.Uninstall},
-		{locales.CapabilityUpdate(), caps.Update},
-		{locales.CapabilityVersions(), caps.ListVersions},
-	}
-}
-
-// unsupportedCapabilities names the actions a manager does not advertise, for the
-// diagnostics text, and is empty when the manager offers every one.
-func unsupportedCapabilities(caps manager.Capabilities) string {
-	missing := make([]string, 0, 8)
-	for _, item := range capabilitiesOf(caps) {
-		if !item.supported {
-			missing = append(missing, item.name)
+	for _, info := range s.Data.Managers {
+		state := "off"
+		switch {
+		case !info.Available:
+			state = "missing"
+		case info.Enabled:
+			state = "on"
 		}
+		fields := []string{info.Name, info.Version, state,
+			locales.SettingsPackageCount(counts[info.ID])}
+		if missing := parts.UnsupportedCapabilities(info.Capabilities); missing != "" {
+			fields = append(fields, missing)
+		}
+		b.WriteString(strings.Join(fields, " · ") + "\n")
 	}
-	if len(missing) == 0 {
-		return ""
-	}
-	return locales.SettingsUnsupported(strings.Join(missing, locales.CommonListSeparator()))
-}
-
-// pathHint shows what automatic detection resolves to, so an empty field is not
-// an empty answer.
-func (s *View) pathHint(row *managerRow) string {
-	if row.info.ExecPath != "" {
-		return row.info.ExecPath
-	}
-	return locales.SettingsPathAuto()
-}
-
-func (s *View) applyPath(row *managerRow) {
-	path := strings.TrimSpace(row.path)
-	if path == row.saved || s.OnSetPath == nil {
-		return
-	}
-	s.OnSetPath(row.info.ID, path)
+	return b.String()
 }
 
 // appearanceLabel names one appearance choice. The empty value is the system's.
