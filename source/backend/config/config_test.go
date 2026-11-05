@@ -130,3 +130,71 @@ func TestFailedSaveKeepsTheRunningSettings(t *testing.T) {
 		t.Fatalf("failed save changed the running settings: %+v", got)
 	}
 }
+
+// A config file that does not parse is kept beside the new one: it is a file
+// people edit by hand, and replacing it without a word would throw away every
+// setting over a stray comma.
+func TestUnparseableConfigIsKept(t *testing.T) {
+	dir := t.TempDir()
+	util.AppRoot = dir
+	broken := `{
+		"log": {"level": "debug"},
+		"managers": {"brew": {"disabled": true},}
+	}`
+	path := filepath.Join(dir, "unipac.json")
+	if err := os.WriteFile(path, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Init(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	if Instance.Log.Level != "info" {
+		t.Errorf("log level = %q, want the default", Instance.Log.Level)
+	}
+
+	kept, err := filepath.Glob(filepath.Join(dir, "unipac.json.bad-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kept) != 1 {
+		t.Fatalf("kept files = %v, want the unreadable one", kept)
+	}
+	data, err := os.ReadFile(kept[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != broken {
+		t.Errorf("the kept file changed: %s", data)
+	}
+
+	// The app goes on with a working config it can save into.
+	if err := SetLogLevel("warn"); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.Log.Level != "warn" {
+		t.Errorf("log level = %q, want the saved warn", loaded.Log.Level)
+	}
+}
+
+// A missing file is not an error worth keeping anything for: it is a first run.
+func TestMissingConfigLeavesNoCopy(t *testing.T) {
+	dir := t.TempDir()
+	util.AppRoot = dir
+	if err := Init(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	kept, err := filepath.Glob(filepath.Join(dir, "unipac.json.bad-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(kept) != 0 {
+		t.Errorf("a first run kept %v", kept)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "unipac.json")); err != nil {
+		t.Errorf("no config was written: %v", err)
+	}
+}

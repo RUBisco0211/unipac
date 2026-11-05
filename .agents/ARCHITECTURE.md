@@ -260,7 +260,10 @@ snapshots.
 `backend/config/config.go` loads or creates `unipac.json` under the app root. The
 file is written to a temporary file beside it and renamed into place, so a crash
 mid-write cannot leave a truncated config that the next load replaces with
-defaults. It
+defaults. A file that does not parse is the one exception, and it is not
+replaced silently: it is renamed to `unipac.json.bad-<time>` beside itself, a
+warning names both paths, and the app starts on defaults, so a hand edit that
+broke the JSON can be recovered instead of lost. It
 holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
 file keeps scanning), `language` (the tag chosen in Settings, absent or empty to
 follow the system), and `managers`, a map of `manager.Settings` keyed by

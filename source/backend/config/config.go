@@ -3,8 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/cache"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -63,8 +66,12 @@ func defaultConfig() Config {
 }
 
 // Load loads the configuration from the specified config file.
-// If the file does not exist, create a new one with default values.
-// If the file exists but cannot be parsed, overwrite it with default values.
+//
+// A missing file is created with default values. A file that does not parse is
+// kept first: the config is a file people edit by hand, and replacing it without
+// a word would throw away every setting over a stray comma. It is renamed to
+// `unipac.json.bad-<time>` and the app starts on defaults, so the edited file can
+// be recovered and fixed.
 func Load() (Config, error) {
 	// read from local config JSON file
 	cfg, err := util.ReadJson[Config](filePath)
@@ -73,9 +80,17 @@ func Load() (Config, error) {
 		if errors.Is(err, os.ErrPermission) {
 			return Config{}, fmt.Errorf("permission denied: %w", err)
 		}
-		// file not found or unmarshall error
-		// create default config
 		cfg := defaultConfig()
+		// Only a file that is there and unreadable is worth keeping: a missing
+		// one needs nothing.
+		if !errors.Is(err, os.ErrNotExist) {
+			kept, keepErr := keepUnreadable()
+			if keepErr != nil {
+				return cfg, fmt.Errorf("failed to set aside the unreadable config %s: %w", filePath, keepErr)
+			}
+			slog.Warn("config: the config file did not parse; it was kept and defaults are in use",
+				"path", filePath, "kept", kept, "error", err)
+		}
 		if err = Save(cfg); err != nil {
 			return cfg, fmt.Errorf("failed to save default config: %w", err)
 		}
@@ -85,6 +100,17 @@ func Load() (Config, error) {
 		cfg.Managers = map[string]manager.Settings{}
 	}
 	return cfg, nil
+}
+
+// keepUnreadable renames the config file that did not parse out of the way and
+// returns its new path, beside the original so it is found where it was left.
+func keepUnreadable() (string, error) {
+	dir, name := filepath.Split(filePath)
+	kept := filepath.Join(dir, fmt.Sprintf("%s.bad-%s", name, time.Now().Format("20060102-150405")))
+	if err := os.Rename(filePath, kept); err != nil {
+		return "", err
+	}
+	return kept, nil
 }
 
 // ManagerSettings returns the saved per-manager settings. It never returns a
