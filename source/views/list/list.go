@@ -596,11 +596,7 @@ func (l *View) cell(c *ui.Context, row, col int) {
 			}
 		})
 	case l.actions:
-		// The header is centred over the column; the buttons stay on its
-		// trailing edge.
-		ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
-			l.rowActions(c, pkg)
-		})
+		l.rowActions(c, pkg)
 	default:
 		parts.Cell(c, pkg, col-1, l.Data.Name, inventory.MarkNone)
 	}

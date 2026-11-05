@@ -322,11 +322,7 @@ func (s *View) body(c *ui.Context) {
 					case col < len(parts.SearchFieldIndex):
 						parts.Cell(c, pkg, parts.SearchFieldIndex[col], s.Data.Name, s.Data.SearchMark(pkg))
 					case col == s.actions:
-						// The header is centred over the column; the button stays
-						// on its trailing edge.
-						ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
-							s.rowAction(c, pkg)
-						})
+						s.rowAction(c, pkg)
 					}
 				}).Fill()
 			})
