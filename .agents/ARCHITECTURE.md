@@ -347,7 +347,7 @@ together, and nothing has to be found across a 900-line file:
 | `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
-| `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install or update | `inventory`, `parts`, `flight` |
+| `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update | `inventory`, `parts`, `flight` |
 | `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
@@ -593,7 +593,10 @@ keeps the row at the top of the viewport in place, so sorting a column would
 scroll the table to wherever that row moved. Keeping the offset leaves the
 viewport where it is while the rows under it change order.
 
-`VersionSelectButton.vue` assumed version lookup exists. The Go equivalent must appear only when the selected package's manager reports `listVersions` and the backend exposes version lookup.
+`VersionSelectButton.vue` assumed version lookup exists. Its Go replacement is
+built when the row's manager advertises `ListVersions`; every other manager's
+row installs the newest version with the one button it had, because there is
+nothing to choose and the reason is the manager, not the package.
 
 Action availability is capability-driven, and the result is never a disappearing button: an unsupported action stays visible and disabled, with a tooltip naming the missing capability. A user must be able to tell "this manager cannot search" from "the app is broken".
 
@@ -603,6 +606,37 @@ uninstall opens one dialog for every target and confirms them the same way. When
 the user turns holding off in Settings, both this confirm and the quit dialog's
 are plain danger buttons instead, and the list views learn it through their
 `HoldsToConfirm` wiring.
+
+### Version Selection
+
+A search result whose manager lists versions can be installed at any of them.
+The row's install button opens the search page's own dialog instead of starting
+the task: the versions newest first, a field filtering them, and a confirm that
+stays disabled until one is chosen. Every other manager's install button starts
+the task as it always did — the control is absent rather than disabled, because
+the reason is the manager.
+
+The page owns the lookup: `versions` holds one `versionState` per package for the
+life of the page, so opening the dialog again shows what already arrived and a
+second open costs nothing. The fetch itself is the shell's job, like a search:
+`UI.Versions` calls `App.ListPackageVersions` off the UI thread and answers
+`search.View.SetVersions` through `Window.Update` with the sequence number the
+page registered, which is how an answer from a lookup a newer one replaced is
+dropped. The builders only read that state.
+
+Sorting is the page's, not the adapter's: `npm view <name> versions --json`
+answers oldest first, and every list is ordered newest first by comparing
+version parts as numbers, with a release above its prereleases. The list is
+capped at 100 with a line saying so, and the query filters the whole answer
+before the cap, so a search reaches a version the cap hid.
+
+Choosing a version installs it through `OnInstallVersion`,
+`InstallPackage(pkg, ActionOptions{Version: v})`, so the task records the version
+it goes to and the tasks page shows it. A lookup that fails says so and offers
+`Install latest`, which is what the row's button did before the dialog existed.
+
+Only installing chooses a version. An update keeps the newest, because a
+downgrade is a different conversation and Homebrew cannot do it at all.
 
 ### Localization
 
@@ -695,9 +729,6 @@ Task UI:
 
 ## Suggested Near-Term Cleanup
 
-- Version selection is not implemented: the backend route exists and npm
-  advertises `ListVersions`, but the port does not carry it and no page offers it.
-  `.agents/HANDOFF_VERSION_SELECTION.md` has the design.
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.
@@ -732,3 +763,11 @@ Kept so nobody re-opens them:
 - Homebrew does not advertise `ListVersions`: `brew info --json=v2` reports one
   stable version and a head, never the versions a formula published before, so a
   picker would offer a choice of one.
+- A search result from a manager that lists versions installs the version the
+  user chose: the install button opens a dialog listing the versions, newest
+  first, which the list filters as the user types. The dialog is the search
+  page's, not the shell's: it holds one lookup per package for the life of the
+  page, drops an answer a newer lookup superseded, and shows the newest version
+  as the fallback when the lookup fails. Versions are sorted here rather than
+  trusted from the adapter, and capped at 100 with a line saying so — the
+  search above the list still reaches the ones the cap hid.
