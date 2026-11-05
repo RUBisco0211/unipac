@@ -1327,3 +1327,33 @@ func ToastShowTask() string { return In(i18n.Locale()).ToastShowTask() }
 func (msgs Messages) ToastShowTask() string {
 	return Catalog.Format(msgs.locale, "toastShowTask", nil)
 }
+
+// TasksStatuses says "Status"
+// in the language the app shows.
+func TasksStatuses() string { return In(i18n.Locale()).TasksStatuses() }
+
+// TasksStatuses says "Status"
+// in the language of msgs.
+func (msgs Messages) TasksStatuses() string {
+	return Catalog.Format(msgs.locale, "tasksStatuses", nil)
+}
+
+// TasksAllStatuses says "All statuses"
+// in the language the app shows.
+func TasksAllStatuses() string { return In(i18n.Locale()).TasksAllStatuses() }
+
+// TasksAllStatuses says "All statuses"
+// in the language of msgs.
+func (msgs Messages) TasksAllStatuses() string {
+	return Catalog.Format(msgs.locale, "tasksAllStatuses", nil)
+}
+
+// StatusCount says "{count} statuses"
+// in the language the app shows.
+func StatusCount(count string) string { return In(i18n.Locale()).StatusCount(count) }
+
+// StatusCount says "{count} statuses"
+// in the language of msgs.
+func (msgs Messages) StatusCount(count string) string {
+	return Catalog.Format(msgs.locale, "statusCount", map[string]any{"count": count})
+}

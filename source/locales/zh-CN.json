@@ -156,5 +156,8 @@
   "toastUpdateFailed": "{name} 更新失败",
   "toastRemoveFailed": "{name} 卸载失败",
   "toastSeveralPackages": "{count} 个包",
-  "toastShowTask": "查看任务"
+  "toastShowTask": "查看任务",
+  "tasksStatuses": "状态",
+  "tasksAllStatuses": "全部状态",
+  "statusCount": "{count} 个状态"
 }

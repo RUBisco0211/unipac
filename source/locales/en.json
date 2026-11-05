@@ -201,5 +201,8 @@
   "toastUpdateFailed": "Could not update {name}",
   "toastRemoveFailed": "Could not remove {name}",
   "toastSeveralPackages": "{count} packages",
-  "toastShowTask": "Show task"
+  "toastShowTask": "Show task",
+  "tasksStatuses": "Status",
+  "tasksAllStatuses": "All statuses",
+  "statusCount": "{count} statuses"
 }

@@ -447,3 +447,51 @@ func TestTaskFilterMultiSelect(t *testing.T) {
 		t.Fatalf("manager multi-select rows = %+v", managers.rows)
 	}
 }
+
+// The status filter narrows the page to the tasks in the chosen states, and its
+// counts say what each status would show under the other filters.
+func TestTaskStatusFilter(t *testing.T) {
+	v := viewFixture()
+	v.ensureFilters()
+	v.statusFilter = map[tasks.State]bool{tasks.StateFailed: true}
+	v.Sync()
+
+	if len(v.rows) != 1 || v.rows[0].ID != "1" {
+		t.Fatalf("rows = %+v, want only the failed task", v.rows)
+	}
+
+	counts, total := v.statusCounts()
+	if total != 3 {
+		t.Errorf("total = %d, want all three tasks counted", total)
+	}
+	if counts[tasks.StateRunning] != 1 || counts[tasks.StateQueued] != 1 || counts[tasks.StateFailed] != 1 {
+		t.Errorf("counts = %v, want one of each status", counts)
+	}
+
+	// The label names the one status chosen, and says "all" when every one is.
+	if got := v.statusFilterLabel(); got != statusLabel(tasks.StateFailed) {
+		t.Errorf("label = %q, want %q", got, statusLabel(tasks.StateFailed))
+	}
+	v.statusFilter = nil
+	v.ensureFilters()
+	if got := v.statusFilterLabel(); got != locales.TasksAllStatuses() {
+		t.Errorf("label = %q, want every status", got)
+	}
+}
+
+// Revealing a task drops the filters that could hide it, status included.
+func TestRevealClearsTheStatusFilter(t *testing.T) {
+	v := viewFixture()
+	v.ensureFilters()
+	v.statusFilter = map[tasks.State]bool{tasks.StateFailed: true}
+	if !v.Reveal("3") {
+		t.Fatal("task 3 was not found")
+	}
+	v.Sync()
+	if !v.allStatusesSelected() {
+		t.Errorf("status filter survived a reveal: %v", v.statusFilter)
+	}
+	if len(v.rows) != len(v.all) {
+		t.Errorf("rows = %d of %d, want every task shown", len(v.rows), len(v.all))
+	}
+}

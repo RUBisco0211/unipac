@@ -42,6 +42,8 @@ type View struct {
 	// explicit set leaves new managers unchecked.
 	opFilter       map[tasks.Kind]bool
 	operationsOpen bool
+	statusFilter   map[tasks.State]bool
+	statusesOpen   bool
 	managerFilter  map[string]bool
 	managerAll     bool
 	managersOpen   bool
@@ -125,6 +127,7 @@ func (s *View) Reveal(id string) bool {
 	s.opFilter = nil
 	s.managerFilter = nil
 	s.managerAll = true
+	s.statusFilter = nil
 	s.selectedID = id
 	s.applied.version = -1
 	return true
@@ -214,9 +217,22 @@ func (s *View) choose() {
 // pure in-memory work, safe inside a builder.
 var taskKinds = []tasks.Kind{tasks.KindInstall, tasks.KindUpdate, tasks.KindUninstall}
 
-// ensureFilters starts both multi-selects with every option chosen. A test or a
-// restored filter can provide its own maps first.
+// taskStates are the statuses a task can be filtered by, in the order the tasks
+// of one page come in.
+var taskStates = []tasks.State{
+	tasks.StateRunning, tasks.StateQueued, tasks.StateSucceeded,
+	tasks.StateFailed, tasks.StateCancelled,
+}
+
+// ensureFilters starts every multi-select with all its options chosen. A test or
+// a restored filter can provide its own maps first.
 func (s *View) ensureFilters() {
+	if s.statusFilter == nil {
+		s.statusFilter = make(map[tasks.State]bool, len(taskStates))
+		for _, state := range taskStates {
+			s.statusFilter[state] = true
+		}
+	}
 	if s.opFilter == nil {
 		s.opFilter = make(map[tasks.Kind]bool, len(taskKinds))
 		for _, kind := range taskKinds {
@@ -227,6 +243,15 @@ func (s *View) ensureFilters() {
 		s.managerFilter = make(map[string]bool)
 		s.managerAll = true
 	}
+}
+
+func (s *View) allStatusesSelected() bool {
+	for _, state := range taskStates {
+		if !s.statusFilter[state] {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *View) allOperationsSelected() bool {
@@ -269,6 +294,45 @@ func (s *View) operationLabel() string {
 		return only
 	}
 	return locales.OperationCount(n)
+}
+
+func (s *View) statusFilterLabel() string {
+	if s.allStatusesSelected() {
+		return locales.TasksAllStatuses()
+	}
+	n, only := 0, ""
+	for _, state := range taskStates {
+		if s.statusFilter[state] {
+			n++
+			only = statusLabel(state)
+		}
+	}
+	if n == 1 {
+		return only
+	}
+	return locales.StatusCount(strconv.Itoa(n))
+}
+
+// statusCounts counts the tasks of each status after the operation, manager and
+// query filters, ignoring the status filter, so an unchecked status still shows
+// its count.
+func (s *View) statusCounts() (map[tasks.State]int, int) {
+	counts := make(map[tasks.State]int, len(taskStates))
+	total := 0
+	for _, task := range s.all {
+		if !s.opFilter[task.Kind] {
+			continue
+		}
+		if !s.managerAll && !s.managerFilter[task.ManagerID] {
+			continue
+		}
+		if !s.matchesQuery(task) {
+			continue
+		}
+		counts[task.State]++
+		total++
+	}
+	return counts, total
 }
 
 func (s *View) managerFilterLabel() string {
@@ -344,7 +408,13 @@ func (s *View) filterKey() string {
 		slices.Sort(ids)
 		managers = strings.Join(ids, ",")
 	}
-	return strings.Join(ops, ",") + "|" + managers
+	states := make([]string, 0, len(taskStates))
+	for _, state := range taskStates {
+		if s.statusFilter[state] {
+			states = append(states, string(state))
+		}
+	}
+	return strings.Join(ops, ",") + "|" + managers + "|" + strings.Join(states, ",")
 }
 
 func (s *View) Sync() {
@@ -367,6 +437,9 @@ func (s *View) Sync() {
 			continue
 		}
 		if !s.managerAll && !s.managerFilter[task.ManagerID] {
+			continue
+		}
+		if !s.statusFilter[task.State] {
 			continue
 		}
 		if !s.matchesQuery(task) {
@@ -477,6 +550,7 @@ func (s *View) toolbar(c *ui.Context) {
 			Width(260)
 
 		s.operationSelect(c)
+		s.statusSelect(c)
 		s.managerSelect(c)
 	})
 }
@@ -507,6 +581,39 @@ func (s *View) operationSelect(c *ui.Context) {
 			box := components.Checkbox(c, &selected, label)
 			if box.Changed() {
 				s.opFilter[kind] = selected
+			}
+		}
+	})
+}
+
+// statusSelect is the multi-select of task statuses: it narrows the page by where
+// a task is, and counts what each status would show under the other filters.
+func (s *View) statusSelect(c *ui.Context) {
+	t := c.Theme()
+	trigger := components.Button(c, s.statusFilterLabel(), components.ButtonOutline).
+		Width(t.Space(40))
+	trigger.Label(locales.TasksStatuses())
+	if trigger.Clicked() {
+		s.statusesOpen = !s.statusesOpen
+	}
+	counts, total := s.statusCounts()
+	components.Popover(c, trigger, &s.statusesOpen, func(panel ui.Element) {
+		panel.Width(t.Space(45))
+		components.Text(c, locales.TasksStatuses()).FontSize(12).Bold()
+		all := s.allStatusesSelected()
+		allLabel := locales.TasksAllStatuses() + " (" + strconv.Itoa(total) + ")"
+		allBox := components.Checkbox(c, &all, allLabel)
+		if allBox.Changed() {
+			for _, state := range taskStates {
+				s.statusFilter[state] = all
+			}
+		}
+		for _, state := range taskStates {
+			selected := s.statusFilter[state]
+			label := statusLabel(state) + " (" + strconv.Itoa(counts[state]) + ")"
+			box := components.Checkbox(c, &selected, label)
+			if box.Changed() {
+				s.statusFilter[state] = selected
 			}
 		}
 	})
