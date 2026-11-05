@@ -1,8 +1,8 @@
 # UniPac
 
 UniPac is a desktop package manager: one place to inspect and act on packages
-installed by Homebrew, npm, pip, pipx, Cargo and UV Tool, without learning each
-manager's command line.
+installed by Homebrew, Bun, npm, pip, pipx, Cargo and UV Tool, without learning
+each manager's command line.
 
 The window is native Go, drawn by [MyGo](https://github.com/egoist/mygo) with
 controls from [Onevra](https://github.com/oneo-me/onevra). One binary, no
