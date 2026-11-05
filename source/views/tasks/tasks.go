@@ -696,8 +696,8 @@ func (s *View) columns() []ui.TableColumn {
 		{Title: locales.TableOperation(), ID: "operation", Width: 100, Fixed: true},
 		{Title: locales.TablePackage(), ID: "package", MinWidth: 120},
 		{Title: locales.TableVersion(), ID: "version", Width: 124, Fixed: true},
-		{Title: locales.TableManager(), ID: "manager", Width: 92, Fixed: true},
-		{Title: locales.TableStatus(), ID: "status", Width: 92, Fixed: true},
+		{Title: locales.TableManager(), ID: "manager", Width: 92, Fixed: true, Align: ui.Center},
+		{Title: locales.TableStatus(), ID: "status", Width: 92, Fixed: true, Align: ui.Center},
 		{Title: locales.TableStarted(), ID: "started", Width: 84, Fixed: true},
 		{Title: locales.TableFinished(), ID: "finished", Width: 84, Fixed: true},
 	}

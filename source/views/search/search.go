@@ -262,7 +262,7 @@ func (s *View) columns() []ui.TableColumn {
 	columns := parts.SearchFields()
 	s.actions = len(columns)
 	columns = append(columns, ui.TableColumn{
-		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
+		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.Center,
 	})
 	return columns
 }
@@ -322,7 +322,11 @@ func (s *View) body(c *ui.Context) {
 					case col < len(parts.SearchFieldIndex):
 						parts.Cell(c, pkg, parts.SearchFieldIndex[col], s.Data.Name, s.Data.SearchMark(pkg))
 					case col == s.actions:
-						s.rowAction(c, pkg)
+						// The header is centred over the column; the button stays
+						// on its trailing edge.
+						ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+							s.rowAction(c, pkg)
+						})
 					}
 				}).Fill()
 			})

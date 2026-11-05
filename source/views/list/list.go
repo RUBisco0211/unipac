@@ -270,7 +270,7 @@ func (l *View) columns() []ui.TableColumn {
 	columns = append(columns, parts.Fields()...)
 	l.actions = len(columns)
 	columns = append(columns, ui.TableColumn{
-		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
+		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.Center,
 	})
 	return columns
 }
@@ -596,7 +596,11 @@ func (l *View) cell(c *ui.Context, row, col int) {
 			}
 		})
 	case l.actions:
-		l.rowActions(c, pkg)
+		// The header is centred over the column; the buttons stay on its
+		// trailing edge.
+		ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+			l.rowActions(c, pkg)
+		})
 	default:
 		parts.Cell(c, pkg, col-1, l.Data.Name, inventory.MarkNone)
 	}

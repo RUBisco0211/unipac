@@ -149,7 +149,7 @@ func Fields() []ui.TableColumn {
 		{Title: locales.TablePackage(), ID: "name", MinWidth: 180, Sortable: true, Fixed: true},
 		{Title: locales.TableInstalled(), ID: "version", Width: 100, Fixed: true},
 		{Title: locales.TableLatest(), ID: "latest", Width: 100, Fixed: true},
-		{Title: locales.TableManager(), ID: "manager", Width: 108, Sortable: true, Fixed: true},
+		{Title: locales.TableManager(), ID: "manager", Width: 108, Sortable: true, Fixed: true, Align: ui.Center},
 	}
 }
 
