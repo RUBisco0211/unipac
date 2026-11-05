@@ -164,9 +164,33 @@ func (a *Adapter) Uninstall(pkgs []manager.Package, _ manager.ActionOptions) (ma
 	return a.runAction(args, "Uninstalled npm package(s)")
 }
 
-func (a *Adapter) Update(pkgs []manager.Package, _ manager.ActionOptions) (manager.ActionResult, error) {
-	args := append([]string{"update", "-g"}, packageNames(pkgs)...)
+// Update installs the newest version of each package.
+//
+// It installs rather than running `npm update`: update resolves the whole global
+// tree, so one unrelated package whose manifest carries a workspaces-only spec
+// makes every update fail with EUNSUPPORTEDPROTOCOL, whatever the package asked
+// for. Installing a named package resolves that package alone.
+func (a *Adapter) Update(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
+	args := append([]string{"install", "-g"}, updateSpecs(pkgs, opt)...)
 	return a.runAction(args, "Updated npm package(s)")
+}
+
+// updateSpecs name the version each update goes to: the one the caller asked
+// for, else the one the scan found, else whatever latest is when it runs.
+func updateSpecs(pkgs []manager.Package, opt manager.ActionOptions) []string {
+	specs := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		version := opt.Version
+		if version == "" {
+			version = pkg.LatestVersion
+		}
+		if version == "" {
+			specs = append(specs, pkg.Name+"@latest")
+			continue
+		}
+		specs = append(specs, pkg.Name+"@"+version)
+	}
+	return specs
 }
 
 func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
