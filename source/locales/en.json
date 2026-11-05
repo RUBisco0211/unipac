@@ -203,5 +203,8 @@
   "tasksAllStatuses": "All statuses",
   "statusCount": "{count} statuses",
   "searchTruncated": "Showing the first {count} matches",
-  "searchInstalled": "Installed"
+  "searchInstalled": "Installed",
+  "commonCopyCommand": "Copy command",
+  "toastCommandCopied": "Command copied",
+  "searchUpdateAvailable": "Update available"
 }

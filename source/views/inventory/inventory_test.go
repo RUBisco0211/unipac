@@ -19,7 +19,7 @@ func inventoryFixture() *Data {
 		},
 		Rows: []manager.Package{
 			{Name: "ripgrep", Manager: "brew", Installed: true},
-			{Name: "typescript", Manager: "npm", Installed: true},
+			{Name: "typescript", Manager: "npm", Installed: true, Version: "5.9.3"},
 		},
 	}
 }
@@ -97,21 +97,43 @@ func TestRefreshQueuesOneFollowUp(t *testing.T) {
 	}
 }
 
-// The inventory answers whether it holds a package, which is how a search
-// result can say it is already installed.
-func TestInstalledReportsWhatTheInventoryHolds(t *testing.T) {
+// The inventory answers what it holds, which is how a search result says it is
+// already installed, or that a newer version is waiting.
+func TestInstalledVersionReportsWhatTheInventoryHolds(t *testing.T) {
 	d := inventoryFixture()
-	if !d.Installed("npm", "typescript") {
+	if _, ok := d.InstalledVersion("npm", "typescript"); !ok {
 		t.Error("an installed package is reported as missing")
 	}
-	if d.Installed("npm", "vite") {
+	if _, ok := d.InstalledVersion("npm", "vite"); ok {
 		t.Error("a package that is not in the inventory is reported as installed")
 	}
 
 	// A scan that drops the package is answered from the new rows.
 	d.Rows = nil
 	d.Version++
-	if d.Installed("npm", "typescript") {
+	if _, ok := d.InstalledVersion("npm", "typescript"); ok {
 		t.Error("the answer survived the rows it came from")
+	}
+}
+
+// A mark says whether a search result is installed, has a newer version, or is
+// neither; a result without a version can only be said to be installed.
+func TestSearchMark(t *testing.T) {
+	d := inventoryFixture()
+	cases := []struct {
+		name string
+		pkg  manager.Package
+		want Mark
+	}{
+		{"not installed", manager.Package{Manager: "npm", Name: "vite", Version: "5.0.0"}, MarkNone},
+		{"same version", manager.Package{Manager: "npm", Name: "typescript", Version: "5.9.3"}, MarkInstalled},
+		{"newer version", manager.Package{Manager: "npm", Name: "typescript", Version: "6.0.0"}, MarkUpdate},
+		{"no version in the inventory", manager.Package{Manager: "brew", Name: "ripgrep", Version: "14.1.1"}, MarkInstalled},
+		{"no version in the result", manager.Package{Manager: "npm", Name: "typescript"}, MarkInstalled},
+	}
+	for _, tc := range cases {
+		if got := d.SearchMark(tc.pkg); got != tc.want {
+			t.Errorf("%s: mark = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

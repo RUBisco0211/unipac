@@ -130,6 +130,7 @@ func New(service inventory.Service) *UI {
 		Data:      u.data,
 		Submit:    u.Search,
 		OnInstall: u.Install,
+		OnUpdate:  u.Update,
 	}
 	u.tasks = &taskspage.View{
 		Data:          u.data,

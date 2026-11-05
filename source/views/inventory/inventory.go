@@ -66,10 +66,10 @@ type Data struct {
 	// packages run independently; the backend limiter serializes one manager.
 	Active  map[string]string
 	Version int
-	// installedKeys and installedVersion cache Installed's answer, rebuilt when
-	// the inventory changes.
-	installedKeys    map[string]struct{}
-	installedVersion int
+	// installedVersions caches what the inventory holds, by package key, and the
+	// inventory version it was built from.
+	installedVersions map[string]string
+	installedVersion  int
 
 	// managersVersion changes when the manager list itself changes, so the
 	// settings page rebuilds its rows only then and keeps the path being typed.
@@ -77,6 +77,16 @@ type Data struct {
 
 	Toasts []Toast
 }
+
+// Mark is what a page says about a package beside its name: nothing, that the
+// inventory holds it, or that a newer version is available.
+type Mark int
+
+const (
+	MarkNone Mark = iota
+	MarkInstalled
+	MarkUpdate
+)
 
 // Toast is a message queued for the next frame, because MyGo adds toasts while
 // building rather than from the job that produced the result. TaskID, when set,
@@ -160,18 +170,35 @@ func (d *Data) applyRefresh(rows []manager.Package, refreshErr, loadErr error) {
 	d.Version++
 }
 
-// Installed reports whether the inventory holds a package. A search result is
-// not installed by definition, so the search page asks this instead.
-func (d *Data) Installed(managerID, name string) bool {
+// InstalledVersion is the version the inventory holds for a package, and false
+// when it holds none. A search result is not installed by definition, so the
+// search page asks this instead.
+func (d *Data) InstalledVersion(managerID, name string) (string, bool) {
 	if d.installedVersion != d.Version {
-		d.installedKeys = make(map[string]struct{}, len(d.Rows))
+		d.installedVersions = make(map[string]string, len(d.Rows))
 		for _, pkg := range d.Rows {
-			d.installedKeys[Key(pkg)] = struct{}{}
+			d.installedVersions[Key(pkg)] = pkg.Version
 		}
 		d.installedVersion = d.Version
 	}
-	_, ok := d.installedKeys[managerID+":"+name]
-	return ok
+	version, ok := d.installedVersions[managerID+":"+name]
+	return version, ok
+}
+
+// SearchMark says what a search result is relative to the inventory, which is
+// what tells an installed package from one that has a newer version.
+func (d *Data) SearchMark(pkg manager.Package) Mark {
+	have, installed := d.InstalledVersion(pkg.Manager, pkg.Name)
+	switch {
+	case !installed:
+		return MarkNone
+	case pkg.Version == "" || have == "" || have == pkg.Version:
+		// Without both versions there is nothing to compare, and the same
+		// version is simply installed.
+		return MarkInstalled
+	default:
+		return MarkUpdate
+	}
 }
 
 // Key identifies a package across managers.

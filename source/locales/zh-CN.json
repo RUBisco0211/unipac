@@ -158,5 +158,8 @@
   "tasksAllStatuses": "全部状态",
   "statusCount": "{count} 个状态",
   "searchTruncated": "仅显示前 {count} 条结果",
-  "searchInstalled": "已安装"
+  "searchInstalled": "已安装",
+  "commonCopyCommand": "复制命令",
+  "toastCommandCopied": "已复制命令",
+  "searchUpdateAvailable": "可更新"
 }

@@ -1347,3 +1347,33 @@ func SearchInstalled() string { return In(i18n.Locale()).SearchInstalled() }
 func (msgs Messages) SearchInstalled() string {
 	return Catalog.Format(msgs.locale, "searchInstalled", nil)
 }
+
+// CommonCopyCommand says "Copy command"
+// in the language the app shows.
+func CommonCopyCommand() string { return In(i18n.Locale()).CommonCopyCommand() }
+
+// CommonCopyCommand says "Copy command"
+// in the language of msgs.
+func (msgs Messages) CommonCopyCommand() string {
+	return Catalog.Format(msgs.locale, "commonCopyCommand", nil)
+}
+
+// ToastCommandCopied says "Command copied"
+// in the language the app shows.
+func ToastCommandCopied() string { return In(i18n.Locale()).ToastCommandCopied() }
+
+// ToastCommandCopied says "Command copied"
+// in the language of msgs.
+func (msgs Messages) ToastCommandCopied() string {
+	return Catalog.Format(msgs.locale, "toastCommandCopied", nil)
+}
+
+// SearchUpdateAvailable says "Update available"
+// in the language the app shows.
+func SearchUpdateAvailable() string { return In(i18n.Locale()).SearchUpdateAvailable() }
+
+// SearchUpdateAvailable says "Update available"
+// in the language of msgs.
+func (msgs Messages) SearchUpdateAvailable() string {
+	return Catalog.Format(msgs.locale, "searchUpdateAvailable", nil)
+}

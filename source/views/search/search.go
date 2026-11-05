@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
@@ -23,6 +24,7 @@ type View struct {
 	Data      *inventory.Data
 	Submit    func(query string, managerIDs []string)
 	OnInstall func(manager.Package, flight.Origin)
+	OnUpdate  func(manager.Package, flight.Origin)
 
 	query       string
 	resultQuery string
@@ -49,6 +51,9 @@ type View struct {
 
 	table     components.TableVirtualizedState
 	sortOrder ui.SortOrder
+	// actions is the column the row's install button is built in, worked out
+	// where the columns are built.
+	actions int
 
 	// seenManagers is the manager list the results were last checked against.
 	seenManagers int
@@ -255,9 +260,13 @@ func (s *View) chips(c *ui.Context) {
 
 func (s *View) columns() []ui.TableColumn {
 	columns := parts.SearchFields()
-	return append(columns, ui.TableColumn{
+	s.actions = len(columns)
+	columns = append(columns, ui.TableColumn{
 		Title: locales.TableActions(), ID: "actions", Width: 64, Fixed: true, Align: ui.End,
 	})
+	// The same trailing space the package tables have, so the last header and
+	// the row button do not touch the window edge.
+	return append(columns, ui.TableColumn{Title: "", ID: "pad", Width: 12, Fixed: true})
 }
 
 func (s *View) applySort() {
@@ -303,49 +312,106 @@ func (s *View) body(c *ui.Context) {
 				components.Text(c, locales.SearchTruncated(strconv.Itoa(manager.MaxSearchResults))).
 					FontSize(12).TextColor(c.Theme().TextMuted).Shrink(0).Padding(0, 16, 6, 16)
 			}
-			// Match the search field's left inset; the table's own first-cell
-			// padding is one spacing unit tighter.
-			ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1)).Children(func() {
+			// The same insets as the package tables: the table brings its own
+			// cell padding, and the trailing pad column keeps the last control
+			// off the window edge.
+			ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
 				components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
 					pkg := s.results[row]
-					if col < len(parts.SearchFieldIndex) {
-						parts.Cell(c, pkg, parts.SearchFieldIndex[col], s.Data.Name, s.Data.Installed(pkg.Manager, pkg.Name))
-						return
+					switch {
+					case col < len(parts.SearchFieldIndex):
+						parts.Cell(c, pkg, parts.SearchFieldIndex[col], s.Data.Name, s.Data.SearchMark(pkg))
+					case col == s.actions:
+						s.rowAction(c, pkg)
 					}
-					s.rowAction(c, pkg)
 				}).Fill()
 			})
 		})
 	}
 }
 
+// rowAction is the install button, or the update one for a package the
+// inventory holds at another version: the row already says which it is.
 func (s *View) rowAction(c *ui.Context, pkg manager.Package) {
 	caps := s.Data.Capabilities(pkg.Manager)
+	mark := s.Data.SearchMark(pkg)
+	updating := mark == inventory.MarkUpdate
 	running := s.Data.Running(pkg)
-	installing := running == "install"
-	canInstall := caps.Install && running == ""
-	label := locales.ActionsInstall()
-	if installing {
-		label = locales.ActionsInstalling()
-	}
+	working := running != "" && running == actionName(updating)
+	canAct := running == "" && capability(caps, updating)
 	slot := parts.ActionSlot(c)
 	slot.Children(func() {
-		install := components.IconButton(c, lucide.Download(), label, components.IconButtonPlain)
-		install.Disabled(!canInstall)
-		if install.Clicked() && canInstall && s.OnInstall != nil {
-			s.OnInstall(pkg, flight.OriginOf(install))
+		button := s.actionButton(c, updating, working)
+		button.Disabled(!canAct)
+		if button.Clicked() && canAct {
+			s.run(pkg, updating, flight.OriginOf(button))
 		}
 	})
 	switch {
-	case installing:
+	case working:
 		// Its own label already says it is working.
 	case !s.Data.Enabled(pkg.Manager):
-		parts.ActionTooltip(c, slot, canInstall, locales.ActionManagerOff())
-	case !caps.Install:
-		parts.ActionTooltip(c, slot, canInstall, locales.ActionUnsupported())
+		parts.ActionTooltip(c, slot, canAct, locales.ActionManagerOff())
+	case !capability(caps, updating):
+		parts.ActionTooltip(c, slot, canAct, locales.ActionUnsupported())
 	case running != "":
-		parts.ActionTooltip(c, slot, canInstall, locales.ActionWorking())
+		parts.ActionTooltip(c, slot, canAct, locales.ActionWorking())
 	}
+}
+
+// actionButton is the row's button: an arrow down to install, an arrow up to
+// update, and a turning loader while either runs.
+func (s *View) actionButton(c *ui.Context, updating, working bool) ui.Element {
+	switch {
+	case updating && working:
+		return spinning(c, components.IconButton(c, lucide.Loader(), locales.ActionsUpdating(), components.IconButtonPlain))
+	case updating:
+		return components.IconButton(c, lucide.CircleArrowUp(), locales.ActionsUpdate(), components.IconButtonPlain)
+	case working:
+		return spinning(c, components.IconButton(c, lucide.Loader(), locales.ActionsInstalling(), components.IconButtonPlain))
+	default:
+		return components.IconButton(c, lucide.Download(), locales.ActionsInstall(), components.IconButtonPlain)
+	}
+}
+
+// spinning turns a button whose icon says it is working. The button is a circle
+// around a glyph, so rotating it reads as the glyph turning, and its own hover
+// and disabled faces come along; a button that is working is disabled, so the
+// turn costs nothing the pointer would use. It holds still when the desktop asks
+// for less motion.
+func spinning(c *ui.Context, button ui.Element) ui.Element {
+	if c.Preferences().ReduceMotion {
+		return button
+	}
+	return button.Rotate(button.Loop("busy", 900*time.Millisecond, ui.Linear) * 360)
+}
+
+func (s *View) run(pkg manager.Package, updating bool, at flight.Origin) {
+	if updating {
+		if s.OnUpdate != nil {
+			s.OnUpdate(pkg, at)
+		}
+		return
+	}
+	if s.OnInstall != nil {
+		s.OnInstall(pkg, at)
+	}
+}
+
+// actionName is the operation the inventory marks a package busy with.
+func actionName(updating bool) string {
+	if updating {
+		return "update"
+	}
+	return "install"
+}
+
+// capability reports what a manager claims for the action the row offers.
+func capability(caps manager.Capabilities, updating bool) bool {
+	if updating {
+		return caps.Update
+	}
+	return caps.Install
 }
 
 // BeginQuery registers a new search and returns its sequence number. The caller
