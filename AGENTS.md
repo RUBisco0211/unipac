@@ -37,11 +37,17 @@ Load both before writing or reviewing UI code.
   directly.
 - Builders run on the UI thread every frame: no I/O, no parsing, no blocking,
   no background work inside them.
+- `views/` is one package per page (`list`, `search`, `settings`, `tasks`) plus
+  the shared packages `inventory` (the `Service` interface and shared state),
+  `parts`, `ansi` and `flight`. Pages never import each other or `views` itself;
+  the shell owns the wiring and passes callbacks to a page's exported fields.
 - Elements expire at the end of a build pass. Keep application state and
   `ui.Handle`, never an element.
 - Prefer Onevra controls. Use MyGo's styled widgets only where Onevra has no
   equivalent.
 - All user-visible text goes through the catalogs in `locales/`.
+- Tests live in the package they test. Use `package foo_test` when the test only
+  touches exported API; do not add a cross-package test directory.
 
 ## Verification
 

@@ -1,4 +1,6 @@
-package views
+// Package ansi renders terminal output as styled spans: SGR colors, weights
+// and decorations are kept, cursor moves and other escapes are dropped.
+package ansi
 
 import (
 	"strconv"
@@ -44,10 +46,10 @@ type ansiStyle struct {
 	reverse   bool
 }
 
-// ansiSpans turns one line of terminal output into styled spans. Escape
+// Spans turns one line of terminal output into styled spans. Escape
 // sequences that only move the cursor or clear the screen are dropped; SGR
 // colors, weights and decorations are kept.
-func ansiSpans(line string, t *ui.Theme) []ui.Span {
+func Spans(line string, t *ui.Theme) []ui.Span {
 	if !strings.ContainsRune(line, 0x1b) {
 		return []ui.Span{{Text: line}}
 	}

@@ -1,4 +1,6 @@
-package views
+// Package list is the installed and outdated page: a filterable, sortable,
+// multi-selectable table over the shared package inventory.
+package list
 
 import (
 	"slices"
@@ -7,24 +9,31 @@ import (
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/flight"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// listView renders a filterable, sortable, multi-selectable table of the shared
+// View renders a filterable, sortable, multi-selectable table of the shared
 // inventory. The same type backs the installed and the outdated page.
-type listView struct {
-	data         *data
-	outdatedOnly bool
-	// allowRemove keeps uninstall off the outdated page, where the only
+type View struct {
+	// Exported fields are the page's wiring, set once by the window shell;
+	// everything below them is the page's own state.
+
+	Data *inventory.Data
+	// OutdatedOnly restricts the table to packages with a newer version.
+	OutdatedOnly bool
+	// AllowRemove keeps uninstall off the outdated page, where the only
 	// meaningful action is updating.
-	allowRemove  bool
-	onRefresh    func()
-	onUpdate     func(manager.Package, actionOrigin)
-	onRemove     func(manager.Package, actionOrigin)
-	onBulkUpdate func([]manager.Package, actionOrigin)
-	onBulkRemove func([]manager.Package, actionOrigin)
+	AllowRemove  bool
+	OnRefresh    func()
+	OnUpdate     func(manager.Package, flight.Origin)
+	OnRemove     func(manager.Package, flight.Origin)
+	OnBulkUpdate func([]manager.Package, flight.Origin)
+	OnBulkRemove func([]manager.Package, flight.Origin)
 
 	query    string
 	managers map[string]bool
@@ -63,13 +72,13 @@ type listView struct {
 	}
 }
 
-func (l *listView) view(c *ui.Context) {
-	l.sync()
+func (l *View) Build(c *ui.Context) {
+	l.Sync()
 	ui.Column(c).Fill().Gap(12).Children(func() {
 		ui.Column(c).Shrink(0).Gap(12).Padding(0, 16, 0, 16).Children(func() {
 			l.toolbar(c)
-			if l.data.refreshErr != nil {
-				components.Text(c, locales.PackagesRefreshError(l.data.refreshErr.Error())).
+			if l.Data.RefreshErr != nil {
+				components.Text(c, locales.PackagesRefreshError(l.Data.RefreshErr.Error())).
 					TextColor(c.Theme().Danger)
 			}
 		})
@@ -77,8 +86,8 @@ func (l *listView) view(c *ui.Context) {
 		// moves when a refresh starts or stops.
 		ui.Column(c).Fill().Padding(2, 0, 0, 0).Children(func() {
 			l.body(c)
-			if l.data.refreshing {
-				loadingBar(c)
+			if l.Data.Refreshing {
+				parts.LoadingBar(c)
 			}
 		})
 	})
@@ -88,32 +97,32 @@ func (l *listView) view(c *ui.Context) {
 
 // sync rebuilds the filtered rows when the inventory or a filter changed. It is
 // pure in-memory work, safe inside a builder.
-func (l *listView) sync() {
+func (l *View) Sync() {
 	l.syncManagerFilter()
 	filter := l.filterKey()
-	if l.applied.version == l.data.version &&
+	if l.applied.version == l.Data.Version &&
 		l.applied.filter == filter &&
 		l.applied.query == l.query {
 		return
 	}
-	l.applied.version = l.data.version
+	l.applied.version = l.Data.Version
 	l.applied.filter = filter
 	l.applied.query = l.query
-	l.rebuild()
+	l.Rebuild()
 }
 
 // syncManagerFilter keeps the multi-select valid when the manager list changes:
 // a turned-off manager leaves the selection, and if everything was selected the
 // new enabled set is selected too.
-func (l *listView) syncManagerFilter() {
-	if l.managers != nil && l.managersSeen == l.data.managersVersion {
+func (l *View) syncManagerFilter() {
+	if l.managers != nil && l.managersSeen == l.Data.ManagersVersion {
 		return
 	}
 	previousAll := l.managers == nil || l.allManagersSelectedFor(l.knownManagers)
-	enabled := make([]string, 0, len(l.data.managers))
-	next := make(map[string]bool, len(l.data.managers))
-	known := make(map[string]bool, len(l.data.managers))
-	for _, info := range l.data.managers {
+	enabled := make([]string, 0, len(l.Data.Managers))
+	next := make(map[string]bool, len(l.Data.Managers))
+	known := make(map[string]bool, len(l.Data.Managers))
+	for _, info := range l.Data.Managers {
 		if !info.Enabled {
 			continue
 		}
@@ -132,13 +141,13 @@ func (l *listView) syncManagerFilter() {
 	}
 	l.managers = next
 	l.knownManagers = known
-	l.managersSeen = l.data.managersVersion
+	l.managersSeen = l.Data.ManagersVersion
 }
 
 // allManagersSelectedFor reports whether the selection covers every manager in
 // ids. It is used against the previous enabled set, before a newly enabled
 // manager is added to the current one.
-func (l *listView) allManagersSelectedFor(ids map[string]bool) bool {
+func (l *View) allManagersSelectedFor(ids map[string]bool) bool {
 	if len(ids) == 0 {
 		return false
 	}
@@ -150,9 +159,9 @@ func (l *listView) allManagersSelectedFor(ids map[string]bool) bool {
 	return true
 }
 
-func (l *listView) allManagersSelected() bool {
+func (l *View) allManagersSelected() bool {
 	enabled := 0
-	for _, info := range l.data.managers {
+	for _, info := range l.Data.Managers {
 		if !info.Enabled {
 			continue
 		}
@@ -166,7 +175,7 @@ func (l *listView) allManagersSelected() bool {
 
 // filterKey identifies the selected managers so sync can tell a filter change
 // from an unrelated rebuild.
-func (l *listView) filterKey() string {
+func (l *View) filterKey() string {
 	ids := make([]string, 0, len(l.managers))
 	for id, on := range l.managers {
 		if on {
@@ -177,16 +186,16 @@ func (l *listView) filterKey() string {
 	return strings.Join(ids, ",")
 }
 
-func (l *listView) rebuild() {
+func (l *View) Rebuild() {
 	l.rows = l.rows[:0]
-	for _, pkg := range l.data.rows {
-		if l.outdatedOnly && !pkg.Outdated {
+	for _, pkg := range l.Data.Rows {
+		if l.OutdatedOnly && !pkg.Outdated {
 			continue
 		}
 		if !l.managers[pkg.Manager] {
 			continue
 		}
-		if !matchesQuery(pkg, l.query) {
+		if !inventory.Matches(pkg, l.query) {
 			continue
 		}
 		l.rows = append(l.rows, pkg)
@@ -197,10 +206,10 @@ func (l *listView) rebuild() {
 
 // pruneSelection drops keys that the current filters hide, so a bulk action
 // never touches a package the user cannot see.
-func (l *listView) pruneSelection() {
+func (l *View) pruneSelection() {
 	visible := make(map[string]struct{}, len(l.rows))
 	for _, pkg := range l.rows {
-		visible[packageKey(pkg)] = struct{}{}
+		visible[inventory.Key(pkg)] = struct{}{}
 	}
 	for key := range l.chosen {
 		if _, seen := visible[key]; !seen {
@@ -212,17 +221,17 @@ func (l *listView) pruneSelection() {
 
 // isChosen reports whether the package is selected. Selection lives in chosen;
 // the table's Selection only mirrors it so rows can be highlighted.
-func (l *listView) isChosen(pkg manager.Package) bool {
-	_, ok := l.chosen[packageKey(pkg)]
+func (l *View) isChosen(pkg manager.Package) bool {
+	_, ok := l.chosen[inventory.Key(pkg)]
 	return ok
 }
 
 // choose selects or deselects one package.
-func (l *listView) choose(pkg manager.Package, on bool) {
+func (l *View) choose(pkg manager.Package, on bool) {
 	if l.chosen == nil {
 		l.chosen = map[string]struct{}{}
 	}
-	key := packageKey(pkg)
+	key := inventory.Key(pkg)
 	if on {
 		l.chosen[key] = struct{}{}
 	} else {
@@ -234,7 +243,7 @@ func (l *listView) choose(pkg manager.Package, on bool) {
 // syncSelection mirrors chosen into the table's selection. The table also
 // selects a row on a plain click, which would clear the rest; restoring from
 // chosen on every change keeps clicks inert and leaves the checkboxes in charge.
-func (l *listView) syncSelection() {
+func (l *View) syncSelection() {
 	l.selection.Clear()
 	for key := range l.chosen {
 		l.selection.Add(key)
@@ -244,9 +253,9 @@ func (l *listView) syncSelection() {
 // selectColumnWidth is the width of the checkbox column.
 const selectColumnWidth = 40
 
-func (l *listView) columns() []ui.TableColumn {
+func (l *View) columns() []ui.TableColumn {
 	columns := []ui.TableColumn{{Title: "", ID: "select", Width: selectColumnWidth, Fixed: true}}
-	columns = append(columns, packageFields()...)
+	columns = append(columns, parts.Fields()...)
 	columns = append(columns, ui.TableColumn{
 		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
 	})
@@ -255,18 +264,18 @@ func (l *listView) columns() []ui.TableColumn {
 	return append(columns, ui.TableColumn{Title: "", ID: "pad", Width: 12, Fixed: true})
 }
 
-func (l *listView) applySort() {
+func (l *View) applySort() {
 	col := l.sortOrder.Column
 	desc := l.sortOrder.Descending
 	slices.SortStableFunc(l.rows, func(a, b manager.Package) int {
 		var order int
 		switch col {
 		case "type":
-			order = strings.Compare(typeLabel(a.IsGUI), typeLabel(b.IsGUI))
+			order = strings.Compare(parts.TypeLabel(a.IsGUI), parts.TypeLabel(b.IsGUI))
 		case "manager":
 			order = strings.Compare(
-				strings.ToLower(l.data.managerName(a.Manager)),
-				strings.ToLower(l.data.managerName(b.Manager)),
+				strings.ToLower(l.Data.Name(a.Manager)),
+				strings.ToLower(l.Data.Name(b.Manager)),
 			)
 		default:
 			order = strings.Compare(a.Name, b.Name)
@@ -281,26 +290,7 @@ func (l *listView) applySort() {
 	})
 }
 
-// matchesQuery reports whether a package matches the page's query, which is
-// already lower-cased and trimmed.
-func matchesQuery(pkg manager.Package, query string) bool {
-	if query == "" {
-		return true
-	}
-	query = strings.ToLower(strings.TrimSpace(query))
-	return strings.Contains(strings.ToLower(pkg.Name), query) ||
-		strings.Contains(strings.ToLower(pkg.Fullname), query) ||
-		strings.Contains(strings.ToLower(pkg.Description), query)
-}
-
-func typeLabel(isGUI bool) string {
-	if isGUI {
-		return locales.TypeGui()
-	}
-	return locales.TypeCli()
-}
-
-func (l *listView) selectedPackages() []manager.Package {
+func (l *View) selectedPackages() []manager.Package {
 	selected := make([]manager.Package, 0, len(l.chosen))
 	for _, pkg := range l.rows {
 		if l.isChosen(pkg) {
@@ -313,7 +303,7 @@ func (l *listView) selectedPackages() []manager.Package {
 // managerSelect is the multi-select manager filter. The checkboxes are built
 // from the component library rather than a native menu so they follow the
 // theme, and the counts show what each manager contributes to this page.
-func (l *listView) managerSelect(c *ui.Context) {
+func (l *View) managerSelect(c *ui.Context) {
 	t := c.Theme()
 	trigger := components.Button(c, l.managerLabel(), components.ButtonOutline).
 		Width(t.Space(42.5))
@@ -329,13 +319,13 @@ func (l *listView) managerSelect(c *ui.Context) {
 		allLabel := locales.PackagesAllManagers() + " (" + strconv.Itoa(total) + ")"
 		allBox := components.Checkbox(c, &all, allLabel)
 		if allBox.Changed() {
-			for _, info := range l.data.managers {
+			for _, info := range l.Data.Managers {
 				if info.Enabled {
 					l.managers[info.ID] = all
 				}
 			}
 		}
-		for _, info := range l.data.managers {
+		for _, info := range l.Data.Managers {
 			if !info.Enabled {
 				continue
 			}
@@ -351,20 +341,20 @@ func (l *listView) managerSelect(c *ui.Context) {
 
 // managerCounts counts what each manager contributes to the page as filtered by
 // its own scope and the query, ignoring the manager filter being chosen.
-func (l *listView) managerCounts() (map[string]int, int) {
+func (l *View) managerCounts() (map[string]int, int) {
 	if l.counts != nil &&
-		l.countsSeen.version == l.data.version &&
-		l.countsSeen.managers == l.data.managersVersion &&
+		l.countsSeen.version == l.Data.Version &&
+		l.countsSeen.managers == l.Data.ManagersVersion &&
 		l.countsSeen.query == l.query {
 		return l.counts, l.countsTotal
 	}
-	counts := make(map[string]int, len(l.data.managers))
+	counts := make(map[string]int, len(l.Data.Managers))
 	total := 0
-	for _, pkg := range l.data.rows {
-		if l.outdatedOnly && !pkg.Outdated {
+	for _, pkg := range l.Data.Rows {
+		if l.OutdatedOnly && !pkg.Outdated {
 			continue
 		}
-		if !matchesQuery(pkg, l.query) || !l.data.enabled(pkg.Manager) {
+		if !inventory.Matches(pkg, l.query) || !l.Data.Enabled(pkg.Manager) {
 			continue
 		}
 		counts[pkg.Manager]++
@@ -375,29 +365,29 @@ func (l *listView) managerCounts() (map[string]int, int) {
 		version  int
 		managers int
 		query    string
-	}{l.data.version, l.data.managersVersion, l.query}
+	}{l.Data.Version, l.Data.ManagersVersion, l.query}
 	return counts, total
 }
 
 // managerLabel names the current filter in the trigger.
 // allManagersOff reports whether every package belongs to a manager that is
 // turned off, which is why none of them can be updated.
-func (l *listView) allManagersOff(pkgs []manager.Package) bool {
+func (l *View) allManagersOff(pkgs []manager.Package) bool {
 	if len(pkgs) == 0 {
 		return false
 	}
 	for _, pkg := range pkgs {
-		if l.data.enabled(pkg.Manager) {
+		if l.Data.Enabled(pkg.Manager) {
 			return false
 		}
 	}
 	return true
 }
 
-func (l *listView) managerLabel() string {
+func (l *View) managerLabel() string {
 	enabled, selected := 0, 0
 	only := ""
-	for _, info := range l.data.managers {
+	for _, info := range l.Data.Managers {
 		if !info.Enabled {
 			continue
 		}
@@ -417,7 +407,7 @@ func (l *listView) managerLabel() string {
 	}
 }
 
-func (l *listView) toolbar(c *ui.Context) {
+func (l *View) toolbar(c *ui.Context) {
 	ui.Row(c).FillWidth().Shrink(0).AlignItems(ui.End).Gap(8).Children(func() {
 		components.TextBox(c, &l.query, components.TextBoxOptions{
 			LeadingIcon: lucide.Search(),
@@ -429,13 +419,13 @@ func (l *listView) toolbar(c *ui.Context) {
 		l.managerSelect(c)
 
 		refreshLabel := locales.CommonRefresh()
-		if l.data.refreshing {
+		if l.Data.Refreshing {
 			refreshLabel = locales.CommonRefreshing()
 		}
 		refresh := components.IconButton(c, lucide.RefreshCcw(), refreshLabel, components.IconButtonPlain)
-		refresh.Disabled(l.data.refreshing)
-		if refresh.Clicked() && l.onRefresh != nil {
-			l.onRefresh()
+		refresh.Disabled(l.Data.Refreshing)
+		if refresh.Clicked() && l.OnRefresh != nil {
+			l.OnRefresh()
 		}
 
 		selected := l.selectedPackages()
@@ -448,41 +438,41 @@ func (l *listView) toolbar(c *ui.Context) {
 		// package already being operated on would start twice.
 		updatable := make([]manager.Package, 0, len(selected))
 		for _, pkg := range selected {
-			if pkg.Outdated && l.data.capabilities(pkg.Manager).Update &&
-				l.data.actionFor(pkg) == "" {
+			if pkg.Outdated && l.Data.Capabilities(pkg.Manager).Update &&
+				l.Data.Running(pkg) == "" {
 				updatable = append(updatable, pkg)
 			}
 		}
 		canBulkUpdate := len(updatable) > 0
-		updateSlot := actionSlot(c)
+		updateSlot := parts.ActionSlot(c)
 		updateSlot.Children(func() {
 			bulkUpdate := components.IconButton(c, lucide.CircleArrowUp(), locales.PackagesBulkUpdate(), components.IconButtonPlain)
 			bulkUpdate.Disabled(!canBulkUpdate)
-			if bulkUpdate.Clicked() && canBulkUpdate && l.onBulkUpdate != nil {
-				l.onBulkUpdate(updatable, actionPoint(bulkUpdate))
+			if bulkUpdate.Clicked() && canBulkUpdate && l.OnBulkUpdate != nil {
+				l.OnBulkUpdate(updatable, flight.OriginOf(bulkUpdate))
 			}
 		})
 		switch {
 		case canBulkUpdate:
 		case l.allManagersOff(selected):
-			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionManagerOff())
-		case l.data.anyActive(selected):
-			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionWorking())
+			parts.ActionTooltip(c, updateSlot, canBulkUpdate, locales.ActionManagerOff())
+		case l.Data.AnyRunning(selected):
+			parts.ActionTooltip(c, updateSlot, canBulkUpdate, locales.ActionWorking())
 		default:
-			actionTooltip(c, updateSlot, canBulkUpdate, locales.ActionUpToDate())
+			parts.ActionTooltip(c, updateSlot, canBulkUpdate, locales.ActionUpToDate())
 		}
 
-		if !l.allowRemove {
+		if !l.AllowRemove {
 			return
 		}
 		removable := make([]manager.Package, 0, len(selected))
 		for _, pkg := range selected {
-			if l.data.actionFor(pkg) == "" {
+			if l.Data.Running(pkg) == "" {
 				removable = append(removable, pkg)
 			}
 		}
 		canBulkRemove := len(removable) > 0
-		removeSlot := actionSlot(c)
+		removeSlot := parts.ActionSlot(c)
 		removeSlot.Children(func() {
 			bulkRemove := components.IconButton(c, lucide.Trash(), locales.PackagesBulkRemove(), components.IconButtonPlain)
 			bulkRemove.TextColor(c.Theme().Danger)
@@ -493,13 +483,13 @@ func (l *listView) toolbar(c *ui.Context) {
 			}
 		})
 		if !canBulkRemove {
-			actionTooltip(c, removeSlot, canBulkRemove, locales.ActionWorking())
+			parts.ActionTooltip(c, removeSlot, canBulkRemove, locales.ActionWorking())
 		}
 	})
 }
 
 // allSelected reports whether every visible row is chosen.
-func (l *listView) allSelected() bool {
+func (l *View) allSelected() bool {
 	if len(l.rows) == 0 {
 		return false
 	}
@@ -512,7 +502,7 @@ func (l *listView) allSelected() bool {
 }
 
 // toggleAll chooses every visible row, or clears the choice.
-func (l *listView) toggleAll() {
+func (l *View) toggleAll() {
 	if l.chosen == nil {
 		l.chosen = map[string]struct{}{}
 	}
@@ -522,32 +512,32 @@ func (l *listView) toggleAll() {
 		return
 	}
 	for _, pkg := range l.rows {
-		l.chosen[packageKey(pkg)] = struct{}{}
+		l.chosen[inventory.Key(pkg)] = struct{}{}
 	}
 	l.syncSelection()
 }
 
-func (l *listView) body(c *ui.Context) {
+func (l *View) body(c *ui.Context) {
 	switch {
-	case l.data.loadErr != nil:
-		placeholder(c, locales.PackagesLoadError(l.data.loadErr.Error()))
-	case l.data.refreshing && len(l.rows) == 0:
+	case l.Data.LoadErr != nil:
+		parts.Placeholder(c, locales.PackagesLoadError(l.Data.LoadErr.Error()))
+	case l.Data.Refreshing && len(l.rows) == 0:
 		// Nothing cached yet: say what is happening instead of claiming the
 		// inventory is empty.
-		placeholder(c, locales.PackagesScanning())
+		parts.Placeholder(c, locales.PackagesScanning())
 	case len(l.rows) == 0:
-		if l.outdatedOnly {
-			placeholder(c, locales.OutdatedEmpty())
+		if l.OutdatedOnly {
+			parts.Placeholder(c, locales.OutdatedEmpty())
 			return
 		}
-		placeholder(c, locales.PackagesEmpty())
+		parts.Placeholder(c, locales.PackagesEmpty())
 	default:
 		l.syncSelection()
 		l.table.Sort = &l.sortOrder
 		l.table.OnSort = func() { l.applySort() }
 		l.table.List.Selection = &l.selection
 		l.table.List.OnChange = l.syncSelection
-		l.table.List.Key = func(row int) any { return packageKey(l.rows[row]) }
+		l.table.List.Key = func(row int) any { return inventory.Key(l.rows[row]) }
 		// Rows move when a column sorts them. Keeping the offset, rather than
 		// the item at the top, is what stops the table from scrolling along
 		// with that item to wherever the sort puts it.
@@ -582,7 +572,7 @@ func (l *listView) body(c *ui.Context) {
 	}
 }
 
-func (l *listView) cell(c *ui.Context, row, col int) {
+func (l *View) cell(c *ui.Context, row, col int) {
 	pkg := l.rows[row]
 	switch col {
 	case 0:
@@ -597,42 +587,42 @@ func (l *listView) cell(c *ui.Context, row, col int) {
 	case 6:
 		l.rowActions(c, pkg)
 	default:
-		packageFieldCell(c, pkg, col-1, l.data.managerName)
+		parts.Cell(c, pkg, col-1, l.Data.Name)
 	}
 }
 
-func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
-	caps := l.data.capabilities(pkg.Manager)
+func (l *View) rowActions(c *ui.Context, pkg manager.Package) {
+	caps := l.Data.Capabilities(pkg.Manager)
 	ui.Row(c).Gap(2).AlignItems(ui.Center).Justify(ui.End).Children(func() {
-		running := l.data.actionFor(pkg)
+		running := l.Data.Running(pkg)
 		updating := running == "update"
 		canUpdate := pkg.Outdated && caps.Update && running == ""
 		updateLabel := locales.ActionsUpdate()
 		if updating {
 			updateLabel = locales.ActionsUpdating()
 		}
-		updateSlot := actionSlot(c)
+		updateSlot := parts.ActionSlot(c)
 		updateSlot.Children(func() {
 			update := components.IconButton(c, lucide.CircleArrowUp(), updateLabel, components.IconButtonPlain)
 			update.Disabled(!canUpdate)
-			if update.Clicked() && canUpdate && l.onUpdate != nil {
-				l.onUpdate(pkg, actionPoint(update))
+			if update.Clicked() && canUpdate && l.OnUpdate != nil {
+				l.OnUpdate(pkg, flight.OriginOf(update))
 			}
 		})
 		switch {
 		case updating:
 			// The label already says it is working.
 		case running != "":
-			actionTooltip(c, updateSlot, canUpdate, locales.ActionWorking())
-		case !l.data.enabled(pkg.Manager):
-			actionTooltip(c, updateSlot, canUpdate, locales.ActionManagerOff())
+			parts.ActionTooltip(c, updateSlot, canUpdate, locales.ActionWorking())
+		case !l.Data.Enabled(pkg.Manager):
+			parts.ActionTooltip(c, updateSlot, canUpdate, locales.ActionManagerOff())
 		case !caps.Update:
-			actionTooltip(c, updateSlot, canUpdate, locales.ActionUnsupported())
+			parts.ActionTooltip(c, updateSlot, canUpdate, locales.ActionUnsupported())
 		case !pkg.Outdated:
-			actionTooltip(c, updateSlot, canUpdate, locales.ActionUpToDate())
+			parts.ActionTooltip(c, updateSlot, canUpdate, locales.ActionUpToDate())
 		}
 
-		if !l.allowRemove {
+		if !l.AllowRemove {
 			return
 		}
 		removing := running == "remove"
@@ -641,7 +631,7 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		if removing {
 			removeLabel = locales.ActionsRemoving()
 		}
-		removeSlot := actionSlot(c)
+		removeSlot := parts.ActionSlot(c)
 		removeSlot.Children(func() {
 			remove := components.IconButton(c, lucide.Trash(), removeLabel, components.IconButtonPlain)
 			remove.TextColor(c.Theme().Danger)
@@ -655,39 +645,25 @@ func (l *listView) rowActions(c *ui.Context, pkg manager.Package) {
 		case removing:
 			// Its own label already says it is working.
 		case running != "":
-			actionTooltip(c, removeSlot, canRemove, locales.ActionWorking())
-		case !l.data.enabled(pkg.Manager):
-			actionTooltip(c, removeSlot, canRemove, locales.ActionManagerOff())
+			parts.ActionTooltip(c, removeSlot, canRemove, locales.ActionWorking())
+		case !l.Data.Enabled(pkg.Manager):
+			parts.ActionTooltip(c, removeSlot, canRemove, locales.ActionManagerOff())
 		case !caps.Uninstall:
-			actionTooltip(c, removeSlot, canRemove, locales.ActionUnsupported())
+			parts.ActionTooltip(c, removeSlot, canRemove, locales.ActionUnsupported())
 		}
 	})
 }
 
-// actionSlot wraps a control that may be disabled. MyGo shows no tooltip
-// anchored on a disabled element, so the reason hangs on the wrapper instead.
-func actionSlot(c *ui.Context) ui.Element {
-	return ui.Row(c).Shrink(0).AlignItems(ui.Center)
-}
-
-// actionTooltip explains a disabled action; an enabled one needs no reason.
-func actionTooltip(c *ui.Context, slot ui.Element, enabled bool, reason string) {
-	if enabled || reason == "" {
-		return
-	}
-	components.Tooltip(c, slot, reason)
-}
-
 // uninstallDialog asks before removing one package; the removal itself is a
 // hold, so a stray click cannot confirm it.
-func (l *listView) uninstallDialog(c *ui.Context) {
+func (l *View) uninstallDialog(c *ui.Context) {
 	components.Dialog(c, &l.uninstallOpen, components.DialogOptions{Label: locales.UninstallTitle()}, func(panel ui.Element) {
 		pkg := l.uninstallTarget
 		t := c.Theme()
 		panel.Width(420).Padding(20).Children(func() {
 			ui.Column(c).Gap(12).Children(func() {
 				components.Text(c, locales.UninstallTitle()).FontSize(16).Bold()
-				components.Text(c, locales.UninstallMessage(pkg.Name, l.data.managerName(pkg.Manager))).
+				components.Text(c, locales.UninstallMessage(pkg.Name, l.Data.Name(pkg.Manager))).
 					TextColor(t.TextMuted)
 				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
 					cancel := components.Button(c, locales.CommonCancel(), components.ButtonOutline)
@@ -699,8 +675,8 @@ func (l *listView) uninstallDialog(c *ui.Context) {
 						components.HoldToConfirmOptions{Tone: components.HoldDanger})
 					if hold.Changed() {
 						l.uninstallOpen = false
-						if l.onRemove != nil {
-							l.onRemove(pkg, actionPoint(hold.Element))
+						if l.OnRemove != nil {
+							l.OnRemove(pkg, flight.OriginOf(hold.Element))
 						}
 					}
 				})
@@ -709,7 +685,7 @@ func (l *listView) uninstallDialog(c *ui.Context) {
 	})
 }
 
-func (l *listView) bulkDialog(c *ui.Context) {
+func (l *View) bulkDialog(c *ui.Context) {
 	components.Dialog(c, &l.bulkOpen, components.DialogOptions{Label: locales.UninstallBulkTitle()}, func(panel ui.Element) {
 		targets := l.bulkTargets
 		t := c.Theme()
@@ -727,8 +703,8 @@ func (l *listView) bulkDialog(c *ui.Context) {
 						components.HoldToConfirmOptions{Tone: components.HoldDanger})
 					if hold.Changed() {
 						l.bulkOpen = false
-						if l.onBulkRemove != nil {
-							l.onBulkRemove(targets, actionPoint(hold.Element))
+						if l.OnBulkRemove != nil {
+							l.OnBulkRemove(targets, flight.OriginOf(hold.Element))
 						}
 					}
 				})

@@ -23,10 +23,14 @@ of the old stack remains, and these are the decisions worth not revisiting:
 
 - `main.go` configures the app: `mygo.App.WhenReady`, the main window, menus, theme, and shutdown hooks.
 - `app.go` is the application service, in package main. Views call it through the
-  `views.Service` interface they declare, since package main cannot be imported.
+  `inventory.Service` interface the views declare, since package main cannot be imported.
 - `backend/` owns package-manager discovery, command execution, cache persistence, config, and logging.
-- `views/` owns presentation: the shell, one file per page, shared table rendering, and the retained state each page shows.
+- `views/` owns presentation: the window shell, one package per page, the shared state and parts they compose, and the fixtures their tests share.
 - `locales/` holds the ARB catalogs and the Go package MyGo generates from them.
+
+Package main is the composition layer, not a place for backend policy: `main.go`
+creates the window and starts the app, and `app.go` is the service the views
+call. Anything that is not wiring goes in `backend/` or `views/`.
 
 The repository root is the Go module root and the directory MyGo works in:
 `go.mod`, `mygo.json` and `assets/` sit there. The app's Go packages are
@@ -38,6 +42,13 @@ The intended dependency direction is:
 `views` → `App` methods → `registry` / `cache` / `adapters` / `util`
 
 Views must not import `backend/adapters`, `backend/cache`, or `backend/core/registry` directly. This replaces the old `src/lib/api.ts` boundary: the rule is unchanged, the mechanism is now a Go package boundary.
+
+`backend/command` is the exception that proves the rule: it holds only the
+`Limiter` that arbitrates package-manager commands, has no dependency beyond the
+standard library, and is imported by package main. It sits in `backend/` because
+it is command-execution policy, not presentation; it is not in `backend/tasks`
+because a cache scan takes the same slots, and the task layer must not learn
+about scans.
 
 ## Backend Modules
 
@@ -210,10 +221,10 @@ pruning older finished ones and their output at startup.
 
 #### Concurrency
 
-Every command is a child process through `os/exec`. `App` owns an
-`actionLimiter` with two rules:
+Every command is a child process through `os/exec`. `App` owns a
+`command.Limiter` with two rules:
 
-- at most `maxConcurrentActions` (8) package tasks run at once;
+- at most `command.MaxConcurrentTasks` (8) package tasks run at once;
 - at most one task per manager runs at once. That is about shared state, not
   about the packages: Homebrew holds a global lock, and npm and pip write the
   same global prefix, so a second command for the same manager would fail
@@ -223,8 +234,9 @@ Every command is a child process through `os/exec`. `App` owns an
 A task takes its manager slot before the global slot, so a batch for one
 manager queues on that manager without consuming capacity other managers need.
 A cache scan takes every enabled manager's slot for its duration; it waits for
-running actions, and new actions wait for the scan, so a scan never overlaps a
-package-manager command.
+running tasks, and new tasks wait for the scan, so a scan never overlaps a
+package-manager command. This is why the limiter is owned by `App`: it is the
+only layer that starts both.
 
 A batch creates all its tasks as queued, then runs them through a worker pool;
 the page therefore shows the whole selection immediately, with the waiting ones
@@ -295,41 +307,52 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 ### Views
 
-One package `views`, split by responsibility rather than by page:
+`views/` is one package per page, plus the packages they share. The split
+follows what a file *is*, so a page's state, its builder and its tests live
+together, and nothing has to be found across a 900-line file:
 
-- `shell.go`: the shell, sidebar navigation, the page switch, and the background
-  jobs (`Refresh`, `Search`, `Install`, `Update`, `Remove`, `saveSettings`).
-- `data.go`: the inventory shared by the pages, the manager list and its saved
-  settings, the refresh and action state, and capability lookup.
-- `list.go`: the installed and outdated tables: query and multi-select manager filters,
-  sorting, row checkboxes with select-all, the bulk bar, and the per-row
-  actions. Uninstall opens a dialog whose confirm is a hold gesture; the
-  outdated page omits uninstall entirely.
-- `search.go`: the search field, a package-manager multi-select, its results
-  table, and the install action. The manager selection goes to the backend, so
-  unselected managers never run a search command. While a search runs, the same
-  indeterminate bar as a package refresh sweeps over the body.
-- `tasks.go`: the tasks page: one row per package operation, a running count,
-  the retry action for a failure, and a full-height side panel showing the
-  chosen task's command, executable and console. `ansi.go` renders the
-  terminal's SGR colors. The page renders snapshots; it never touches a live
-  task.
-- `settings.go`: the settings page: startup behavior, the log level, the
-  language, and one row per manager with its switch and executable path.
-- `table.go`: the columns and cell rendering shared by the package tables.
+| Package | Holds | Imports |
+| --- | --- | --- |
+| `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling and task notifications | every view package below |
+| `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
+| `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
+| `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
+| `views/search` | the search page: the query field, the manager selection, results, install | `inventory`, `parts`, `flight` |
+| `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
+| `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the selected task's console | `inventory`, `parts`, `ansi`, `flight` |
+| `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
+| `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |
+| `views/internal/testui` | the fixtures the page tests share: inventory, task list, headless window | `inventory` |
 
-The installed and outdated pages are the same `listView` with `outdatedOnly`
+Three rules keep the graph acyclic and the modules honest:
+
+- Pages may import `inventory`, `parts`, `ansi`, `flight` and the backend domain
+  packages. They never import each other, and never import `views` itself.
+- `inventory` never imports a page or `parts`. Its fields are exported because
+  every page reads them; only `inventory` writes them, through its methods.
+- The shell owns the callbacks. A page takes its wiring as exported struct
+  fields (`Data`, `OnRetry`, ...) and calls back into `App` through them; it
+  never reaches for another page or for the window.
+
+A page's exported API is the builder (`Build(c *ui.Context)`), its synchronizer
+(`Sync`), and the few state transitions the shell drives, such as
+`search.View.BeginQuery`/`Apply` for a result that must not overwrite a newer
+query, `settings.View.BeginSave`/`EndSave` for one write at a time, and
+`tasks.View.BeginOutput`/`FinishOutput` for a console fetch. Everything else is
+the page's own business, which also means the pages' tests are ordinary
+in-package tests.
+
+`views/internal/testui` exists because the pages are separate packages: each
+page's tests need the same inventory and window, and a `_test.go` helper cannot
+be imported across packages. `inventory`'s own tests keep a minimal local
+fixture instead, because anything it imported would have to import it back.
+
+The installed and outdated pages are the same `list.View` with `OutdatedOnly`
 set, so a change to the table applies to both.
-
-Concurrency is per package, not per page: `data.active` maps a package key to the
-operation running for it, `runAction` marks its targets before it starts, and the
-row actions disable only the packages that are busy. Different packages run
-independently; the backend limiter serializes one manager. The tasks page's retry
-uses the same map, so it waits for its own package and not for unrelated work.
 
 Rules that replace the Vue ones:
 
-- Each page is a struct holding retained state; its `view(c *ui.Context)` builds the interface from that state on every frame.
+- Each page is a struct holding retained state; its `Build(c *ui.Context)` method builds the interface from that state on every frame.
 - Builders run on the UI thread. No I/O, no command execution, no parsing, no blocking.
 - Elements expire at the end of a build pass. Store application state and `ui.Handle`, never an element or its parts.
 - Give stateful controls stable identity with `c.Key(...)` before construction.
@@ -367,7 +390,7 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 
 ### Settings Page
 
-`settings.go` is one scrollable page of sections separated by rules, not cards.
+The settings page is one scrollable column of sections separated by rules, not cards.
 A section has a title with an optional trailing action, a sentence saying what
 its settings do, and a rule above the rows. The sections are startup behavior,
 the log level, the language (the app's languages plus System, named in their own
@@ -389,7 +412,7 @@ path asks for a rescan, so its rows leave the lists.
 
 ### Tasks Page
 
-`tasks.go` shows one row per package operation in a `TableVirtualized` with the
+The tasks page shows one row per package operation in a `TableVirtualized` with the
 same look as the package tables. Its columns are operation, package, version,
 manager, status, started and finished; an update's version cell joins the old and
 new versions with `→`, and the time cells show the clock today or the date for an
@@ -413,7 +436,7 @@ indeterminate bar sits over the table's top while tasks are queued or running or
 a stored console is loading, like the refresh bar on the package pages. The
 console is a `components.List` with `FollowEnd`, which keeps the newest line in
 view until the user scrolls up, and starts at the end when a different task is
-chosen. `ansi.go` parses SGR sequences into colored spans, so
+chosen. `views/ansi` parses SGR sequences into colored spans, so
 bold, standard and 256/true colors look as the tool meant them; stderr is not
 tinted by itself. Homebrew, npm and Cargo's action commands ask for color
 (`HOMEBREW_COLOR`, `FORCE_COLOR`, `CARGO_TERM_COLOR`) because they print to a
@@ -428,7 +451,7 @@ its sequence changed, so a command printing hundreds of lines cannot copy every
 running task's full output on every frame. A refresh keeps the displayed lines
 in place; the completion carries a request generation and the sequence it
 loaded, so a stale result is dropped and output that arrived mid-fetch triggers
-one more load. `tasksView` holds snapshots and the one loaded console; `UI.Run`
+one more load. `tasks.View` holds snapshots and the one loaded console; `UI.Run`
 registers the listener once, and each callback posts one `Window.Update`. Opening the page reloads the snapshots, because live updates
 may have been skipped while another page was shown.
 
@@ -487,7 +510,7 @@ announced by a notification.
 
 ### Table and Actions
 
-`views/table.go` replaces `PackagesDataTable.vue` and `packages-columns.ts`. Use `TableVirtualized` so a few thousand rows scroll smoothly; keep rows a fixed height, which rules out variable-height cells. Keep row identity stable across refreshes so selection and scroll position survive an update.
+`views/parts` replaces `PackagesDataTable.vue` and `packages-columns.ts`. Use `TableVirtualized` so a few thousand rows scroll smoothly; keep rows a fixed height, which rules out variable-height cells. Keep row identity stable across refreshes so selection and scroll position survive an update.
 
 The keyed row list also sets `KeepOffset`: with a `Key` and without it, MyGo
 keeps the row at the top of the viewport in place, so sorting a column would
@@ -525,17 +548,6 @@ Target behavior:
    triggers that follow-up scan so the rows never describe the pre-action state.
 
 Views may rebuild several times for one event. Trigger side effects through handled actions or explicit guarded jobs, not from rendering code.
-
-### Demo Mode
-
-`source/demo.go` is a `views.Service` implementation for frontend work, selected
-with `-demo` or `UNIPAC_DEMO=1`. It fakes managers, packages, search results and
-action results, and runs scripted tasks with real ANSI console lines and delays.
-It never starts `App`, the registry, the cache or the task store, so it is a
-frontend fixture, not a second backend: if an App method changes, the demo has
-to implement the new `Service` method or the build tells you. Its tasks are
-memory-only and its task listener drives the same snapshots and badges as the
-real manager.
 
 ## Data Flow
 
@@ -577,7 +589,7 @@ Task UI:
    `util.Run` reports the command and its output lines to the task.
 4. The task manager persists the metadata and coalesces changes, then calls the
    listener, which posts `Window.Update` with a fresh snapshot list.
-5. `tasksView` renders the snapshots, the chosen task's console, and a retry for
+5. `tasks.View` renders the snapshots, the chosen task's console, and a retry for
    a failure. Retrying calls the same `App` method, which creates a new task.
 
 ## Design Rules Going Forward

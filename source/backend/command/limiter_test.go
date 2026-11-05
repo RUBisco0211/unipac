@@ -1,4 +1,4 @@
-package main
+package command
 
 import (
 	"context"
@@ -10,14 +10,14 @@ import (
 // The limiter lets a fixed number of actions through and never two for the same
 // manager.
 func TestActionLimiterCapsConcurrency(t *testing.T) {
-	limiter := newActionLimiter(2)
+	limiter := NewLimiter(2)
 	ctx := context.Background()
 
-	first, err := limiter.acquire(ctx, "brew")
+	first, err := limiter.Acquire(ctx, "brew")
 	if err != nil {
 		t.Fatalf("first acquire: %v", err)
 	}
-	second, err := limiter.acquire(ctx, "npm")
+	second, err := limiter.Acquire(ctx, "npm")
 	if err != nil {
 		t.Fatalf("second acquire: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestActionLimiterCapsConcurrency(t *testing.T) {
 	// A third manager is over the global limit.
 	third := make(chan func())
 	go func() {
-		release, err := limiter.acquire(ctx, "pip")
+		release, err := limiter.Acquire(ctx, "pip")
 		if err != nil {
 			close(third)
 			return
@@ -52,16 +52,16 @@ func TestActionLimiterCapsConcurrency(t *testing.T) {
 }
 
 func TestActionLimiterSerializesOneManager(t *testing.T) {
-	limiter := newActionLimiter(3)
+	limiter := NewLimiter(3)
 	ctx := context.Background()
-	release, err := limiter.acquire(ctx, "brew")
+	release, err := limiter.Acquire(ctx, "brew")
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 
 	next := make(chan error)
 	go func() {
-		second, err := limiter.acquire(ctx, "brew")
+		second, err := limiter.Acquire(ctx, "brew")
 		if err == nil {
 			second()
 		}
@@ -87,15 +87,15 @@ func TestActionLimiterSerializesOneManager(t *testing.T) {
 // need. This is the difference between a single-manager batch (one active task,
 // many waiters) and a batch that starves every other manager.
 func TestActionLimiterDoesNotStarveOtherManagers(t *testing.T) {
-	limiter := newActionLimiter(2)
-	release, err := limiter.acquire(context.Background(), "brew")
+	limiter := NewLimiter(2)
+	release, err := limiter.Acquire(context.Background(), "brew")
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 
 	for range 6 {
 		go func() {
-			release, err := limiter.acquire(context.Background(), "brew")
+			release, err := limiter.Acquire(context.Background(), "brew")
 			if err == nil {
 				release()
 			}
@@ -106,7 +106,7 @@ func TestActionLimiterDoesNotStarveOtherManagers(t *testing.T) {
 
 	npm := make(chan error, 1)
 	go func() {
-		release, err := limiter.acquire(context.Background(), "npm")
+		release, err := limiter.Acquire(context.Background(), "npm")
 		if err == nil {
 			release()
 		}
@@ -126,15 +126,15 @@ func TestActionLimiterDoesNotStarveOtherManagers(t *testing.T) {
 // A scan holds every manager slot; a running action finishes first, and an
 // action that starts during the scan waits.
 func TestActionLimiterScanWaitsForManagers(t *testing.T) {
-	limiter := newActionLimiter(2)
-	release, err := limiter.acquire(context.Background(), "brew")
+	limiter := NewLimiter(2)
+	release, err := limiter.Acquire(context.Background(), "brew")
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
 
 	scan := make(chan func())
 	go func() {
-		release, err := limiter.acquireManagers(context.Background(), []string{"npm", "brew"})
+		release, err := limiter.AcquireAll(context.Background(), []string{"npm", "brew"})
 		if err == nil {
 			scan <- release
 		}
@@ -156,8 +156,8 @@ func TestActionLimiterScanWaitsForManagers(t *testing.T) {
 
 // A cancelled wait must give back the global slot it took.
 func TestActionLimiterReleasesOnCancel(t *testing.T) {
-	limiter := newActionLimiter(1)
-	release, err := limiter.acquire(context.Background(), "brew")
+	limiter := NewLimiter(1)
+	release, err := limiter.Acquire(context.Background(), "brew")
 	if err != nil {
 		t.Fatalf("acquire: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestActionLimiterReleasesOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error)
 	go func() {
-		_, err := limiter.acquire(ctx, "npm")
+		_, err := limiter.Acquire(ctx, "npm")
 		done <- err
 	}()
 	cancel()
@@ -174,7 +174,7 @@ func TestActionLimiterReleasesOnCancel(t *testing.T) {
 	}
 
 	release()
-	again, err := limiter.acquire(context.Background(), "pip")
+	again, err := limiter.Acquire(context.Background(), "pip")
 	if err != nil {
 		t.Fatalf("the global slot was not released: %v", err)
 	}

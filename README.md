@@ -66,21 +66,6 @@ go tool mygo vet .
 If Go cannot write to its default build cache, point `GOCACHE` at a writable
 path.
 
-## Demo Mode
-
-Run on simulated packages and tasks without touching any real package manager:
-
-```sh
-go run ./source -demo
-# or
-UNIPAC_DEMO=1 go run ./source
-```
-
-The demo exercises update, uninstall, install, bulk and concurrent tasks, cancel
-and retry, task filtering, and the quit prompt. Its data lives in
-`source/demo.go` and is not persisted. On macOS, system notifications need a
-packaged app, so use `UNIPAC_DEMO=1 go tool mygo dev` to see them.
-
 ## Releases
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`, which checks the tag

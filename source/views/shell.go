@@ -1,9 +1,12 @@
-// Package views holds UniPac's native interface: the window shell, one builder
-// per page, and the retained state each page shows.
+// Package views holds UniPac's native interface: the window shell that composes
+// the pages, the background jobs they start, and the quit and notification
+// handling around them. The pages themselves are separate packages; see
+// views/inventory, views/parts, views/list, views/search, views/settings and
+// views/tasks.
 //
 // Builders run on the UI thread for every frame. They must not perform I/O,
 // start work, or keep elements across passes; application state is loaded into
-// the structs here before the window opens and passed by pointer.
+// the page structs before the window opens and passed by pointer.
 package views
 
 import (
@@ -16,6 +19,13 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/flight"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/list"
+	"github.com/RUBisco0211/unipac/source/views/parts"
+	"github.com/RUBisco0211/unipac/source/views/search"
+	"github.com/RUBisco0211/unipac/source/views/settings"
+	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
@@ -37,19 +47,19 @@ const (
 
 // UI is the retained state of the main window.
 type UI struct {
-	svc   Service
+	svc   inventory.Service
 	shell *sidebar.Shell
 
 	page    Page
 	history []Page
 	cursor  int
 
-	data      *data
-	installed *listView
-	outdated  *listView
-	search    *searchView
-	tasks     *tasksView
-	settings  *settingsView
+	data      *inventory.Data
+	installed *list.View
+	outdated  *list.View
+	search    *search.View
+	tasks     *taskspage.View
+	settings  *settings.View
 
 	// quitPrompting keeps one quit dialog open at a time. quitAccepted is set
 	// once the user chose to leave anyway, so the close and quit handlers stop
@@ -58,9 +68,9 @@ type UI struct {
 	quitAccepted  atomic.Bool
 
 	// jobTarget is the title bar's tasks button rectangle, laid out each frame;
-	// jobFlight carries a package icon from an action's control to it.
+	// jobFlight carries a package icon from a task's control to it.
 	jobTarget ui.Rect
-	jobFlight flight
+	jobFlight flight.Flight
 
 	// knownTasks is the last state seen for each task, so the listener can tell
 	// a task that just finished from one whose history was loaded.
@@ -69,52 +79,50 @@ type UI struct {
 
 // New builds the window state. Everything the pages need is loaded here, so no
 // builder has to touch the backend.
-func New(service Service) *UI {
+func New(service inventory.Service) *UI {
 	u := &UI{
 		svc:     service,
-		data:    newData(service),
+		data:    inventory.New(service),
 		history: []Page{PagePackages},
 	}
-	u.installed = &listView{
-		data:         u.data,
-		chosen:       map[string]struct{}{},
-		allowRemove:  true,
-		onRefresh:    u.Refresh,
-		onUpdate:     u.Update,
-		onRemove:     u.Remove,
-		onBulkUpdate: u.BulkUpdate,
-		onBulkRemove: u.BulkRemove,
+	u.installed = &list.View{
+		Data:         u.data,
+		AllowRemove:  true,
+		OnRefresh:    u.Refresh,
+		OnUpdate:     u.Update,
+		OnRemove:     u.Remove,
+		OnBulkUpdate: u.BulkUpdate,
+		OnBulkRemove: u.BulkRemove,
 	}
-	u.outdated = &listView{
-		data:         u.data,
-		chosen:       map[string]struct{}{},
-		outdatedOnly: true,
-		onRefresh:    u.Refresh,
-		onUpdate:     u.Update,
-		onBulkUpdate: u.BulkUpdate,
+	u.outdated = &list.View{
+		Data:         u.data,
+		OutdatedOnly: true,
+		OnRefresh:    u.Refresh,
+		OnUpdate:     u.Update,
+		OnBulkUpdate: u.BulkUpdate,
 	}
-	u.search = &searchView{
-		data:      u.data,
-		submit:    u.Search,
-		onInstall: u.Install,
+	u.search = &search.View{
+		Data:      u.data,
+		Submit:    u.Search,
+		OnInstall: u.Install,
 	}
-	u.tasks = &tasksView{
-		data:          u.data,
-		selectedIndex: -1,
-		splitPercent:  64,
-		onRetry:       u.RetryTask,
-		onCancel:      u.CancelTask,
-		onSelect:      u.loadTaskOutput,
+	u.tasks = &taskspage.View{
+		Data:          u.data,
+		SelectedIndex: -1,
+		SplitPercent:  64,
+		OnRetry:       u.RetryTask,
+		OnCancel:      u.CancelTask,
+		OnSelect:      u.loadTaskOutput,
 	}
-	u.tasks.apply(service.ListTasks())
-	u.knownTasks = taskStates(u.tasks.all)
-	u.settings = newSettings(service, u.data)
-	u.settings.onSetEnabled = u.SetManagerEnabled
-	u.settings.onSetPath = u.SetManagerExecPath
-	u.settings.onReload = u.ReloadManagers
-	u.settings.onSetAutoScan = u.SetAutoScanOnLaunch
-	u.settings.onSetLogLevel = u.SetLogLevel
-	u.settings.onSetLanguage = u.SetLanguage
+	u.tasks.Apply(service.ListTasks())
+	u.knownTasks = taskStates(u.tasks.All())
+	u.settings = settings.New(service, u.data)
+	u.settings.OnSetEnabled = u.SetManagerEnabled
+	u.settings.OnSetPath = u.SetManagerExecPath
+	u.settings.OnReload = u.ReloadManagers
+	u.settings.OnSetAutoScan = u.SetAutoScanOnLaunch
+	u.settings.OnSetLogLevel = u.SetLogLevel
+	u.settings.OnSetLanguage = u.SetLanguage
 	return u
 }
 
@@ -161,7 +169,7 @@ func (u *UI) Run() {
 		list := u.svc.ListTasks()
 		win.Update(func() {
 			previous := u.knownTasks
-			u.tasks.apply(list)
+			u.tasks.Apply(list)
 			u.announceTaskResults(previous, list)
 			u.knownTasks = taskStates(list)
 		})
@@ -174,20 +182,20 @@ func (u *UI) Run() {
 		win.Update(func() { u.openTask(taskID) })
 	})
 	slog.Debug("views: main window created")
-	if u.settings.autoScan {
+	if u.settings.AutoScan {
 		u.Refresh()
 	}
 }
 
 // Refresh rescans installed packages off the UI thread and publishes the rows
 // through Window.Update. A request that arrives mid-scan is remembered and runs
-// once more when it finishes, so an action that lands during a scan is not left
-// showing pre-action rows; only one extra scan is queued, never a stack.
+// once more when it finishes, so a task that lands during a scan is not left
+// showing pre-task rows; only one extra scan is queued, never a stack.
 func (u *UI) Refresh() {
 	if u.shell == nil {
 		return
 	}
-	if !u.data.beginRefresh() {
+	if !u.data.BeginRefresh() {
 		return
 	}
 	slog.Debug("views: refresh started")
@@ -196,7 +204,7 @@ func (u *UI) Refresh() {
 		refreshErr := u.svc.UpdateCache()
 		rows, loadErr := u.svc.GetCachedPackages()
 		win.Update(func() {
-			if u.data.finishRefresh(rows, refreshErr, loadErr) {
+			if u.data.FinishRefresh(rows, refreshErr, loadErr) {
 				u.Refresh()
 			}
 		})
@@ -210,18 +218,12 @@ func (u *UI) Search(query string, managerIDs []string) {
 		return
 	}
 	// A newer query wins: the sequence number drops a slow earlier result.
-	u.search.seq++
-	seq := u.search.seq
-	u.search.searching = true
-	u.search.err = nil
+	seq := u.search.BeginQuery()
 	win := u.shell.Window()
 	go func() {
 		results, err := u.svc.SearchPackages(query, managerIDs)
 		win.Update(func() {
-			if seq != u.search.seq {
-				return
-			}
-			u.search.apply(query, results, err)
+			u.search.Apply(seq, query, results, err)
 		})
 	}()
 }
@@ -229,59 +231,59 @@ func (u *UI) Search(query string, managerIDs []string) {
 // Install, Update and Remove run one package operation and refresh the
 // inventory when it finishes. Operations on different packages run
 // independently; the backend serializes one manager at a time.
-func (u *UI) Install(pkg manager.Package, at actionOrigin) {
-	u.runAction("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+func (u *UI) Install(pkg manager.Package, at flight.Origin) {
+	u.runTask("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.InstallPackage(pkg, manager.ActionOptions{})
 	}, locales.ToastInstalled())
 }
 
-func (u *UI) Update(pkg manager.Package, at actionOrigin) {
-	u.runAction("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+func (u *UI) Update(pkg manager.Package, at flight.Origin) {
+	u.runTask("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.UpdatePackage(pkg, manager.ActionOptions{})
 	}, locales.ToastUpdated())
 }
 
-func (u *UI) Remove(pkg manager.Package, at actionOrigin) {
-	u.runAction("remove", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+func (u *UI) Remove(pkg manager.Package, at flight.Origin) {
+	u.runTask("remove", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.UninstallPackage(pkg, manager.ActionOptions{})
 	}, locales.ToastRemoved())
 }
 
-func (u *UI) BulkUpdate(pkgs []manager.Package, at actionOrigin) {
-	u.runAction("update", pkgs, at, func() (manager.ActionResult, error) {
+func (u *UI) BulkUpdate(pkgs []manager.Package, at flight.Origin) {
+	u.runTask("update", pkgs, at, func() (manager.ActionResult, error) {
 		return u.svc.BatchUpdatePackages(pkgs, manager.ActionOptions{})
 	}, locales.ToastUpdated())
 }
 
-func (u *UI) BulkRemove(pkgs []manager.Package, at actionOrigin) {
-	u.runAction("remove", pkgs, at, func() (manager.ActionResult, error) {
+func (u *UI) BulkRemove(pkgs []manager.Package, at flight.Origin) {
+	u.runTask("remove", pkgs, at, func() (manager.ActionResult, error) {
 		return u.svc.BatchUninstallPackages(pkgs, manager.ActionOptions{})
 	}, locales.ToastRemoved())
 }
 
-// runAction runs an operation off the UI thread and marks its packages until it
-// finishes, so their rows wait while other packages stay usable. The outcome
-// becomes a toast, queued for the next frame because MyGo adds toasts while
-// building.
-func (u *UI) runAction(op string, pkgs []manager.Package, at actionOrigin, fn func() (manager.ActionResult, error), done string) {
-	if u.shell == nil || !u.data.beginAction(op, pkgs) {
+// runTask runs one package operation off the UI thread and marks its packages as
+// busy until it finishes, so their rows wait while other packages stay usable.
+// The outcome becomes a toast, queued for the next frame because MyGo adds
+// toasts while building.
+func (u *UI) runTask(op string, pkgs []manager.Package, at flight.Origin, fn func() (manager.ActionResult, error), done string) {
+	if u.shell == nil || !u.data.BeginTask(op, pkgs) {
 		return
 	}
-	u.flyToTasks(at)
+	u.jobFlight.ToTasks(at, u.jobTarget)
 	win := u.shell.Window()
 	go func() {
 		result, err := fn()
 		win.Update(func() {
-			u.data.finishAction(pkgs)
+			u.data.EndTask(pkgs)
 			switch {
 			case err != nil:
-				u.data.queueToast(err.Error(), components.ToastError)
+				u.data.QueueToast(err.Error(), components.ToastError)
 			case result.Message == tasks.CancelledMessage:
 				// The cancel action already told the user.
 			case !result.Success:
-				u.data.queueToast(result.Message, components.ToastError)
+				u.data.QueueToast(result.Message, components.ToastError)
 			default:
-				u.data.queueToast(done, components.ToastSuccess)
+				u.data.QueueToast(done, components.ToastSuccess)
 			}
 			if !u.quitAccepted.Load() {
 				u.Refresh()
@@ -305,12 +307,12 @@ func (u *UI) navigate(page Page) {
 	if page == PageTasks && u.svc != nil {
 		// The listener updates the page from any page; reloading on entry as
 		// well makes the page independent of one call having landed.
-		u.tasks.apply(u.svc.ListTasks())
+		u.tasks.Apply(u.svc.ListTasks())
 	}
 }
 
 // CancelTask stops one running or queued task and tells the user. The task
-// listener moves the row to cancelled; the action's goroutine returns.
+// listener moves the row to cancelled; the task's goroutine returns.
 func (u *UI) CancelTask(task tasks.Snapshot) {
 	if u.svc == nil || u.shell == nil {
 		return
@@ -327,10 +329,10 @@ func (u *UI) CancelTask(task tasks.Snapshot) {
 				case errors.Is(err, tasks.ErrTaskNotRunning):
 					message = locales.TasksCancelFinished()
 				}
-				u.data.queueToast(message, components.ToastError)
+				u.data.QueueToast(message, components.ToastError)
 				return
 			}
-			u.data.queueToast(locales.ToastCancelled(), components.ToastInfo)
+			u.data.QueueToast(locales.ToastCancelled(), components.ToastInfo)
 		})
 	}()
 }
@@ -343,17 +345,14 @@ func (u *UI) loadTaskOutput(id string) {
 		return
 	}
 	if id == "" {
-		u.tasks.output = tasks.Output{}
-		u.tasks.outputFor = ""
-		u.tasks.outputSeq = 0
-		u.tasks.outputLoading = false
+		u.tasks.ResetOutput()
 		return
 	}
-	task, ok := u.tasks.taskByID(id)
+	task, ok := u.tasks.TaskByID(id)
 	if !ok {
 		return
 	}
-	request, fetch := u.tasks.beginOutput(id, task.OutputSeq)
+	request, fetch := u.tasks.BeginOutput(id, task.OutputSeq)
 	if !fetch {
 		return
 	}
@@ -361,7 +360,7 @@ func (u *UI) loadTaskOutput(id string) {
 	go func() {
 		output := u.svc.TaskOutput(id)
 		win.Update(func() {
-			if u.tasks.finishOutput(id, request, output) {
+			if u.tasks.FinishOutput(id, request, output) {
 				u.loadTaskOutput(id)
 			}
 		})
@@ -373,8 +372,8 @@ func (u *UI) openTask(id string) {
 	if u.svc == nil {
 		return
 	}
-	u.tasks.apply(u.svc.ListTasks())
-	if !u.tasks.reveal(id) {
+	u.tasks.Apply(u.svc.ListTasks())
+	if !u.tasks.Reveal(id) {
 		return
 	}
 	u.navigate(PageTasks)
@@ -412,7 +411,7 @@ func finishedTasks(previous map[string]tasks.State, list []tasks.Snapshot) []tas
 }
 
 func (u *UI) notifyTask(task tasks.Snapshot) {
-	operation := kindLabel(task.Kind)
+	operation := parts.Operation(task.Kind)
 	title := locales.NotificationTaskSucceeded(operation)
 	body := task.Package
 	if task.ManagerName != "" {
@@ -420,7 +419,7 @@ func (u *UI) notifyTask(task tasks.Snapshot) {
 	}
 	if task.State == tasks.StateFailed {
 		title = locales.NotificationTaskFailed(operation)
-		if message := taskMessage(task); message != "" {
+		if message := parts.TaskMessage(task); message != "" {
 			body += " — " + truncateMessage(message, 140)
 		}
 	}
@@ -458,7 +457,7 @@ func truncateMessage(message string, limit int) string {
 
 // RetryTask runs a failed task's operation again. The new attempt is a new
 // task: the failed one keeps its outcome and console.
-func (u *UI) RetryTask(task tasks.Snapshot, at actionOrigin) {
+func (u *UI) RetryTask(task tasks.Snapshot, at flight.Origin) {
 	if u.svc == nil {
 		return
 	}
@@ -476,15 +475,15 @@ func (u *UI) RetryTask(task tasks.Snapshot, at actionOrigin) {
 	}
 	switch task.Kind {
 	case tasks.KindInstall:
-		u.runAction("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+		u.runTask("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 			return u.svc.InstallPackage(pkg, opt)
 		}, locales.ToastInstalled())
 	case tasks.KindUpdate:
-		u.runAction("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+		u.runTask("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 			return u.svc.UpdatePackage(pkg, opt)
 		}, locales.ToastUpdated())
 	case tasks.KindUninstall:
-		u.runAction("remove", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+		u.runTask("remove", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 			return u.svc.UninstallPackage(pkg, opt)
 		}, locales.ToastRemoved())
 	}
@@ -573,7 +572,7 @@ func (u *UI) windowTitle(c *ui.Context) {
 }
 
 // tasksButton is the title bar's shortcut to the tasks page, with a badge while
-// tasks run. Its rectangle is the destination of the flight from an action.
+// tasks run. Its rectangle is the destination of the flight from a task.
 func (u *UI) tasksButton(c *ui.Context) {
 	t := c.Theme()
 	box := ui.Box(c).Shrink(0).Width(t.Space(8)).Height(t.Space(7)).Center()
@@ -672,8 +671,8 @@ func (u *UI) outdatedCount() int {
 		return 0
 	}
 	n := 0
-	for _, pkg := range u.data.rows {
-		if pkg.Outdated && u.data.enabled(pkg.Manager) {
+	for _, pkg := range u.data.Rows {
+		if pkg.Outdated && u.data.Enabled(pkg.Manager) {
 			n++
 		}
 	}
@@ -685,12 +684,12 @@ func (u *UI) runningTasks() int {
 	if u.tasks == nil {
 		return 0
 	}
-	return u.tasks.runningCount()
+	return u.tasks.RunningCount()
 }
 
 func (u *UI) content(c *ui.Context) {
-	for _, t := range u.data.drainToasts() {
-		c.AddToast(ui.Toast{Title: t.title, Type: t.tone})
+	for _, t := range u.data.DrainToasts() {
+		c.AddToast(ui.Toast{Title: t.Title, Type: t.Tone})
 	}
 	// The tasks page keeps its own top inset: its console surface runs to the
 	// window's top edge, like the sidebar's.
@@ -703,18 +702,18 @@ func (u *UI) content(c *ui.Context) {
 		ui.Column(c).Fill().Padding(top, 0, 0, 0).Children(func() {
 			switch u.page {
 			case PagePackages:
-				u.installed.view(c)
+				u.installed.Build(c)
 			case PageOutdated:
-				u.outdated.view(c)
+				u.outdated.Build(c)
 			case PageSearch:
-				u.search.view(c)
+				u.search.Build(c)
 			case PageTasks:
-				u.tasks.view(c)
+				u.tasks.Build(c)
 			case PageSettings:
-				u.settings.view(c)
+				u.settings.Build(c)
 			}
 		})
-		u.flightOverlay(c, root)
+		u.jobFlight.Draw(c, root)
 	})
 }
 
@@ -768,36 +767,25 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 		return
 	}
 	s := u.settings
-	if s.busy {
-		// A second change would race the config write. Put the control back
-		// where the saved state says it is instead of silently dropping it.
-		s.invalidate()
+	if !s.BeginSave() {
 		return
 	}
-	s.busy = true
-	s.err = ""
 	win := u.shell.Window()
 	go func() {
 		err := fn()
 		managers := u.svc.ListManagers()
 		overrides := u.svc.ManagerOverrides()
-		autoScan := u.svc.AutoScanOnLaunch()
-		level := u.svc.LogLevel()
-		language := u.svc.Language()
+		saved := settings.Snapshot{
+			AutoScan: u.svc.AutoScanOnLaunch(),
+			LogLevel: u.svc.LogLevel(),
+			Language: u.svc.Language(),
+		}
 		win.Update(func() {
-			s.busy = false
-			s.detecting = false
-			// These come from the backend either way, so a failed save puts the
-			// startup switch and the log level back with the manager rows.
-			s.autoScan = autoScan
-			s.logLevel = level
-			s.language = language
+			s.EndSave(err, saved)
 			if err != nil {
-				s.err = err.Error()
-				s.invalidate()
 				return
 			}
-			u.data.setManagers(managers, overrides)
+			u.data.SetManagers(managers, overrides)
 			if rescan {
 				u.Refresh()
 			}

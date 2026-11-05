@@ -1,4 +1,6 @@
-package views
+// Package flight animates the package icon that flies from the control the user
+// pressed to the tasks button, so a started task is visibly somewhere.
+package flight
 
 import (
 	"time"
@@ -9,26 +11,26 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// actionOrigin is where the user pressed the control that started an action,
-// in window coordinates. A package icon flies from there to the tasks button.
-type actionOrigin struct {
+// Origin is where the user pressed the control that started a task, in window
+// coordinates. A package icon flies from there to the tasks button.
+type Origin struct {
 	X, Y float32
 }
 
-// actionPoint is el's pointer position, or its centre when the pointer has
-// already left (a hold-to-confirm gesture releases over the same control, so
-// this is mostly the exact press point).
-func actionPoint(el ui.Element) actionOrigin {
+// OriginOf is el's press point, or its centre when the pointer has already left
+// (a hold-to-confirm gesture releases over the same control, so this is mostly
+// the exact press point).
+func OriginOf(el ui.Element) Origin {
 	r := el.Bounds()
 	if x, y, over := el.PointerPosition(); over {
-		return actionOrigin{X: r.X + x, Y: r.Y + y}
+		return Origin{X: r.X + x, Y: r.Y + y}
 	}
-	return actionOrigin{X: r.X + r.W/2, Y: r.Y + r.H/2}
+	return Origin{X: r.X + r.W/2, Y: r.Y + r.H/2}
 }
 
-// flight is the package icon on its way from an action's control to the tasks
+// Flight is the package icon on its way from a task's control to the tasks
 // button in the title bar.
-type flight struct {
+type Flight struct {
 	active bool
 	// fresh means the next build must jump to the start before animating; it is
 	// what makes a second flight begin at the new control rather than at the
@@ -44,14 +46,14 @@ type flight struct {
 // means it disappears as it lands instead of settling on the button.
 const flightDuration = 300 * time.Millisecond
 
-// flyToTasks starts the flight for an action that just began. The target is the
-// tasks button's last laid-out rectangle.
-func (u *UI) flyToTasks(at actionOrigin) {
-	r := u.jobTarget
+// ToTasks starts the flight for a task that just began. target is the tasks
+// button's last laid-out rectangle.
+func (f *Flight) ToTasks(at Origin, target ui.Rect) {
+	r := target
 	if r.W <= 0 || r.H <= 0 || (at.X == 0 && at.Y == 0) {
 		return
 	}
-	u.jobFlight = flight{
+	*f = Flight{
 		active:  true,
 		fresh:   true,
 		started: time.Now(),
@@ -62,11 +64,16 @@ func (u *UI) flyToTasks(at actionOrigin) {
 	}
 }
 
-// flightOverlay draws the flying package over the page. It is absolute, so it
-// takes no layout room, and paint-only frames would not move it; AnimateTo
-// keeps rebuilding the little subtree until it arrives.
-func (u *UI) flightOverlay(c *ui.Context, root ui.Element) {
-	f := &u.jobFlight
+// Active reports whether an icon is still on its way, which a test needs to
+// assert when the flight ends.
+func (f *Flight) Active() bool {
+	return f.active
+}
+
+// Draw paints the flying package over the page. It is absolute, so it takes no
+// layout room, and paint-only frames would not move it; AnimateTo keeps
+// rebuilding the little subtree until it arrives.
+func (f *Flight) Draw(c *ui.Context, root ui.Element) {
 	if !f.active {
 		return
 	}

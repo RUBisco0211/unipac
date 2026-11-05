@@ -1,19 +1,19 @@
-package views
+// Package parts holds the presentational pieces the pages share: package table
+// columns and cells, badges, the loading bar, placeholders, row action slots,
+// separators and the labels a task's kind or message gets. Nothing here keeps
+// state; a part is built, drawn and forgotten.
+package parts
 
 import (
 	"math"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
-
-// packageKey identifies a package across managers.
-func packageKey(pkg manager.Package) string {
-	return pkg.Manager + ":" + pkg.Name
-}
 
 // managerHue derives a stable hue from a manager ID, matching the hash the old
 // interface used so the same manager keeps the same color.
@@ -63,11 +63,11 @@ func hslToRGB(h, s, l float64) ui.Color {
 	return ui.RGBA(channel(h+1.0/3), channel(h), channel(h-1.0/3), 1)
 }
 
-// managerBadge renders the manager label in a badge tinted by the manager ID.
+// ManagerBadge renders the manager label in a badge tinted by the manager ID.
 // It reuses components.Badge so both badges in a row share their geometry, and
 // only overrides the colors: Onevra's Badge offers status tones, not a
 // per-manager hue.
-func managerBadge(c *ui.Context, id, label string) {
+func ManagerBadge(c *ui.Context, id, label string) {
 	t := c.Theme()
 	saturation, lightness := 0.68, 0.42
 	backgroundAlpha, borderAlpha := float32(0.12), float32(0.22)
@@ -83,9 +83,9 @@ func managerBadge(c *ui.Context, id, label string) {
 		Border(1, tint.Alpha(borderAlpha))
 }
 
-// loadingBar draws a thin indeterminate bar: a highlight sweeping across while
+// LoadingBar draws a thin indeterminate bar: a highlight sweeping across while
 // the table loads or reloads.
-func loadingBar(c *ui.Context) ui.Element {
+func LoadingBar(c *ui.Context) ui.Element {
 	t := c.Theme()
 	// Absolute, so showing it never moves what is under it.
 	e := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(2).
@@ -109,8 +109,8 @@ func loadingBar(c *ui.Context) ui.Element {
 	return e
 }
 
-// placeholder fills a page with a centred icon and a line of text.
-func placeholder(c *ui.Context, text string) {
+// Placeholder fills a page with a centred icon and a line of text.
+func Placeholder(c *ui.Context, text string) {
 	t := c.Theme()
 	ui.Column(c).Fill().Center().Gap(t.Space(3)).Padding(24).Children(func() {
 		components.Icon(c, lucide.Package).Size(t.Space(10), t.Space(10)).
@@ -119,9 +119,9 @@ func placeholder(c *ui.Context, text string) {
 	})
 }
 
-// packageFields are the columns shared by the installed, outdated and search
+// Fields are the columns shared by the installed, outdated and search
 // tables, in order: package, installed version, latest version, type, manager.
-func packageFields() []ui.TableColumn {
+func Fields() []ui.TableColumn {
 	return []ui.TableColumn{
 		{Title: locales.TablePackage(), ID: "name", MinWidth: 180, Sortable: true, Fixed: true},
 		{Title: locales.TableInstalled(), ID: "version", Width: 100, Fixed: true},
@@ -131,18 +131,18 @@ func packageFields() []ui.TableColumn {
 	}
 }
 
-// searchFields are the columns of a search result. A package found by search is
+// SearchFields are the columns of a search result. A package found by search is
 // not installed, so there is no installed version to show.
-func searchFields() []ui.TableColumn {
-	fields := packageFields()
+func SearchFields() []ui.TableColumn {
+	fields := Fields()
 	return append(fields[:1], fields[2:]...)
 }
 
-// searchFieldIndex maps a search column back to its packageFields index.
-var searchFieldIndex = []int{0, 2, 3, 4}
+// SearchFieldIndex maps a search column back to its Fields index.
+var SearchFieldIndex = []int{0, 2, 3, 4}
 
-// packageFieldCell renders field, indexing packageFields.
-func packageFieldCell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string) {
+// Cell renders field, indexing Fields.
+func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string) {
 	t := c.Theme()
 	switch field {
 	case 0:
@@ -160,7 +160,7 @@ func packageFieldCell(c *ui.Context, pkg manager.Package, field int, managerName
 	case 1:
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			components.Icon(c, lucide.Tag).Size(14, 14).TextColor(t.TextMuted)
-			version := orDash(pkg.Version)
+			version := OrDash(pkg.Version)
 			components.Tooltip(c, components.Text(c, version).SingleLine().TextColor(t.TextMuted), version)
 		})
 	case 2:
@@ -174,12 +174,12 @@ func packageFieldCell(c *ui.Context, pkg manager.Package, field int, managerName
 		}
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			components.Icon(c, lucide.GitBranch).Size(14, 14).TextColor(color)
-			components.Text(c, orDash(latest)).SingleLine().TextColor(color)
+			components.Text(c, OrDash(latest)).SingleLine().TextColor(color)
 		})
 	case 3:
 		typeBadge(c, pkg.IsGUI)
 	case 4:
-		managerBadge(c, pkg.Manager, managerName(pkg.Manager))
+		ManagerBadge(c, pkg.Manager, managerName(pkg.Manager))
 	}
 }
 
@@ -199,10 +199,64 @@ func typeBadge(c *ui.Context, isGUI bool) {
 	components.Badge(c, label, options).AlignSelf(ui.Center)
 }
 
-// orDash keeps empty cells readable.
-func orDash(value string) string {
+// OrDash keeps empty cells readable.
+func OrDash(value string) string {
 	if value == "" {
 		return "-"
 	}
 	return value
+}
+
+// ActionSlot wraps a control that may be disabled. MyGo shows no tooltip
+// anchored on a disabled element, so the reason hangs on the wrapper instead.
+func ActionSlot(c *ui.Context) ui.Element {
+	return ui.Row(c).Shrink(0).AlignItems(ui.Center)
+}
+
+// ActionTooltip explains a disabled action; an enabled one needs no reason.
+func ActionTooltip(c *ui.Context, slot ui.Element, enabled bool, reason string) {
+	if enabled || reason == "" {
+		return
+	}
+	components.Tooltip(c, slot, reason)
+}
+
+// TypeLabel names a package type in the user's language.
+func TypeLabel(isGUI bool) string {
+	if isGUI {
+		return locales.TypeGui()
+	}
+	return locales.TypeCli()
+}
+
+// Divider is a hairline rule between sections.
+func Divider(c *ui.Context) {
+	ui.Box(c).FillWidth().Height(1).Shrink(0).Background(c.Theme().Border.Alpha(.5))
+}
+
+// TaskMessage shows the one message UniPac writes itself in the window's
+// language.
+func TaskMessage(task tasks.Snapshot) string {
+	switch task.Message {
+	case tasks.InterruptedMessage:
+		return locales.TasksInterrupted()
+	case tasks.CancelledMessage:
+		return locales.TasksCancelledByUser()
+	default:
+		return task.Message
+	}
+}
+
+// Operation names a task kind in the user's language.
+func Operation(kind tasks.Kind) string {
+	switch kind {
+	case tasks.KindInstall:
+		return locales.TasksKindInstall()
+	case tasks.KindUpdate:
+		return locales.TasksKindUpdate()
+	case tasks.KindUninstall:
+		return locales.TasksKindUninstall()
+	default:
+		return string(kind)
+	}
 }

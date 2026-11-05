@@ -1,4 +1,6 @@
-package views
+// Package tasks is the tasks page: the task table, its filters and the console
+// of the selected task.
+package tasks
 
 import (
 	"slices"
@@ -9,6 +11,10 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/ansi"
+	"github.com/RUBisco0211/unipac/source/views/flight"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -19,12 +25,12 @@ import (
 // alignment the way the tool meant it.
 const terminalFont = "SF Mono, Menlo, Consolas, monospace"
 
-// tasksView is the tasks page: a filterable table of one operation per package,
+// View is the tasks page: a filterable table of one operation per package,
 // with the chosen task's console in a panel on the trailing edge. The panel is
 // always there; the split divider resizes it.
-type tasksView struct {
-	// data supplies the action gate, so a retry waits like every other action.
-	data *data
+type View struct {
+	// Data supplies the task gate, so a retry waits like every other task.
+	Data *inventory.Data
 
 	all     []tasks.Snapshot
 	rows    []tasks.Snapshot
@@ -41,11 +47,11 @@ type tasksView struct {
 	managersOpen   bool
 
 	table         components.TableVirtualizedState
-	selectedIndex int
+	SelectedIndex int
 	selectedID    string
 	// splitPercent is the table pane's share of the page; the split writes it
 	// as the user drags the divider.
-	splitPercent float32
+	SplitPercent float32
 
 	// output is the selected task's console, loaded on demand from the task
 	// manager. outputSeq is the sequence it corresponds to; outputWanted is the
@@ -59,9 +65,9 @@ type tasksView struct {
 	outputLoading bool
 	outputRequest int
 
-	onRetry  func(tasks.Snapshot, actionOrigin)
-	onCancel func(tasks.Snapshot)
-	onSelect func(string)
+	OnRetry  func(tasks.Snapshot, flight.Origin)
+	OnCancel func(tasks.Snapshot)
+	OnSelect func(string)
 
 	applied struct {
 		version int
@@ -72,23 +78,36 @@ type tasksView struct {
 	logFor string
 }
 
+// All returns the snapshots the page last received.
+func (s *View) All() []tasks.Snapshot {
+	return s.all
+}
+
+// ResetOutput drops the selected console, so the next pass shows nothing.
+func (s *View) ResetOutput() {
+	s.output = tasks.Output{}
+	s.outputFor = ""
+	s.outputSeq = 0
+	s.outputLoading = false
+}
+
 // apply installs a fresh set of snapshots. It runs on the UI thread, from the
 // task listener or when the page is opened.
-func (s *tasksView) apply(list []tasks.Snapshot) {
+func (s *View) Apply(list []tasks.Snapshot) {
 	s.all = list
 	s.version++
 	if s.selectedID != "" && !s.hasTask(s.selectedID) {
 		s.clearSelection()
 		return
 	}
-	if s.selectedID != "" && s.onSelect != nil {
+	if s.selectedID != "" && s.OnSelect != nil {
 		// Reload the console when new output arrived; loadTaskOutput compares
 		// the sequence and leaves an unchanged console alone.
-		s.onSelect(s.selectedID)
+		s.OnSelect(s.selectedID)
 	}
 }
 
-func (s *tasksView) taskByID(id string) (tasks.Snapshot, bool) {
+func (s *View) TaskByID(id string) (tasks.Snapshot, bool) {
 	for _, task := range s.all {
 		if task.ID == id {
 			return task, true
@@ -98,8 +117,8 @@ func (s *tasksView) taskByID(id string) (tasks.Snapshot, bool) {
 }
 
 // reveal clears the filters and chooses id, for a notification click.
-func (s *tasksView) reveal(id string) bool {
-	if _, ok := s.taskByID(id); !ok {
+func (s *View) Reveal(id string) bool {
+	if _, ok := s.TaskByID(id); !ok {
 		return false
 	}
 	s.query = ""
@@ -111,7 +130,7 @@ func (s *tasksView) reveal(id string) bool {
 	return true
 }
 
-func (s *tasksView) hasTask(id string) bool {
+func (s *View) hasTask(id string) bool {
 	for _, task := range s.all {
 		if task.ID == id {
 			return true
@@ -120,21 +139,21 @@ func (s *tasksView) hasTask(id string) bool {
 	return false
 }
 
-func (s *tasksView) selected() (tasks.Snapshot, bool) {
-	if s.selectedIndex < 0 || s.selectedIndex >= len(s.rows) {
+func (s *View) selected() (tasks.Snapshot, bool) {
+	if s.SelectedIndex < 0 || s.SelectedIndex >= len(s.rows) {
 		return tasks.Snapshot{}, false
 	}
-	return s.rows[s.selectedIndex], true
+	return s.rows[s.SelectedIndex], true
 }
 
-func (s *tasksView) busy(task tasks.Snapshot) bool {
-	if s.data == nil {
+func (s *View) busy(task tasks.Snapshot) bool {
+	if s.Data == nil {
 		return false
 	}
-	return s.data.actionFor(manager.Package{Manager: task.ManagerID, Name: task.Package}) != ""
+	return s.Data.Running(manager.Package{Manager: task.ManagerID, Name: task.Package}) != ""
 }
 
-func (s *tasksView) runningCount() int {
+func (s *View) RunningCount() int {
 	n := 0
 	for _, task := range s.all {
 		if task.State == tasks.StateRunning {
@@ -146,7 +165,7 @@ func (s *tasksView) runningCount() int {
 
 // loading reports whether the table is doing work: a task is queued or
 // running, or a stored console is being read.
-func (s *tasksView) loading() bool {
+func (s *View) loading() bool {
 	if s.outputLoading {
 		return true
 	}
@@ -166,9 +185,9 @@ func firstLine(text string) string {
 }
 
 // clearSelection drops the chosen task and any loaded console.
-func (s *tasksView) clearSelection() {
+func (s *View) clearSelection() {
 	s.selectedID = ""
-	s.selectedIndex = -1
+	s.SelectedIndex = -1
 	s.output = tasks.Output{}
 	s.outputFor = ""
 	s.outputSeq = 0
@@ -179,14 +198,14 @@ func (s *tasksView) clearSelection() {
 }
 
 // choose takes the row the table selected.
-func (s *tasksView) choose() {
-	if s.selectedIndex < 0 || s.selectedIndex >= len(s.rows) {
+func (s *View) choose() {
+	if s.SelectedIndex < 0 || s.SelectedIndex >= len(s.rows) {
 		s.clearSelection()
 		return
 	}
-	s.selectedID = s.rows[s.selectedIndex].ID
-	if s.onSelect != nil {
-		s.onSelect(s.selectedID)
+	s.selectedID = s.rows[s.SelectedIndex].ID
+	if s.OnSelect != nil {
+		s.OnSelect(s.selectedID)
 	}
 }
 
@@ -196,7 +215,7 @@ var taskKinds = []tasks.Kind{tasks.KindInstall, tasks.KindUpdate, tasks.KindUnin
 
 // ensureFilters starts both multi-selects with every option chosen. A test or a
 // restored filter can provide its own maps first.
-func (s *tasksView) ensureFilters() {
+func (s *View) ensureFilters() {
 	if s.opFilter == nil {
 		s.opFilter = make(map[tasks.Kind]bool, len(taskKinds))
 		for _, kind := range taskKinds {
@@ -209,7 +228,7 @@ func (s *tasksView) ensureFilters() {
 	}
 }
 
-func (s *tasksView) allOperationsSelected() bool {
+func (s *View) allOperationsSelected() bool {
 	for _, kind := range taskKinds {
 		if !s.opFilter[kind] {
 			return false
@@ -218,7 +237,7 @@ func (s *tasksView) allOperationsSelected() bool {
 	return true
 }
 
-func (s *tasksView) allManagersSelected() bool {
+func (s *View) allManagersSelected() bool {
 	if s.managerAll {
 		return true
 	}
@@ -234,7 +253,7 @@ func (s *tasksView) allManagersSelected() bool {
 	return true
 }
 
-func (s *tasksView) operationLabel() string {
+func (s *View) operationLabel() string {
 	if s.allOperationsSelected() {
 		return locales.TasksAllOperations()
 	}
@@ -242,7 +261,7 @@ func (s *tasksView) operationLabel() string {
 	for _, kind := range taskKinds {
 		if s.opFilter[kind] {
 			n++
-			only = kindLabel(kind)
+			only = parts.Operation(kind)
 		}
 	}
 	if n == 1 {
@@ -251,7 +270,7 @@ func (s *tasksView) operationLabel() string {
 	return locales.OperationCount(n)
 }
 
-func (s *tasksView) managerFilterLabel() string {
+func (s *View) managerFilterLabel() string {
 	options := s.managerOptions()
 	if s.managerAll || (len(options) > 0 && s.allManagersSelected()) {
 		return locales.PackagesAllManagers()
@@ -272,7 +291,7 @@ func (s *tasksView) managerFilterLabel() string {
 // operationCounts counts the tasks of each kind after the manager filter and
 // query, ignoring the operation filter, so an unchecked kind still shows its
 // count.
-func (s *tasksView) operationCounts() (map[tasks.Kind]int, int) {
+func (s *View) operationCounts() (map[tasks.Kind]int, int) {
 	counts := make(map[tasks.Kind]int, len(taskKinds))
 	total := 0
 	for _, task := range s.all {
@@ -290,7 +309,7 @@ func (s *tasksView) operationCounts() (map[tasks.Kind]int, int) {
 
 // managerCounts counts the tasks of each manager after the operation filter and
 // query, ignoring the manager filter.
-func (s *tasksView) managerCounts() (map[string]int, int) {
+func (s *View) managerCounts() (map[string]int, int) {
 	counts := make(map[string]int)
 	total := 0
 	for _, task := range s.all {
@@ -306,7 +325,7 @@ func (s *tasksView) managerCounts() (map[string]int, int) {
 	return counts, total
 }
 
-func (s *tasksView) filterKey() string {
+func (s *View) filterKey() string {
 	ops := make([]string, 0, len(taskKinds))
 	for _, kind := range taskKinds {
 		if s.opFilter[kind] {
@@ -327,7 +346,7 @@ func (s *tasksView) filterKey() string {
 	return strings.Join(ops, ",") + "|" + managers
 }
 
-func (s *tasksView) sync() {
+func (s *View) Sync() {
 	s.ensureFilters()
 	filter := s.filterKey()
 	if s.applied.version == s.version &&
@@ -356,19 +375,19 @@ func (s *tasksView) sync() {
 	}
 
 	if s.selectedID == "" {
-		s.selectedIndex = -1
+		s.SelectedIndex = -1
 		return
 	}
 	for i := range s.rows {
 		if s.rows[i].ID == s.selectedID {
-			s.selectedIndex = i
+			s.SelectedIndex = i
 			return
 		}
 	}
 	s.clearSelection()
 }
 
-func (s *tasksView) matchesQuery(task tasks.Snapshot) bool {
+func (s *View) matchesQuery(task tasks.Snapshot) bool {
 	query := strings.ToLower(strings.TrimSpace(s.query))
 	if query == "" {
 		return true
@@ -376,7 +395,7 @@ func (s *tasksView) matchesQuery(task tasks.Snapshot) bool {
 	haystack := strings.ToLower(
 		task.Package + " " +
 			task.ManagerName + " " +
-			kindLabel(task.Kind) + " " +
+			parts.Operation(task.Kind) + " " +
 			task.Command,
 	)
 	return strings.Contains(haystack, query)
@@ -384,15 +403,15 @@ func (s *tasksView) matchesQuery(task tasks.Snapshot) bool {
 
 type managerChoice struct{ id, name string }
 
-func (s *tasksView) managerOptions() []managerChoice {
+func (s *View) managerOptions() []managerChoice {
 	// Only managers that actually have a task in this list: a manager with no
 	// tasks would just be a zero row in the filter.
 	names := make(map[string]string)
 	for _, task := range s.all {
 		names[task.ManagerID] = task.ManagerName
 	}
-	if s.data != nil {
-		for _, info := range s.data.managers {
+	if s.Data != nil {
+		for _, info := range s.Data.Managers {
 			if _, ok := names[info.ID]; ok {
 				names[info.ID] = info.Name
 			}
@@ -411,16 +430,16 @@ func (s *tasksView) managerOptions() []managerChoice {
 	return options
 }
 
-func (s *tasksView) view(c *ui.Context) {
-	s.sync()
-	if s.splitPercent <= 0 {
-		s.splitPercent = 64
+func (s *View) Build(c *ui.Context) {
+	s.Sync()
+	if s.SplitPercent <= 0 {
+		s.SplitPercent = 64
 	}
 	// The shell's floating header overlays the whole window. The table starts
 	// below it; the console's surface runs to the window's top edge, like the
 	// sidebar's.
 	top := sidebar.HeaderHeight(c) + 16
-	split := components.SplitPercent(c, &s.splitPercent, func() {
+	split := components.SplitPercent(c, &s.SplitPercent, func() {
 		s.tablePane(c, top)
 	}, func() {
 		s.consolePane(c, top)
@@ -434,19 +453,19 @@ func (s *tasksView) view(c *ui.Context) {
 }
 
 // tablePane is the filter bar and the task table.
-func (s *tasksView) tablePane(c *ui.Context, top float32) {
+func (s *View) tablePane(c *ui.Context, top float32) {
 	ui.Column(c).Fill().MinWidth(0).Padding(top, 0, 0, 0).Children(func() {
 		s.toolbar(c)
 		ui.Box(c).Fill().MinHeight(0).Children(func() {
 			s.body(c)
 			if s.loading() {
-				loadingBar(c)
+				parts.LoadingBar(c)
 			}
 		})
 	})
 }
 
-func (s *tasksView) toolbar(c *ui.Context) {
+func (s *View) toolbar(c *ui.Context) {
 	ui.Row(c).FillWidth().Shrink(0).AlignItems(ui.Center).Gap(8).Wrap().
 		Padding(2, 16, 10, 16).Children(func() {
 		components.TextBox(c, &s.query, components.TextBoxOptions{
@@ -461,7 +480,7 @@ func (s *tasksView) toolbar(c *ui.Context) {
 	})
 }
 
-func (s *tasksView) operationSelect(c *ui.Context) {
+func (s *View) operationSelect(c *ui.Context) {
 	t := c.Theme()
 	trigger := components.Button(c, s.operationLabel(), components.ButtonOutline).
 		Width(t.Space(37.5))
@@ -483,7 +502,7 @@ func (s *tasksView) operationSelect(c *ui.Context) {
 		}
 		for _, kind := range taskKinds {
 			selected := s.opFilter[kind]
-			label := kindLabel(kind) + " (" + strconv.Itoa(counts[kind]) + ")"
+			label := parts.Operation(kind) + " (" + strconv.Itoa(counts[kind]) + ")"
 			box := components.Checkbox(c, &selected, label)
 			if box.Changed() {
 				s.opFilter[kind] = selected
@@ -492,7 +511,7 @@ func (s *tasksView) operationSelect(c *ui.Context) {
 	})
 }
 
-func (s *tasksView) managerSelect(c *ui.Context) {
+func (s *View) managerSelect(c *ui.Context) {
 	t := c.Theme()
 	trigger := components.Button(c, s.managerFilterLabel(), components.ButtonOutline).
 		Width(t.Space(40))
@@ -531,14 +550,14 @@ func (s *tasksView) managerSelect(c *ui.Context) {
 	})
 }
 
-func (s *tasksView) body(c *ui.Context) {
+func (s *View) body(c *ui.Context) {
 	switch {
 	case len(s.all) == 0:
 		tasksPlaceholder(c, locales.TasksEmpty(), locales.TasksEmptyHint())
 	case len(s.rows) == 0:
 		tasksPlaceholder(c, locales.TasksNoMatch(), "")
 	default:
-		s.table.List.Selected = &s.selectedIndex
+		s.table.List.Selected = &s.SelectedIndex
 		s.table.List.Key = func(row int) any { return s.rows[row].ID }
 		s.table.List.KeepOffset = true
 		s.table.List.OnChange = s.choose
@@ -564,7 +583,7 @@ func tasksPlaceholder(c *ui.Context, text, hint string) {
 	})
 }
 
-func (s *tasksView) columns() []ui.TableColumn {
+func (s *View) columns() []ui.TableColumn {
 	return []ui.TableColumn{
 		{Title: locales.TableOperation(), ID: "operation", Width: 100, Fixed: true},
 		{Title: locales.TablePackage(), ID: "package", MinWidth: 120},
@@ -577,7 +596,7 @@ func (s *tasksView) columns() []ui.TableColumn {
 	}
 }
 
-func (s *tasksView) cell(c *ui.Context, row, col int) {
+func (s *View) cell(c *ui.Context, row, col int) {
 	task := s.rows[row]
 	switch col {
 	case 0:
@@ -587,7 +606,7 @@ func (s *tasksView) cell(c *ui.Context, row, col int) {
 		// tables have the same row height.
 		detail := firstLine(task.Command)
 		if detail == "" {
-			detail = taskMessage(task)
+			detail = parts.TaskMessage(task)
 		}
 		if detail == "" {
 			detail = "-"
@@ -602,7 +621,7 @@ func (s *tasksView) cell(c *ui.Context, row, col int) {
 	case 2:
 		versionCell(c, task)
 	case 3:
-		managerBadge(c, task.ManagerID, task.ManagerName)
+		parts.ManagerBadge(c, task.ManagerID, task.ManagerName)
 	case 4:
 		s.statusBadge(c, task).AlignSelf(ui.Center)
 	case 5:
@@ -634,11 +653,11 @@ func clockCell(c *ui.Context, at time.Time) {
 	components.Tooltip(c, text, at.Format("2006-01-02 15:04:05"))
 }
 
-func (s *tasksView) operationCell(c *ui.Context, task tasks.Snapshot) {
+func (s *View) operationCell(c *ui.Context, task tasks.Snapshot) {
 	icon, color := taskKind(task.Kind, c.Theme())
 	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 		components.Icon(c, icon).Size(15, 15).Shrink(0).TextColor(color)
-		components.Text(c, kindLabel(task.Kind)).SingleLine()
+		components.Text(c, parts.Operation(task.Kind)).SingleLine()
 	})
 }
 
@@ -658,18 +677,18 @@ func versionCell(c *ui.Context, task tasks.Snapshot) {
 		if new == "" {
 			new = old
 		}
-		components.Text(c, orDash(new)).SingleLine()
+		components.Text(c, parts.OrDash(new)).SingleLine()
 	case tasks.KindInstall:
 		if new == "" {
 			new = old
 		}
-		components.Text(c, orDash(new)).SingleLine().TextColor(t.Accent)
+		components.Text(c, parts.OrDash(new)).SingleLine().TextColor(t.Accent)
 	default:
-		components.Text(c, orDash(old)).SingleLine().TextColor(t.TextMuted)
+		components.Text(c, parts.OrDash(old)).SingleLine().TextColor(t.TextMuted)
 	}
 }
 
-func (s *tasksView) statusBadge(c *ui.Context, task tasks.Snapshot) ui.Element {
+func (s *View) statusBadge(c *ui.Context, task tasks.Snapshot) ui.Element {
 	if task.State == tasks.StateRunning {
 		return runningBadge(c)
 	}
@@ -714,7 +733,7 @@ func runningBadge(c *ui.Context) ui.Element {
 }
 
 // consolePane is the always-visible console panel.
-func (s *tasksView) consolePane(c *ui.Context, top float32) {
+func (s *View) consolePane(c *ui.Context, top float32) {
 	t := c.Theme()
 	ui.Column(c).FillHeight().Background(t.Text.Alpha(0.03)).Children(func() {
 		task, ok := s.selected()
@@ -741,7 +760,7 @@ func (s *tasksView) consolePane(c *ui.Context, top float32) {
 			})
 			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
 				s.statusBadge(c, task).AlignSelf(ui.Center)
-				if message := taskMessage(task); message != "" {
+				if message := parts.TaskMessage(task); message != "" {
 					text := components.Text(c, message).FontSize(11.5).
 						SingleLine().MinWidth(0).Grow(1)
 					if task.State == tasks.StateFailed {
@@ -782,33 +801,33 @@ func (s *tasksView) consolePane(c *ui.Context, top float32) {
 	})
 }
 
-func (s *tasksView) panelActions(c *ui.Context, task tasks.Snapshot) {
+func (s *View) panelActions(c *ui.Context, task tasks.Snapshot) {
 	ui.Row(c).Gap(2).Shrink(0).AlignItems(ui.Center).Children(func() {
 		switch task.State {
 		case tasks.StateQueued, tasks.StateRunning:
 			cancel := components.IconButton(c, lucide.CircleStop(), locales.TasksCancel(), components.IconButtonPlain)
 			cancel.TextColor(c.Theme().Danger)
-			if cancel.Clicked() && s.onCancel != nil {
-				s.onCancel(task)
+			if cancel.Clicked() && s.OnCancel != nil {
+				s.OnCancel(task)
 			}
 		case tasks.StateFailed, tasks.StateCancelled:
 			busy := s.busy(task)
-			slot := actionSlot(c)
+			slot := parts.ActionSlot(c)
 			slot.Children(func() {
 				retry := components.Button(c, locales.TasksRetry(), components.ButtonOutline)
 				retry.Disabled(busy)
-				if retry.Clicked() && !busy && s.onRetry != nil {
-					s.onRetry(task, actionPoint(retry))
+				if retry.Clicked() && !busy && s.OnRetry != nil {
+					s.OnRetry(task, flight.OriginOf(retry))
 				}
 			})
 			if busy {
-				actionTooltip(c, slot, false, locales.ActionWorking())
+				parts.ActionTooltip(c, slot, false, locales.ActionWorking())
 			}
 		}
 	})
 }
 
-func (s *tasksView) consoleBody(c *ui.Context, task tasks.Snapshot) {
+func (s *View) consoleBody(c *ui.Context, task tasks.Snapshot) {
 	t := c.Theme()
 	ui.Column(c).Fill().Padding(t.Space(2), t.Space(4), t.Space(2.5), t.Space(4)).Children(func() {
 		if task.State == tasks.StateQueued {
@@ -838,7 +857,7 @@ func (s *tasksView) consoleBody(c *ui.Context, task tasks.Snapshot) {
 		components.List(c, &s.log, len(output.Lines), func(row int) {
 			line := output.Lines[row]
 			ui.Box(c).FillWidth().Padding(t.Space(0.5), 0).Children(func() {
-				ui.RichText(c, ansiSpans(line.Text, t)...).
+				ui.RichText(c, ansi.Spans(line.Text, t)...).
 					Font(terminalFont).FontSize(11.5).
 					TextColor(t.Text.Alpha(0.9)).Selectable()
 			})
@@ -846,7 +865,7 @@ func (s *tasksView) consoleBody(c *ui.Context, task tasks.Snapshot) {
 	})
 }
 
-func (s *tasksView) taskOutput(task tasks.Snapshot) tasks.Output {
+func (s *View) taskOutput(task tasks.Snapshot) tasks.Output {
 	if s.outputFor == task.ID {
 		return s.output
 	}
@@ -856,7 +875,7 @@ func (s *tasksView) taskOutput(task tasks.Snapshot) tasks.Output {
 // beginOutput decides whether the selected task's console needs a fetch. It
 // keeps an already displayed console in place while a newer sequence loads,
 // and folds updates that arrive during a fetch into outputWanted.
-func (s *tasksView) beginOutput(id string, seq int) (request int, fetch bool) {
+func (s *View) BeginOutput(id string, seq int) (request int, fetch bool) {
 	if s.outputFor != id {
 		s.output = tasks.Output{}
 		s.outputFor = id
@@ -884,7 +903,7 @@ func (s *tasksView) beginOutput(id string, seq int) (request int, fetch bool) {
 // finishOutput installs a fetch's result. It reports false for a completion
 // that no longer belongs to the selected task or request, and asks for another
 // fetch when newer output arrived while this one was loading.
-func (s *tasksView) finishOutput(id string, request int, output tasks.Output) (reload bool) {
+func (s *View) FinishOutput(id string, request int, output tasks.Output) (reload bool) {
 	if s.outputFor != id || s.outputRequest != request {
 		return false
 	}
@@ -903,7 +922,7 @@ func consoleNote(c *ui.Context, text string) {
 }
 
 func taskTitle(task tasks.Snapshot) string {
-	return kindLabel(task.Kind) + " · " + task.Package
+	return parts.Operation(task.Kind) + " · " + task.Package
 }
 
 func taskSubtitle(task tasks.Snapshot) string {
@@ -916,32 +935,6 @@ func taskSubtitle(task tasks.Snapshot) string {
 		parts = append(parts, "→", clockLabel(task.FinishedAt))
 	}
 	return strings.Join(parts, " ")
-}
-
-// taskMessage shows the one message UniPac writes itself in the window's
-// language.
-func taskMessage(task tasks.Snapshot) string {
-	switch task.Message {
-	case tasks.InterruptedMessage:
-		return locales.TasksInterrupted()
-	case tasks.CancelledMessage:
-		return locales.TasksCancelledByUser()
-	default:
-		return task.Message
-	}
-}
-
-func kindLabel(kind tasks.Kind) string {
-	switch kind {
-	case tasks.KindInstall:
-		return locales.TasksKindInstall()
-	case tasks.KindUpdate:
-		return locales.TasksKindUpdate()
-	case tasks.KindUninstall:
-		return locales.TasksKindUninstall()
-	default:
-		return string(kind)
-	}
 }
 
 func statusLabel(state tasks.State) string {

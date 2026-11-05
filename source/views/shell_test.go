@@ -6,16 +6,24 @@ import (
 
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/flight"
+	"github.com/RUBisco0211/unipac/source/views/internal/testui"
+	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
 	"github.com/egoist/mygo/ui"
 )
 
+func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
+	t.Helper()
+	return testui.Render(build, w, h)
+}
+
 func uiWithRunningTasks() *UI {
 	u := &UI{
-		data:    fixture(),
+		data:    testui.Data(),
 		history: []Page{PagePackages},
 	}
-	u.tasks = &tasksView{selectedIndex: -1}
-	list := tasksFixture()
+	u.tasks = &taskspage.View{SelectedIndex: -1}
+	list := testui.Tasks()
 	// Two running tasks, one queued and one failed: the badges count running
 	// tasks only.
 	list[1].State = tasks.StateRunning
@@ -23,7 +31,7 @@ func uiWithRunningTasks() *UI {
 		ID: "4", Kind: tasks.KindInstall, State: tasks.StateRunning,
 		ManagerName: "Cargo", Package: "ripgrep", StartedAt: time.Now(),
 	})
-	u.tasks.apply(list)
+	u.tasks.Apply(list)
 	return u
 }
 
@@ -97,14 +105,14 @@ func TestTasksButtonShowsBadgeAndNavigates(t *testing.T) {
 
 func TestFlightMovesToTasksButton(t *testing.T) {
 	u := &UI{jobTarget: ui.Rect{X: 700, Y: 20, W: 28, H: 28}}
-	u.flyToTasks(actionOrigin{X: 100, Y: 300})
-	if !u.jobFlight.active {
+	u.jobFlight.ToTasks(flight.Origin{X: 100, Y: 300}, u.jobTarget)
+	if !u.jobFlight.Active() {
 		t.Fatal("the flight did not start")
 	}
 
 	tt := ui.NewTester(func(c *ui.Context) {
 		root := ui.Column(c).Fill()
-		root.Children(func() { u.flightOverlay(c, root) })
+		root.Children(func() { u.jobFlight.Draw(c, root) })
 	}, 800, 560)
 	tt.Frame()
 
@@ -126,7 +134,7 @@ func TestFlightMovesToTasksButton(t *testing.T) {
 	// the button.
 	tt.Advance(200 * time.Millisecond)
 	tt.Frame()
-	if u.jobFlight.active {
+	if u.jobFlight.Active() {
 		t.Fatal("the flight still runs after its short duration")
 	}
 	if tt.HasText(locales.TasksFlight()) {
@@ -145,8 +153,8 @@ func TestSidebarBadgesFollowState(t *testing.T) {
 	}
 
 	// The outdated package became current.
-	for i := range u.data.rows {
-		u.data.rows[i].Outdated = false
+	for i := range u.data.Rows {
+		u.data.Rows[i].Outdated = false
 	}
 	tt.Frame()
 	if exactText(tt, "1") {
@@ -157,7 +165,7 @@ func TestSidebarBadgesFollowState(t *testing.T) {
 	}
 
 	// All but one task finished.
-	u.tasks.apply(tasksFixture())
+	u.tasks.Apply(testui.Tasks())
 	tt.Frame()
 	if exactText(tt, "3") {
 		t.Errorf("running task badge did not decrease: %v", tt.Texts())
@@ -196,5 +204,21 @@ func TestFinishedTasksOnlyTransitions(t *testing.T) {
 		if !ids[id] {
 			t.Errorf("missing %q in %+v", id, got)
 		}
+	}
+}
+
+func TestSidebarSwitchesPage(t *testing.T) {
+	u := &UI{}
+	tt := render(t, u.left, 240, 400)
+
+	if u.page != PagePackages {
+		t.Fatalf("initial page = %v, want packages", u.page)
+	}
+	if err := tt.Click(locales.NavOutdated()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if u.page != PageOutdated {
+		t.Fatalf("page after click = %v, want outdated", u.page)
 	}
 }

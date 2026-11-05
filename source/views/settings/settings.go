@@ -1,32 +1,38 @@
-package views
+// Package settings is the settings page: startup behavior, language, log level
+// and one row per package manager.
+package settings
 
 import (
 	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 )
 
-// settingsView is the settings page. Sections are stacked on one scrollable
+// View is the settings page. Sections are stacked on one scrollable
 // page and separated by rules rather than cards: startup behavior, then one
 // row per package manager.
 //
 // Rows are rebuilt only when the manager list changes, so the path a user is
 // typing survives the frames in between.
-type settingsView struct {
-	data *data
+type View struct {
+	Data *inventory.Data
 
-	onSetEnabled  func(id string, enabled bool)
-	onSetPath     func(id, path string)
-	onReload      func()
-	onSetAutoScan func(on bool)
-	onSetLogLevel func(level string)
-	onSetLanguage func(tag string)
+	OnSetEnabled  func(id string, enabled bool)
+	OnSetPath     func(id, path string)
+	OnReload      func()
+	OnSetAutoScan func(on bool)
+	OnSetLogLevel func(level string)
+	OnSetLanguage func(tag string)
 
-	autoScan bool
+	// AutoScan is the saved startup behavior; the shell reads it to decide
+	// whether to scan on launch.
+	AutoScan bool
 	logLevel string
 	levels   []string
 	language string
@@ -53,11 +59,11 @@ type managerRow struct {
 	saved   string
 }
 
-// newSettings builds the page from the values the app started with.
-func newSettings(service Service, d *data) *settingsView {
-	return &settingsView{
-		data:      d,
-		autoScan:  service.AutoScanOnLaunch(),
+// New builds the page from the values the app started with.
+func New(service inventory.Service, d *inventory.Data) *View {
+	return &View{
+		Data:      d,
+		AutoScan:  service.AutoScanOnLaunch(),
 		logLevel:  service.LogLevel(),
 		levels:    service.LogLevels(),
 		language:  service.Language(),
@@ -65,8 +71,42 @@ func newSettings(service Service, d *data) *settingsView {
 	}
 }
 
-func (s *settingsView) view(c *ui.Context) {
-	s.sync()
+// Snapshot is the settings state the backend reports after a write. It comes
+// from the backend either way, so a failed write puts the controls back.
+type Snapshot struct {
+	AutoScan bool
+	LogLevel string
+	Language string
+}
+
+// BeginSave marks the page busy for one settings write and reports false when
+// another is still running: a second change would race the config write, so the
+// controls go back to the saved state instead of being silently dropped.
+func (s *View) BeginSave() bool {
+	if s.busy {
+		s.Invalidate()
+		return false
+	}
+	s.busy = true
+	s.err = ""
+	return true
+}
+
+// EndSave installs what the backend now reports and the write's error, if any.
+func (s *View) EndSave(err error, saved Snapshot) {
+	s.busy = false
+	s.detecting = false
+	s.AutoScan = saved.AutoScan
+	s.logLevel = saved.LogLevel
+	s.language = saved.Language
+	if err != nil {
+		s.err = err.Error()
+		s.Invalidate()
+	}
+}
+
+func (s *View) Build(c *ui.Context) {
+	s.Sync()
 	components.ScrollView(c, components.ScrollViewOptions{}).Fill().Children(func() {
 		ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(760).Gap(28).Padding(0, 16, 24, 16).Children(func() {
@@ -83,11 +123,11 @@ func (s *settingsView) view(c *ui.Context) {
 
 // sync rebuilds the rows when the backend reported a different manager list.
 // An unapplied path edit is carried over, so a rebuild never eats typing.
-func (s *settingsView) sync() {
-	if s.rows != nil && s.seen == s.data.managersVersion {
+func (s *View) Sync() {
+	if s.rows != nil && s.seen == s.Data.ManagersVersion {
 		return
 	}
-	s.seen = s.data.managersVersion
+	s.seen = s.Data.ManagersVersion
 
 	drafts := make(map[string]string, len(s.rows))
 	for _, row := range s.rows {
@@ -95,9 +135,9 @@ func (s *settingsView) sync() {
 			drafts[row.info.ID] = row.path
 		}
 	}
-	rows := make([]managerRow, 0, len(s.data.managers))
-	for _, m := range s.data.managers {
-		saved := s.data.overrides[m.ID]
+	rows := make([]managerRow, 0, len(s.Data.Managers))
+	for _, m := range s.Data.Managers {
+		saved := s.Data.Overrides[m.ID]
 		row := managerRow{
 			info:    m,
 			enabled: !saved.Disabled,
@@ -114,25 +154,25 @@ func (s *settingsView) sync() {
 
 // invalidate makes the next build rebuild the rows from the backend, which is
 // how a failed save puts the switches back.
-func (s *settingsView) invalidate() {
+func (s *View) Invalidate() {
 	s.seen = -1
 }
 
-func (s *settingsView) general(c *ui.Context) {
+func (s *View) general(c *ui.Context) {
 	s.section(c, locales.SettingsGeneral(), "", nil, func() {
-		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.autoScan, func(on bool) {
-			if s.onSetAutoScan != nil {
-				s.onSetAutoScan(on)
+		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.AutoScan, func(on bool) {
+			if s.OnSetAutoScan != nil {
+				s.OnSetAutoScan(on)
 			}
 		})
-		divider(c)
+		parts.Divider(c)
 		s.logLevelRow(c)
-		divider(c)
+		parts.Divider(c)
 		s.languageRow(c)
 	})
 }
 
-func (s *settingsView) managers(c *ui.Context) {
+func (s *View) managers(c *ui.Context) {
 	s.section(c, locales.SettingsManagers(), locales.SettingsManagersDesc(), func() {
 		label := locales.SettingsRedetect()
 		if s.detecting {
@@ -140,14 +180,14 @@ func (s *settingsView) managers(c *ui.Context) {
 		}
 		button := components.Button(c, label, components.ButtonGhost)
 		button.Disabled(s.busy)
-		if button.Clicked() && s.onReload != nil {
+		if button.Clicked() && s.OnReload != nil {
 			s.detecting = true
-			s.onReload()
+			s.OnReload()
 		}
 	}, func() {
 		for i := range s.rows {
 			if i > 0 {
-				divider(c)
+				parts.Divider(c)
 			}
 			s.managerControl(c, &s.rows[i])
 		}
@@ -156,7 +196,7 @@ func (s *settingsView) managers(c *ui.Context) {
 
 // section builds a titled block: a heading with an optional trailing action, an
 // optional explanation, a rule under it, and the settings themselves.
-func (s *settingsView) section(c *ui.Context, title, description string, action, body func()) {
+func (s *View) section(c *ui.Context, title, description string, action, body func()) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Gap(10).Children(func() {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
@@ -176,16 +216,12 @@ func (s *settingsView) section(c *ui.Context, title, description string, action,
 	})
 }
 
-func divider(c *ui.Context) {
-	ui.Box(c).FillWidth().Height(1).Shrink(0).Background(c.Theme().Border.Alpha(.5))
-}
-
 // switchRow is a labeled switch: the setting explains itself on the leading
 // side and the control sits on the trailing edge.
 //
 // A switch reports its own change on the element it returns, not on the row
 // that wraps it, so the value is compared across the build instead.
-func (s *settingsView) switchRow(c *ui.Context, title, description string, value *bool, changed func(bool)) {
+func (s *View) switchRow(c *ui.Context, title, description string, value *bool, changed func(bool)) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			components.Text(c, title)
@@ -202,7 +238,7 @@ func (s *settingsView) switchRow(c *ui.Context, title, description string, value
 	})
 }
 
-func (s *settingsView) logLevelRow(c *ui.Context) {
+func (s *View) logLevelRow(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			components.Text(c, locales.SettingsLogLevel())
@@ -222,13 +258,13 @@ func (s *settingsView) logLevelRow(c *ui.Context) {
 				})
 			}
 		})
-		if s.logLevel != before && s.onSetLogLevel != nil {
-			s.onSetLogLevel(s.logLevel)
+		if s.logLevel != before && s.OnSetLogLevel != nil {
+			s.OnSetLogLevel(s.logLevel)
 		}
 	})
 }
 
-func (s *settingsView) languageRow(c *ui.Context) {
+func (s *View) languageRow(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			components.Text(c, locales.SettingsLanguage())
@@ -253,15 +289,15 @@ func (s *settingsView) languageRow(c *ui.Context) {
 				})
 			}
 		})
-		if s.language != before && s.onSetLanguage != nil {
-			s.onSetLanguage(s.language)
+		if s.language != before && s.OnSetLanguage != nil {
+			s.OnSetLanguage(s.language)
 		}
 	})
 }
 
 // managerControl is one manager: its name and state, the executable path, and
 // the switch that turns it on or off.
-func (s *settingsView) managerControl(c *ui.Context, row *managerRow) {
+func (s *View) managerControl(c *ui.Context, row *managerRow) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(12).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Width(150).Shrink(0).Gap(2).Children(func() {
@@ -291,27 +327,27 @@ func (s *settingsView) managerControl(c *ui.Context, row *managerRow) {
 		before := row.enabled
 		sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
 		sw.Disabled(s.busy)
-		if row.enabled != before && s.onSetEnabled != nil {
-			s.onSetEnabled(row.info.ID, row.enabled)
+		if row.enabled != before && s.OnSetEnabled != nil {
+			s.OnSetEnabled(row.info.ID, row.enabled)
 		}
 	})
 }
 
 // pathHint shows what automatic detection resolves to, so an empty field is not
 // an empty answer.
-func (s *settingsView) pathHint(row *managerRow) string {
+func (s *View) pathHint(row *managerRow) string {
 	if row.info.ExecPath != "" {
 		return row.info.ExecPath
 	}
 	return locales.SettingsPathAuto()
 }
 
-func (s *settingsView) applyPath(row *managerRow) {
+func (s *View) applyPath(row *managerRow) {
 	path := strings.TrimSpace(row.path)
-	if path == row.saved || s.onSetPath == nil {
+	if path == row.saved || s.OnSetPath == nil {
 		return
 	}
-	s.onSetPath(row.info.ID, path)
+	s.OnSetPath(row.info.ID, path)
 }
 
 // logLevelLabels names the levels the backend offers. A level this build does

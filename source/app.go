@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/RUBisco0211/unipac/source/backend/cache"
+	"github.com/RUBisco0211/unipac/source/backend/command"
 	"github.com/RUBisco0211/unipac/source/backend/config"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/core/registry"
@@ -16,6 +17,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/egoist/mygo"
 	"github.com/samber/lo"
 )
@@ -26,19 +28,25 @@ type App struct {
 	ctx context.Context
 	// runCtx is the parent of every action. Cancelling it stops the commands a
 	// quit interrupts, and wakes workers waiting for a free slot.
-	runCtx  context.Context
-	cancel  context.CancelFunc
-	actions *actionLimiter
+	runCtx context.Context
+	cancel context.CancelFunc
+	// locks arbitrates package-manager commands: a task waits for its manager's
+	// slot, and a cache scan waits for every enabled manager's slot.
+	locks *command.Limiter
 }
+
+// App is the only implementation of the port the views declare. The build fails
+// here, not in the views, when a method's signature drifts from it.
+var _ inventory.Service = (*App)(nil)
 
 func NewApp() *App {
 	ctx := context.Background()
 	runCtx, cancel := context.WithCancel(ctx)
 	return &App{
-		ctx:     ctx,
-		runCtx:  runCtx,
-		cancel:  cancel,
-		actions: newActionLimiter(maxConcurrentActions),
+		ctx:    ctx,
+		runCtx: runCtx,
+		cancel: cancel,
+		locks:  command.NewLimiter(command.MaxConcurrentTasks),
 	}
 }
 
@@ -263,7 +271,7 @@ func (a *App) UpdateCache() error {
 			ids = append(ids, info.ID)
 		}
 	}
-	release, err := a.actions.acquireManagers(a.runCtx, ids)
+	release, err := a.locks.AcquireAll(a.runCtx, ids)
 	if err != nil {
 		return err
 	}
@@ -420,7 +428,7 @@ func (a *App) StopTasks() {
 func (a *App) runPackageTask(kind tasks.Kind, pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
 	task := a.beginTask(kind, pkg, opt)
 	// The task's own context wakes a queued acquire when the user cancels it.
-	release, err := a.actions.acquire(task.Context(), pkg.Manager)
+	release, err := a.locks.Acquire(task.Context(), pkg.Manager)
 	if err != nil {
 		if task.Cancelled() {
 			return manager.ErrorResult(tasks.CancelledMessage), nil
@@ -458,7 +466,7 @@ func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manag
 		jobs = append(jobs, batchJob{task: a.beginTask(kind, pkg, opt), pkg: pkg})
 	}
 
-	workers := min(maxConcurrentActions, len(jobs))
+	workers := min(command.MaxConcurrentTasks, len(jobs))
 	queue := make(chan batchJob)
 	var (
 		mu        sync.Mutex
@@ -471,7 +479,7 @@ func (a *App) runPackageBatch(kind tasks.Kind, pkgs []manager.Package, opt manag
 		go func() {
 			defer wg.Done()
 			for job := range queue {
-				release, err := a.actions.acquire(job.task.Context(), job.pkg.Manager)
+				release, err := a.locks.Acquire(job.task.Context(), job.pkg.Manager)
 				if err != nil {
 					if job.task.Cancelled() {
 						mu.Lock()
