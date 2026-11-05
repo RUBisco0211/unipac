@@ -33,3 +33,15 @@ type brewInfoOutput struct {
 	Formulae []brewFormulaInfo `json:"formulae"`
 	Casks    []brewCaskInfo    `json:"casks"`
 }
+
+// caskListEntry is one cask of `brew list --cask --versions --json`: the token
+// and the versions installed, the linked one last.
+type caskListEntry struct {
+	Token    string   `json:"token"`
+	Versions []string `json:"versions"`
+}
+
+// caskList is the part of that output this adapter reads.
+type caskList struct {
+	Casks []caskListEntry `json:"casks"`
+}

@@ -34,22 +34,24 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 
 func (a *Adapter) lineParserFunc(cask bool) util.LineHandler[manager.Package] {
 	return func(line string) (manager.Package, error) {
-		var p manager.Package
-		line = strings.TrimSpace(line)
-		parts := strings.SplitN(line, " ", 2)
-		if len(parts) != 2 {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
 			slog.ErrorContext(a.ctx,
 				"unexpected line format",
 				"line", line,
 			)
 			return manager.Package{}, fmt.Errorf("unexpected line format: %s", line)
 		}
-		p.Name = strings.TrimSpace(parts[0])
-		p.Version = strings.TrimSpace(parts[1])
-		p.Installed = true
-		p.IsGUI = cask
-		p.Manager = a.Info().ID
-		return p, nil
+		return manager.Package{
+			Name: fields[0],
+			// A package with an older version still installed lists them all,
+			// oldest first: `brew list --versions aom` prints `aom 3.14.1 3.15.3`
+			// and the last is the one linked.
+			Version:   fields[len(fields)-1],
+			Installed: true,
+			IsGUI:     cask,
+			Manager:   a.Info().ID,
+		}, nil
 	}
 }
 
@@ -79,16 +81,7 @@ func (a *Adapter) Setup() error {
 // ListInstalled returns the list of installed packages for brew
 func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 	caskCollector := func() ([]manager.Package, error) {
-		casks, err := util.ExecAndCollect(a.ctx,
-			a.info.ExecPath,
-			[]string{"list", "--cask", "--versions"},
-			nil,
-			a.lineParserFunc(true),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list casks: %w", err)
-		}
-		return casks, nil
+		return a.listCasks()
 	}
 
 	formulaCollector := func() ([]manager.Package, error) {
@@ -105,6 +98,51 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 	}
 
 	return util.CollectParallel(a.ctx, caskCollector, formulaCollector)
+}
+
+// listCasks lists the installed casks with their versions.
+//
+// The --json form is what makes this survive a cask from a tap the user has not
+// trusted: `brew list --cask --versions` without it loads every cask through
+// Homebrew's Ruby front end, which refuses such a cask outright and fails the
+// whole listing, so one tap's trust setting hid every cask. The --json form
+// reads the Caskroom instead and lists them all.
+func (a *Adapter) listCasks() ([]manager.Package, error) {
+	output, err := util.Exec(a.ctx,
+		a.info.ExecPath,
+		[]string{"list", "--cask", "--versions", "--json"},
+		nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list casks: %w", err)
+	}
+	casks, err := parseCaskList(output)
+	if err != nil {
+		return nil, err
+	}
+	for i := range casks {
+		casks[i].Manager = a.Info().ID
+	}
+	return casks, nil
+}
+
+// parseCaskList reads the casks `brew list --cask --versions --json` printed.
+func parseCaskList(output string) ([]manager.Package, error) {
+	var list caskList
+	if err := json.Unmarshal([]byte(output), &list); err != nil {
+		return nil, fmt.Errorf("failed to parse brew cask list: %w", err)
+	}
+	casks := make([]manager.Package, 0, len(list.Casks))
+	for _, c := range list.Casks {
+		if c.Token == "" {
+			continue
+		}
+		pkg := manager.Package{Name: c.Token, Installed: true, IsGUI: true}
+		if len(c.Versions) > 0 {
+			pkg.Version = c.Versions[len(c.Versions)-1]
+		}
+		casks = append(casks, pkg)
+	}
+	return casks, nil
 }
 
 // ListOutdated returns the list of outdated packages for brew
