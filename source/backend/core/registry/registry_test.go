@@ -366,3 +366,38 @@ func TestScanDoesNotAddPackagesOnlyOutdated(t *testing.T) {
 		t.Errorf("package = %+v, want the installed one marked outdated", pkgs[0])
 	}
 }
+
+// A settings change that does not touch a manager reuses its preflight, so the
+// version that probe found has to travel with the reused path.
+func TestApplyKeepsTheProbedVersion(t *testing.T) {
+	built := 0
+	reg := &Registry{
+		ctx:          context.Background(),
+		adapters:     map[string]manager.Adapter{},
+		constructors: map[string]manager.AdapterConstructor{},
+		settings:     map[string]manager.Settings{},
+	}
+	reg.constructors["fake"] = func(context.Context) manager.Adapter {
+		built++
+		return &fakeAdapter{
+			available: true,
+			info: &manager.Info{
+				ID:       "fake",
+				Name:     "Fake",
+				ExecPath: "/opt/fake",
+				Version:  fmt.Sprintf("1.0.%d", built),
+			},
+		}
+	}
+
+	reg.Apply(nil)
+	reg.Apply(map[string]manager.Settings{"fake": {Disabled: true}})
+
+	managers := reg.ListManagers()
+	if len(managers) != 1 {
+		t.Fatalf("managers = %+v, want one", managers)
+	}
+	if managers[0].Version != "1.0.1" {
+		t.Fatalf("version = %q, want the one the first probe found", managers[0].Version)
+	}
+}

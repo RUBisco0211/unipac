@@ -144,7 +144,14 @@ func LoadingBar(c *ui.Context, e ui.Element) {
 		phase := math.Mod(seconds, period) / period
 		width := r.W * span
 		x := r.X - width + (r.W+width)*float32(phase)
-		p.Fill(ui.Rect{X: x, Y: r.Y, W: width, H: height}, t.Accent, 0)
+		// The sweep starts and ends beyond the box, as a marquee does, so clamp
+		// it here rather than trusting the box to clip its last and first
+		// fractions: a bar that paints one pixel past the table is the bug this
+		// element was moved onto the box to fix.
+		start, end := max(r.X, x), min(r.X+r.W, x+width)
+		if end > start {
+			p.Fill(ui.Rect{X: start, Y: r.Y, W: end - start, H: height}, t.Accent, 0)
+		}
 	})
 }
 

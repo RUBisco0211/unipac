@@ -327,7 +327,13 @@ func (s *View) managerControl(c *ui.Context, row *managerRow) {
 		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Row(c).Grow(1).MinWidth(0).Gap(8).AlignItems(ui.Center).Children(func() {
 				components.Text(c, row.info.Name).SingleLine()
-				// A dot, not a column: the count is a note about the name, and
+				if row.info.Version != "" {
+					// The version is what tells "this feature arrived in bun 1.3"
+					// from "my bun is older than this page assumes".
+					components.Text(c, row.info.Version).
+						FontSize(12).TextColor(t.TextMuted).SingleLine()
+				}
+				// A dot, not a column: what follows is a note about the name, and
 				// the name is what the row is.
 				components.Text(c, "·").TextColor(t.TextMuted)
 				components.Text(c, s.packageCount(row.info.ID)).

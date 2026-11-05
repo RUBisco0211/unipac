@@ -264,3 +264,26 @@ func TestManagerRowGivesThePathItsOwnLine(t *testing.T) {
 		t.Errorf("the switch at y=%.0f is below the path at %.0f, want it on the name's line", sw.Y, apply.Y)
 	}
 }
+
+// The row names the version in use, because "this manager is too old for that"
+// is a question the page should answer before the user asks it.
+func TestManagerRowShowsTheVersion(t *testing.T) {
+	s := &View{Data: fixture(), logLevel: "info", levels: []string{"info"}}
+	tt := render(t, s.Build, 900, 700)
+
+	if !tt.HasText("4.6.1") {
+		t.Errorf("Homebrew's version is missing: %v", tt.Texts())
+	}
+	if !tt.HasText("11.17.0") {
+		t.Errorf("NPM's version is missing: %v", tt.Texts())
+	}
+
+	// A manager that could not be probed shows none rather than a zero.
+	d := fixture()
+	d.Managers[0].Version = ""
+	s = &View{Data: d, logLevel: "info", levels: []string{"info"}}
+	tt = render(t, s.Build, 900, 700)
+	if tt.HasText("4.6.1") {
+		t.Errorf("a version survived a rebuild without one: %v", tt.Texts())
+	}
+}
