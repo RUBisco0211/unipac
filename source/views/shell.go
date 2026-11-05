@@ -140,7 +140,7 @@ func New(service inventory.Service) *UI {
 	u.tasks = &taskspage.View{
 		Data:          u.data,
 		SelectedIndex: -1,
-		SplitPercent:  64,
+		ConsoleWidth:  380,
 		OnRetry:       u.RetryTask,
 		OnCancel:      u.CancelTask,
 		OnSelect:      u.loadTaskOutput,

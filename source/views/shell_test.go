@@ -481,7 +481,7 @@ func TestOutcomeLabelsFollowTheTaskKind(t *testing.T) {
 // whatever the page showing offers, and only for that page.
 func TestPageTitleActions(t *testing.T) {
 	u := uiWithPages()
-	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, SplitPercent: 64}
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, ConsoleWidth: 380}
 	u.installed.TitleActions = func(c *ui.Context) {
 		components.Text(c, "page-action")
 	}
@@ -530,7 +530,7 @@ func uiWithQuitPrompt(t *testing.T, hold bool) (*UI, *quitService, *ui.Tester) {
 	svc := &quitService{pending: 2}
 	u := uiWithPages()
 	u.svc = svc
-	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, SplitPercent: 64}
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, ConsoleWidth: 380}
 	u.settings = &settings.View{HoldToConfirm: hold}
 	quit := 0
 	u.quitApp = func() { quit++ }

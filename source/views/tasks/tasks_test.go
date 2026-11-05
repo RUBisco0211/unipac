@@ -20,7 +20,7 @@ func viewFixture() *View {
 	v := &View{
 		Data:          testui.Data(),
 		SelectedIndex: -1,
-		SplitPercent:  64,
+		ConsoleWidth:  380,
 		outputFor:     "3",
 		outputSeq:     2,
 		outputReady:   true,
@@ -73,7 +73,7 @@ func TestRunningTaskStatusAnimates(t *testing.T) {
 }
 
 func TestTasksViewEmptyState(t *testing.T) {
-	v := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	tt := render(t, v.Build, 1000, 560)
 
 	if !tt.HasText(locales.TasksEmpty()) {
@@ -181,7 +181,7 @@ func TestTaskConsoleStates(t *testing.T) {
 		"3": locales.TasksNoOutput(),
 	}
 	for id, want := range cases {
-		v := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+		v := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 		v.Apply(nodes)
 		v.selectedID = id
 		v.outputFor = id
@@ -198,7 +198,7 @@ func TestTaskConsoleStates(t *testing.T) {
 	}
 
 	// A task from the store loads its persisted console on selection.
-	v := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	v.Apply(nodes)
 	v.selectedID, v.SelectedIndex = "2", 1
 	v.outputFor = "2"
@@ -351,14 +351,14 @@ func TestCancelledTaskShowsCancelledAndRetry(t *testing.T) {
 		Version: "1.0", NewVersion: "1.1", StartedAt: time.Now(),
 	}}
 
-	v := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	v.Apply(nodes)
 	tt := render(t, v.Build, 1000, 560)
 	if !tt.HasText(locales.TasksStatusCancelled()) {
 		t.Errorf("cancelled badge missing: %v", tt.Texts())
 	}
 
-	selected := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	selected := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	selected.Apply(nodes)
 	selected.selectedID = "9"
 	tt = render(t, selected.Build, 1000, 560)
@@ -374,7 +374,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 		StartedAt: time.Now(),
 	}}
 
-	loading := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	loading := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	loading.Apply(nodes)
 	loading.selectedID = "5"
 	tt := render(t, loading.Build, 1000, 560)
@@ -382,7 +382,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 		t.Errorf("loading state missing: %v", tt.Texts())
 	}
 
-	loaded := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	loaded := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	loaded.Apply(nodes)
 	loaded.selectedID = "5"
 	loaded.outputFor = "5"
@@ -397,7 +397,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 func TestTaskTableShowsStartAndFinishTimes(t *testing.T) {
 	start := time.Now().Add(-time.Minute)
 	finish := time.Now()
-	v := &View{Data: testui.Data(), SelectedIndex: -1, SplitPercent: 64}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, ConsoleWidth: 380}
 	v.Apply([]tasks.Snapshot{{
 		ID: "7", Kind: tasks.KindUpdate, State: tasks.StateSucceeded,
 		ManagerID: "brew", ManagerName: "Homebrew", Package: "timed",
@@ -597,5 +597,68 @@ func TestChoosingATaskOpensTheConsole(t *testing.T) {
 	}
 	if v.consoleClosed {
 		t.Error("revealing a task left the console closed")
+	}
+}
+
+// Closing the panel never remounts the table: it is the panel beside it that
+// comes and goes, so every frame of the slide still shows the rows.
+func TestClosingTheConsoleKeepsTheTable(t *testing.T) {
+	v := viewFixture()
+	v.Sync()
+	tt := render(t, v.Build, 1000, 560)
+	tt.Frame()
+	if !tt.HasText("typescript") {
+		t.Fatalf("the table is missing to begin with: %v", tt.Texts())
+	}
+
+	v.ToggleConsole()
+	for frame := range 30 {
+		tt.Advance(16 * time.Millisecond)
+		tt.Frame()
+		if !tt.HasText("typescript") {
+			t.Fatalf("the table vanished on frame %d of the slide", frame)
+		}
+	}
+	if tt.HasText(locales.TasksConsole()) {
+		t.Error("the console is still shown")
+	}
+}
+
+// The panel's edge is a drag: it widens and narrows the console within its
+// limits, and a double click puts the panel away.
+func TestConsoleEdgeDrags(t *testing.T) {
+	v := viewFixture()
+	v.Sync()
+	tt := render(t, v.Build, 1000, 560)
+	tt.Frame()
+	before := v.ConsoleWidth
+
+	// The edge sits just inside the panel's left edge, which the window's width
+	// limits as the table keeps its share.
+	const width = 1000
+	edgeAt := func() float32 { return width - min(v.ConsoleWidth, width-minTable) + 2 }
+	y := float32(280)
+	x := edgeAt()
+	tt.Press(x, y)
+	tt.Move(x-60, y)
+	tt.Advance(16 * time.Millisecond)
+	tt.Release(x-60, y)
+	tt.Frame()
+
+	if v.ConsoleWidth <= before {
+		t.Errorf("dragging left gave the console %0.f, was %0.f", v.ConsoleWidth, before)
+	}
+
+	// Clamped, not unbounded.
+	v.ConsoleWidth = 600
+	tt.Frame()
+	x = edgeAt()
+	tt.Press(x, y)
+	tt.Move(x+400, y)
+	tt.Advance(16 * time.Millisecond)
+	tt.Release(x+400, y)
+	tt.Frame()
+	if v.ConsoleWidth != minConsole {
+		t.Errorf("dragging right gave %0.f, want the minimum %0.f", v.ConsoleWidth, float32(minConsole))
 	}
 }

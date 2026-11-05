@@ -3,6 +3,7 @@
 package tasks
 
 import (
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -53,9 +54,12 @@ type View struct {
 	table         components.TableVirtualizedState
 	SelectedIndex int
 	selectedID    string
-	// splitPercent is the table pane's share of the page; the split writes it
-	// as the user drags the divider.
-	SplitPercent float32
+	// ConsoleWidth is the console's own width in DIPs, which a drag of its edge
+	// changes. It is a width rather than a share, so the panel keeps the size
+	// the user gave it as the window grows.
+	ConsoleWidth float32
+	// consoleDrag is the width as a drag of the edge began, 0 while none.
+	consoleDrag float32
 	// consoleClosed hides the console panel. It is a closed flag rather than an
 	// open one, so a page built without it shows the console.
 	consoleClosed bool
@@ -513,55 +517,77 @@ func (s *View) managerOptions() []managerChoice {
 
 func (s *View) Build(c *ui.Context) {
 	s.Sync()
-	if s.SplitPercent <= 0 {
-		s.SplitPercent = 64
-	}
 	// The shell's floating header overlays the whole window. The table starts
 	// below it; the console's surface runs to the window's top edge, like the
 	// sidebar's.
+	width := s.consoleWidth(c)
 	top := sidebar.HeaderHeight(c) + 16
-	root := ui.Column(c).Fill()
-	root.Children(func() {
-		// A box of no size owns the panel's animation, so its share slides
-		// between open and closed instead of jumping.
-		grip := ui.Box(c).Key("console-grip").Width(0).Height(0)
-		shown := grip.AnimateTo("console", s.consoleShare(), consoleAnimation)
-		if s.consoleClosed && shown <= 0.001 {
-			// Closed: the table takes the page, with no divider left behind.
+	row := ui.Row(c).Fill().AlignItems(ui.Stretch)
+	// A curve, not a spring: Kero's sidebars move this way for the same reason,
+	// that a spring's tail crawls under a pixel a frame and whole pixels turn
+	// that into a hop. The panel's width is whole pixels for the same reason.
+	progress := row.AnimateTo("console", consoleTarget(s.consoleClosed), consoleAnimation)
+	shown := float32(math.Round(float64(width * min(max(progress, 0), 1))))
+	row.Children(func() {
+		// The table grows into whatever the panel leaves. Its parent is the row
+		// whatever the panel does, so opening and closing never remounts it.
+		ui.Column(c).Key("tasks-table").Grow(1).MinWidth(0).Children(func() {
 			s.tablePane(c, top)
-			return
-		}
-		// The share is a percentage of the room; the panel's own minimum shrinks
-		// with it, so closing it reaches nothing rather than its minimum width.
-		percent := s.SplitPercent + (100-s.SplitPercent)*(1-shown)
-		split := components.SplitPercent(c, &percent, func() {
-			s.tablePane(c, top)
-		}, func() {
-			s.consolePane(c, top)
-		}, components.SplitOptions{
-			FirstMin:  360,
-			SecondMin: secondMin * shown,
-			Default:   64,
 		})
-		split.Label(locales.TasksResizePanel())
-		split.Fill()
+		if shown > 0 {
+			// The panel keeps its width as it slides: narrowing this row is what
+			// moves it out past the window's edge, clipped.
+			ui.Row(c).Key("tasks-console").Width(shown).Shrink(0).AlignItems(ui.Stretch).ClipX().Children(func() {
+				ui.Column(c).Width(width).Shrink(0).AlignItems(ui.Stretch).
+					Opacity(0.4 + 0.6*min(max(progress, 0), 1)).
+					Children(func() { s.consolePane(c, top) })
+			})
+			s.consoleEdge(c, shown)
+		}
 	})
 }
 
-// consoleShare is where the panel's animation is heading: 1 open, 0 closed.
-func (s *View) consoleShare() float32 {
-	if s.consoleClosed {
+// consoleTarget is where the panel's width animation is heading: 1 shown, 0 away.
+func consoleTarget(closed bool) float32 {
+	if closed {
 		return 0
 	}
 	return 1
 }
 
-// secondMin is the console's narrowest, before closing takes it to nothing.
-const secondMin = 280
+// consoleWidth is the panel's own width, within the limits and never more than
+// the window can give while the table keeps its share.
+func (s *View) consoleWidth(c *ui.Context) float32 {
+	width := s.ConsoleWidth
+	if width <= 0 {
+		width = defaultConsole
+	}
+	width = min(max(width, minConsole), maxConsole)
+	if win, _ := c.Size(); win > 0 {
+		width = min(width, max(minConsole, win-minTable))
+	}
+	return width
+}
 
-// consoleAnimation moves the panel at the pace the sidebar collapses, a touch
-// quicker: the two are the same gesture, putting a panel away.
-var consoleAnimation = ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
+// consoleEdge is the panel's edge, which a drag moves and a double click closes.
+func (s *View) consoleEdge(c *ui.Context, shown float32) {
+	edge := ui.Box(c).Key("console-edge").Absolute().Right(shown - 5).Top(0).Bottom(0).
+		Width(9).Cursor(ui.CursorResizeColumn).KeepFocus()
+	if dx, _, held := edge.Dragged(); held {
+		if s.consoleDrag == 0 {
+			s.consoleDrag = s.ConsoleWidth
+		}
+		// Dragging left widens the panel: the edge moves with the pointer.
+		s.consoleDrag -= dx
+		s.ConsoleWidth = min(max(s.consoleDrag, minConsole), maxConsole)
+		s.consoleClosed = false
+	} else if s.consoleDrag != 0 && !edge.Pressed() {
+		s.consoleDrag = 0
+	}
+	if edge.DoubleClicked() {
+		s.consoleClosed = true
+	}
+}
 
 // ToggleConsole opens or closes the console panel.
 func (s *View) ToggleConsole() {
@@ -587,6 +613,19 @@ func (s *View) TitleAction(c *ui.Context) {
 		s.ToggleConsole()
 	}
 }
+
+// The console's own width, and what the table keeps when the window is narrow.
+const (
+	defaultConsole = 380
+	minConsole     = 280
+	maxConsole     = 720
+	minTable       = 360
+)
+
+// consoleAnimation moves the panel at the pace the sidebar collapses, a touch
+// quicker: the two are the same gesture, putting a panel away. The curve is
+// Kero's for its sidebars.
+var consoleAnimation = ui.Animation{Duration: 200 * time.Millisecond, Ease: ui.CubicBezier(0.25, 1, 0.5, 1)}
 
 // tablePane is the filter bar and the task table.
 func (s *View) tablePane(c *ui.Context, top float32) {
