@@ -152,8 +152,11 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					components.Tooltip(c, components.Text(c, pkg.Name).SingleLine(), pkg.Name)
 					if installed {
-						components.Badge(c, locales.SearchInstalled(), components.BadgeOptions{
-							Tone: components.BadgeSuccess,
+						// A mark and a word, not a pill: this annotates the name
+						// rather than labelling the row.
+						ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+							components.Icon(c, lucide.Check()).Size(12, 12).TextColor(t.Success)
+							components.Text(c, locales.SearchInstalled()).FontSize(12).TextColor(t.Success)
 						})
 					}
 				})
