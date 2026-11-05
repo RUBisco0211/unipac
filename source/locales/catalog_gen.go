@@ -546,11 +546,11 @@ func (msgs Messages) SettingsStartupScan() string {
 	return Catalog.Format(msgs.locale, "settingsStartupScan", nil)
 }
 
-// SettingsStartupScanDesc says "Check installed packages as soon as UniPac opens."
+// SettingsStartupScanDesc says "Check installed packages as soon as UniPac opens"
 // in the language the app shows.
 func SettingsStartupScanDesc() string { return In(i18n.Locale()).SettingsStartupScanDesc() }
 
-// SettingsStartupScanDesc says "Check installed packages as soon as UniPac opens."
+// SettingsStartupScanDesc says "Check installed packages as soon as UniPac opens"
 // in the language of msgs.
 func (msgs Messages) SettingsStartupScanDesc() string {
 	return Catalog.Format(msgs.locale, "settingsStartupScanDesc", nil)
@@ -566,11 +566,11 @@ func (msgs Messages) SettingsLogLevel() string {
 	return Catalog.Format(msgs.locale, "settingsLogLevel", nil)
 }
 
-// SettingsLogLevelDesc says "How much detail UniPac writes to its log file."
+// SettingsLogLevelDesc says "How much detail UniPac writes to its log file"
 // in the language the app shows.
 func SettingsLogLevelDesc() string { return In(i18n.Locale()).SettingsLogLevelDesc() }
 
-// SettingsLogLevelDesc says "How much detail UniPac writes to its log file."
+// SettingsLogLevelDesc says "How much detail UniPac writes to its log file"
 // in the language of msgs.
 func (msgs Messages) SettingsLogLevelDesc() string {
 	return Catalog.Format(msgs.locale, "settingsLogLevelDesc", nil)
@@ -584,16 +584,6 @@ func SettingsLanguage() string { return In(i18n.Locale()).SettingsLanguage() }
 // in the language of msgs.
 func (msgs Messages) SettingsLanguage() string {
 	return Catalog.Format(msgs.locale, "settingsLanguage", nil)
-}
-
-// SettingsLanguageDesc says "The language UniPac shows. System follows your computer."
-// in the language the app shows.
-func SettingsLanguageDesc() string { return In(i18n.Locale()).SettingsLanguageDesc() }
-
-// SettingsLanguageDesc says "The language UniPac shows. System follows your computer."
-// in the language of msgs.
-func (msgs Messages) SettingsLanguageDesc() string {
-	return Catalog.Format(msgs.locale, "settingsLanguageDesc", nil)
 }
 
 // SettingsLanguageSystem says "System"
@@ -664,16 +654,6 @@ func SettingsManagers() string { return In(i18n.Locale()).SettingsManagers() }
 // in the language of msgs.
 func (msgs Messages) SettingsManagers() string {
 	return Catalog.Format(msgs.locale, "settingsManagers", nil)
-}
-
-// SettingsManagersDesc says "A manager you turn off keeps its packages out of the lists, search and updates. Leave the executable path empty to de…"
-// in the language the app shows.
-func SettingsManagersDesc() string { return In(i18n.Locale()).SettingsManagersDesc() }
-
-// SettingsManagersDesc says "A manager you turn off keeps its packages out of the lists, search and updates. Leave the executable path empty to de…"
-// in the language of msgs.
-func (msgs Messages) SettingsManagersDesc() string {
-	return Catalog.Format(msgs.locale, "settingsManagersDesc", nil)
 }
 
 // SettingsExecPathLabel says "Executable path for {name}"
@@ -1388,11 +1368,11 @@ func (msgs Messages) SettingsHoldToConfirm() string {
 	return Catalog.Format(msgs.locale, "settingsHoldToConfirm", nil)
 }
 
-// SettingsHoldToConfirmDesc says "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it."
+// SettingsHoldToConfirmDesc says "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it"
 // in the language the app shows.
 func SettingsHoldToConfirmDesc() string { return In(i18n.Locale()).SettingsHoldToConfirmDesc() }
 
-// SettingsHoldToConfirmDesc says "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it."
+// SettingsHoldToConfirmDesc says "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it"
 // in the language of msgs.
 func (msgs Messages) SettingsHoldToConfirmDesc() string {
 	return Catalog.Format(msgs.locale, "settingsHoldToConfirmDesc", nil)
@@ -1448,16 +1428,6 @@ func (msgs Messages) SettingsAppearance() string {
 	return Catalog.Format(msgs.locale, "settingsAppearance", nil)
 }
 
-// SettingsAppearanceDesc says "Light, dark, or whatever your computer uses."
-// in the language the app shows.
-func SettingsAppearanceDesc() string { return In(i18n.Locale()).SettingsAppearanceDesc() }
-
-// SettingsAppearanceDesc says "Light, dark, or whatever your computer uses."
-// in the language of msgs.
-func (msgs Messages) SettingsAppearanceDesc() string {
-	return Catalog.Format(msgs.locale, "settingsAppearanceDesc", nil)
-}
-
 // AppearanceSystem says "Match system"
 // in the language the app shows.
 func AppearanceSystem() string { return In(i18n.Locale()).AppearanceSystem() }
@@ -1498,11 +1468,11 @@ func (msgs Messages) SettingsNotifications() string {
 	return Catalog.Format(msgs.locale, "settingsNotifications", nil)
 }
 
-// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification."
+// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification"
 // in the language the app shows.
 func SettingsNotificationsDesc() string { return In(i18n.Locale()).SettingsNotificationsDesc() }
 
-// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification."
+// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification"
 // in the language of msgs.
 func (msgs Messages) SettingsNotificationsDesc() string {
 	return Catalog.Format(msgs.locale, "settingsNotificationsDesc", nil)
@@ -1566,16 +1536,6 @@ func SettingsAbout() string { return In(i18n.Locale()).SettingsAbout() }
 // in the language of msgs.
 func (msgs Messages) SettingsAbout() string {
 	return Catalog.Format(msgs.locale, "settingsAbout", nil)
-}
-
-// SettingsAboutDesc says "What this build is, and where UniPac keeps its files."
-// in the language the app shows.
-func SettingsAboutDesc() string { return In(i18n.Locale()).SettingsAboutDesc() }
-
-// SettingsAboutDesc says "What this build is, and where UniPac keeps its files."
-// in the language of msgs.
-func (msgs Messages) SettingsAboutDesc() string {
-	return Catalog.Format(msgs.locale, "settingsAboutDesc", nil)
 }
 
 // AboutVersion says "Version"
@@ -1858,4 +1818,74 @@ func VersionsConfirm() string { return In(i18n.Locale()).VersionsConfirm() }
 // in the language of msgs.
 func (msgs Messages) VersionsConfirm() string {
 	return Catalog.Format(msgs.locale, "versionsConfirm", nil)
+}
+
+// SettingsManagerStatus says "Status"
+// in the language the app shows.
+func SettingsManagerStatus() string { return In(i18n.Locale()).SettingsManagerStatus() }
+
+// SettingsManagerStatus says "Status"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerStatus() string {
+	return Catalog.Format(msgs.locale, "settingsManagerStatus", nil)
+}
+
+// SettingsManagerAvailable says "Available"
+// in the language the app shows.
+func SettingsManagerAvailable() string { return In(i18n.Locale()).SettingsManagerAvailable() }
+
+// SettingsManagerAvailable says "Available"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerAvailable() string {
+	return Catalog.Format(msgs.locale, "settingsManagerAvailable", nil)
+}
+
+// SettingsManagerVersion says "Version"
+// in the language the app shows.
+func SettingsManagerVersion() string { return In(i18n.Locale()).SettingsManagerVersion() }
+
+// SettingsManagerVersion says "Version"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerVersion() string {
+	return Catalog.Format(msgs.locale, "settingsManagerVersion", nil)
+}
+
+// SettingsManagerExecutable says "Executable"
+// in the language the app shows.
+func SettingsManagerExecutable() string { return In(i18n.Locale()).SettingsManagerExecutable() }
+
+// SettingsManagerExecutable says "Executable"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerExecutable() string {
+	return Catalog.Format(msgs.locale, "settingsManagerExecutable", nil)
+}
+
+// SettingsManagerPackages says "Packages"
+// in the language the app shows.
+func SettingsManagerPackages() string { return In(i18n.Locale()).SettingsManagerPackages() }
+
+// SettingsManagerPackages says "Packages"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerPackages() string {
+	return Catalog.Format(msgs.locale, "settingsManagerPackages", nil)
+}
+
+// SettingsManagerEnabled says "Enabled"
+// in the language the app shows.
+func SettingsManagerEnabled() string { return In(i18n.Locale()).SettingsManagerEnabled() }
+
+// SettingsManagerEnabled says "Enabled"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerEnabled() string {
+	return Catalog.Format(msgs.locale, "settingsManagerEnabled", nil)
+}
+
+// SettingsCapabilities says "Capabilities"
+// in the language the app shows.
+func SettingsCapabilities() string { return In(i18n.Locale()).SettingsCapabilities() }
+
+// SettingsCapabilities says "Capabilities"
+// in the language of msgs.
+func (msgs Messages) SettingsCapabilities() string {
+	return Catalog.Format(msgs.locale, "settingsCapabilities", nil)
 }

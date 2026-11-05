@@ -41,9 +41,10 @@ func fixture() *inventory.Data { return testui.Data() }
 
 func TestSettingsShowsManagers(t *testing.T) {
 	s := settingsFixture()
-	tt := render(t, s.Build, 900, 600)
+	tt := render(t, s.Build, 900, 1600)
 
 	for _, want := range []string{
+		// One tab per manager, all of them visible at once.
 		"Homebrew", "NPM", "Cargo",
 		locales.SettingsGeneral(), locales.SettingsManagers(),
 		locales.SettingsStartupScan(), locales.SettingsLogLevel(),
@@ -53,16 +54,32 @@ func TestSettingsShowsManagers(t *testing.T) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
 	}
-	// A manager the backend could not preflight says so; one that is simply
-	// off does not need a second label next to its switch.
-	if !tt.HasText(locales.SettingsNotFound()) {
-		t.Errorf("missing the not-found state in %v", tt.Texts())
-	}
 	// Manager IDs belong to the backend, not the page.
 	for _, text := range tt.Texts() {
 		if text == "brew" || text == "cargo" {
 			t.Errorf("settings page exposes a manager ID: %v", tt.Texts())
 		}
+	}
+}
+
+// A manager the backend could not preflight says so, in its own tab: the fact
+// belongs to that manager, not to the section.
+func TestManagerPanelSaysWhenTheExecutableIsMissing(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 900, 1600)
+
+	if tt.HasText(locales.SettingsNotFound()) {
+		t.Fatalf("the default tab claims a manager is missing: %v", tt.Texts())
+	}
+	if err := tt.Click("Cargo"); err != nil {
+		t.Fatalf("open the Cargo tab: %v", err)
+	}
+	tt.Frame()
+	if !tt.HasText(locales.SettingsNotFound()) {
+		t.Errorf("missing the not-found state in Cargo's tab: %v", tt.Texts())
+	}
+	if tt.HasText(locales.SettingsManagerAvailable()) {
+		t.Errorf("a manager that cannot run is called available: %v", tt.Texts())
 	}
 }
 
@@ -73,7 +90,7 @@ func TestSettingsApplySendsPath(t *testing.T) {
 	var gotID, gotPath string
 	s.OnSetPath = func(id, path string) { gotID, gotPath = id, path }
 
-	tt := render(t, s.Build, 900, 600)
+	tt := render(t, s.Build, 900, 1600)
 	s.rows[0].path = "/usr/local/bin/brew"
 	tt.Frame()
 	if s.rows[0].path != "/usr/local/bin/brew" {
@@ -96,7 +113,7 @@ func TestSettingsSwitchReachesBackend(t *testing.T) {
 	var gotOn bool
 	s.OnSetEnabled = func(id string, on bool) { gotID, gotOn = id, on }
 
-	tt := render(t, s.Build, 900, 600)
+	tt := render(t, s.Build, 900, 1600)
 	if err := tt.Click(locales.SettingsEnableManager("Homebrew")); err != nil {
 		t.Fatalf("click: %v", err)
 	}
@@ -112,7 +129,7 @@ func TestSettingsLogLevelReachesBackend(t *testing.T) {
 	var got string
 	s.OnSetLogLevel = func(level string) { got = level }
 
-	tt := render(t, s.Build, 900, 600)
+	tt := render(t, s.Build, 900, 1600)
 	// The trigger shows the current level; clicking it opens the popup.
 	if err := tt.Click(locales.LogLevelInfo()); err != nil {
 		t.Fatalf("open the level select: %v", err)
@@ -133,7 +150,7 @@ func TestSettingsLanguageReachesBackend(t *testing.T) {
 	var got string
 	s.OnSetLanguage = func(tag string) { got = tag }
 
-	tt := render(t, s.Build, 900, 600)
+	tt := render(t, s.Build, 900, 1600)
 	if err := tt.Click(locales.SettingsLanguageSystem()); err != nil {
 		t.Fatalf("open the language select: %v", err)
 	}
@@ -159,7 +176,7 @@ func TestSettingsSwitchAndRevert(t *testing.T) {
 		"npm":   {},
 		"cargo": {Disabled: true},
 	}
-	tt := render(t, s.Build, 900, 600)
+	tt := render(t, s.Build, 900, 1600)
 	if s.rows[0].enabled {
 		t.Fatal("Homebrew switch ignored the saved state")
 	}
@@ -182,49 +199,85 @@ func unsupportedText(labels ...string) string {
 
 // A manager row says how many installed packages it contributes, and the number
 // follows the inventory rather than being computed once.
-func TestManagerRowShowsItsPackageCount(t *testing.T) {
+func TestManagerPanelShowsItsPackageCount(t *testing.T) {
 	d := fixture()
 	s := &View{Data: d, logLevel: "info", levels: []string{"info"}}
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 900, 1600)
 
+	if !tt.HasText(locales.SettingsManagerPackages()) {
+		t.Errorf("the packages row is missing: %v", tt.Texts())
+	}
 	if !tt.HasText(locales.SettingsPackageCount(1)) {
 		t.Errorf("the count is missing: %v", tt.Texts())
 	}
+
+	// A manager with nothing to its name says so, in its own tab.
+	if err := tt.Click("Cargo"); err != nil {
+		t.Fatalf("open the Cargo tab: %v", err)
+	}
+	tt.Frame()
 	if !tt.HasText(locales.SettingsPackageCount(0)) {
 		t.Errorf("a manager with no packages does not say so: %v", tt.Texts())
 	}
 
-	// A refresh adds a package to Homebrew and drops NPM's only one.
+	// A refresh moves the number with the inventory.
+	if err := tt.Click("Homebrew"); err != nil {
+		t.Fatalf("open the Homebrew tab: %v", err)
+	}
 	d.Rows = []manager.Package{{Name: "ripgrep", Manager: "brew"}, {Name: "fd", Manager: "brew"}}
 	d.Version++
 	tt.Frame()
 	if !tt.HasText(locales.SettingsPackageCount(2)) {
 		t.Errorf("the count did not follow the inventory: %v", tt.Texts())
 	}
-	if !tt.HasText(locales.SettingsPackageCount(0)) {
-		t.Errorf("the emptied manager still shows its old count: %v", tt.Texts())
-	}
 }
 
 // A manager that cannot answer an action names it, so a disabled button elsewhere
 // in the window has an explanation on the page that configures the manager.
-func TestManagerRowNamesWhatItCannotDo(t *testing.T) {
+// Every capability is named in the panel, in the adapter guide's order, with what
+// the manager offers and what it does not: the badge says which is which.
+func TestManagerPanelBadgesEveryCapability(t *testing.T) {
 	s := &View{Data: fixture(), logLevel: "info", levels: []string{"info"}}
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 900, 1600)
 
-	// The fixture's Homebrew lists, searches, updates and uninstalls.
-	want := unsupportedText(locales.CapabilityPackageInfo(), locales.CapabilityInstall(), locales.CapabilityVersions())
-	if !tt.HasText(want) {
-		t.Errorf("missing %q in %v", want, tt.Texts())
+	if !tt.HasText(locales.SettingsCapabilities()) {
+		t.Errorf("the capabilities row is missing: %v", tt.Texts())
 	}
-	for _, unsupported := range []string{locales.CapabilitySearch(), locales.CapabilityUpdate()} {
-		if strings.Contains(want, unsupported) {
-			t.Errorf("%q was listed as unsupported", unsupported)
+	for _, name := range []string{
+		locales.CapabilityInstalled(), locales.CapabilityOutdated(), locales.CapabilityPackageInfo(),
+		locales.CapabilitySearch(), locales.CapabilityInstall(), locales.CapabilityUninstall(),
+		locales.CapabilityUpdate(), locales.CapabilityVersions(),
+	} {
+		if !tt.HasText(name) {
+			t.Errorf("capability %q is missing: %v", name, tt.Texts())
 		}
 	}
 
-	// A manager that offers everything says nothing: the row names gaps, not
-	// capabilities.
+	// The fixture's Homebrew lists, searches, updates and uninstalls.
+	want := map[string]bool{
+		locales.CapabilityInstalled():   true,
+		locales.CapabilityOutdated():    true,
+		locales.CapabilitySearch():      true,
+		locales.CapabilityUpdate():      true,
+		locales.CapabilityUninstall():   true,
+		locales.CapabilityPackageInfo(): false,
+		locales.CapabilityInstall():     false,
+		locales.CapabilityVersions():    false,
+	}
+	got := capabilitiesOf(fixture().Managers[0].Capabilities)
+	if len(got) != len(want) {
+		t.Fatalf("capabilities = %+v, want %d", got, len(want))
+	}
+	for _, item := range got {
+		if supported, ok := want[item.name]; !ok || supported != item.supported {
+			t.Errorf("capability %q = %v, want %v", item.name, item.supported, supported)
+		}
+	}
+}
+
+// The diagnostics text names the gaps, and a manager that offers everything has
+// none to name.
+func TestUnsupportedCapabilities(t *testing.T) {
 	all := manager.Capabilities{
 		ListInstalled: true, ListOutdated: true, GetPackageInfo: true, Search: true,
 		Install: true, Uninstall: true, Update: true, ListVersions: true,
@@ -241,60 +294,107 @@ func TestManagerRowNamesWhatItCannotDo(t *testing.T) {
 	}
 }
 
-// The row is three lines: the name with its switch, the executable path on its
-// own, and what the manager cannot do. The path field must not be squeezed into a
-// column beside the name any more.
-func TestManagerRowGivesThePathItsOwnLine(t *testing.T) {
+// The panel is a list of answers: a label per fact, and the value across the rest
+// of the row, in a fixed order.
+func TestManagerPanelListsItsFactsInOrder(t *testing.T) {
 	s := &View{Data: fixture(), logLevel: "info", levels: []string{"info"}}
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 900, 1600)
 
-	name, ok := tt.Find("Homebrew")
-	if !ok {
-		t.Fatal("the manager name is missing")
+	labels := []string{
+		locales.SettingsManagerStatus(),
+		locales.SettingsManagerVersion(),
+		locales.SettingsManagerExecutable(),
+		locales.SettingsManagerPackages(),
+		locales.SettingsCapabilities(),
+		locales.SettingsManagerEnabled(),
 	}
+	previous := float32(-1)
+	for _, label := range labels {
+		rect, ok := tt.Find(label)
+		if !ok {
+			t.Fatalf("the %q row is missing: %v", label, tt.Texts())
+		}
+		if rect.Y <= previous {
+			t.Errorf("the %q row at y=%.0f is not below the one before it at %.0f", label, rect.Y, previous)
+		}
+		previous = rect.Y
+	}
+
+	// The path field and its apply button live in the executable row.
 	apply, ok := tt.Find(locales.SettingsApplyPathFor("Homebrew"))
 	if !ok {
 		t.Fatal("the path field's apply button is missing")
 	}
-	if apply.Y <= name.Y {
-		t.Errorf("the path line is at y=%.0f, above the name at %.0f", apply.Y, name.Y)
-	}
-	// The path line takes the row's width, so its apply button is at the trailing
-	// edge rather than in a column beside the name.
-	if row, ok := tt.Find(locales.SettingsPackageCount(1)); ok {
-		if apply.X < row.X+300 {
-			t.Errorf("the path line starts at %.0f, not after the row's leading column", apply.X)
-		}
-	}
-	sw, ok := tt.Find(locales.SettingsEnableManager("Homebrew"))
-	if !ok {
-		t.Fatal("the switch is missing")
-	}
-	if sw.Y > apply.Y {
-		t.Errorf("the switch at y=%.0f is below the path at %.0f, want it on the name's line", sw.Y, apply.Y)
+	executable, _ := tt.Find(locales.SettingsManagerExecutable())
+	packages, _ := tt.Find(locales.SettingsManagerPackages())
+	if apply.Y < executable.Y-20 || apply.Y > packages.Y {
+		t.Errorf("the path at y=%.0f is not in the executable row, between %.0f and %.0f",
+			apply.Y, executable.Y, packages.Y)
 	}
 }
 
-// The row names the version in use, because "this manager is too old for that"
+// The panel names the version in use, because "this manager is too old for that"
 // is a question the page should answer before the user asks it.
-func TestManagerRowShowsTheVersion(t *testing.T) {
+func TestManagerPanelShowsTheVersion(t *testing.T) {
 	s := &View{Data: fixture(), logLevel: "info", levels: []string{"info"}}
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 900, 1600)
 
 	if !tt.HasText("4.6.1") {
 		t.Errorf("Homebrew's version is missing: %v", tt.Texts())
 	}
+	if err := tt.Click("NPM"); err != nil {
+		t.Fatalf("open the NPM tab: %v", err)
+	}
+	tt.Frame()
 	if !tt.HasText("11.17.0") {
 		t.Errorf("NPM's version is missing: %v", tt.Texts())
 	}
 
-	// A manager that could not be probed shows none rather than a zero.
+	// A manager that could not be probed shows a dash rather than a zero.
 	d := fixture()
 	d.Managers[0].Version = ""
 	s = &View{Data: d, logLevel: "info", levels: []string{"info"}}
-	tt = render(t, s.Build, 900, 700)
+	tt = render(t, s.Build, 900, 1600)
 	if tt.HasText("4.6.1") {
 		t.Errorf("a version survived a rebuild without one: %v", tt.Texts())
+	}
+	if !tt.HasText("-") {
+		t.Errorf("a missing version shows nothing at all: %v", tt.Texts())
+	}
+}
+
+// The tabs choose which manager's panel shows, and the first is the default.
+func TestManagerTabsChooseTheManager(t *testing.T) {
+	s := &View{Data: fixture(), logLevel: "info", levels: []string{"info"}}
+	tt := render(t, s.Build, 900, 1600)
+
+	if !tt.HasText(locales.SettingsEnableManager("Homebrew")) {
+		t.Fatalf("the first manager's panel is not the default: %v", tt.Texts())
+	}
+	if tt.HasText(locales.SettingsEnableManager("NPM")) {
+		t.Fatalf("a second panel is showing: %v", tt.Texts())
+	}
+
+	if err := tt.Click("NPM"); err != nil {
+		t.Fatalf("open the NPM tab: %v", err)
+	}
+	tt.Frame()
+	if !tt.HasText(locales.SettingsEnableManager("NPM")) {
+		t.Fatalf("the NPM tab did not show its panel: %v", tt.Texts())
+	}
+	if tt.HasText(locales.SettingsEnableManager("Homebrew")) {
+		t.Errorf("the previous panel is still showing: %v", tt.Texts())
+	}
+	if s.tabID != "npm" {
+		t.Errorf("the page kept tab %q, want npm", s.tabID)
+	}
+
+	// A rescan that adds a manager keeps the tab on the one being looked at.
+	s.Data.Managers = append(s.Data.Managers, manager.Info{ID: "uv", Name: "UV Tool", Enabled: true})
+	s.Data.ManagersVersion++
+	tt.Frame()
+	if s.tabID != "npm" || !tt.HasText(locales.SettingsEnableManager("NPM")) {
+		t.Fatalf("a rescan moved the tab to %q", s.tabID)
 	}
 }
 

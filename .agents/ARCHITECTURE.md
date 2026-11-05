@@ -433,35 +433,42 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 ### Settings Page
 
 The settings page is one scrollable column of sections separated by rules, not cards.
-A section has a title with an optional trailing action, a sentence saying what
-its settings do, and a rule above the rows. The general section is the appearance
-(the system's, or a pinned light or dark one, applied with
-`mygo.Theme.SetSource` before the window opens and again when it changes),
-startup behavior — scanning on launch, and whether a destructive confirmation is
-a hold or a click — the log level, and the language (the app's languages plus
-System, named in their own language). Then one row per package manager, a Tasks section whose
-only job is the hold that clears the finished task history, and an About section:
-the app's version (from `mygo.App.Version`, which the build links in from
-`mygo.json`), the Go it was built with, the toolkit versions from the build's own
-module info, and the data and log folders with a button that opens each and one
-that copies the lot — with every manager's name, version, state, package count and
-gaps — into a bug report.
+A section has a title with an optional trailing action, a caption saying what its
+settings do when the settings need one, and a rule under them. A caption is one
+sentence without a full stop: the page is read as labels, not as prose. Appearance
+and Language carry no caption at all — their titles say what they are — and
+neither do the package-manager and About sections.
 
-A manager row is three lines. The first holds the name with what the manager
-contributes and a switch: `Homebrew · 12 packages`, counted from `Data.Rows` and
-rebuilt only when `Data.Version` changes, and a red "executable not found" when
-preflight failed. The second holds the executable path and its Apply button, at
-the row's full width so a long path reads. The third names the capabilities the
-manager does not advertise — the capability matrix's order, joined with the
-catalog's list separator, and absent entirely when the manager offers every one —
-because a button disabled elsewhere in the window should have its reason here,
-where the manager is configured.
+The general section is the appearance (the system's, or a pinned light or dark
+one, applied with `mygo.Theme.SetSource` before the window opens and again when it
+changes), the language (the app's languages plus System, named in their own
+language), and then startup behavior — scanning on launch, and whether a
+destructive confirmation is a hold or a click — the notifications switch, and the
+log level. Then the package managers, a Tasks section whose only job is the hold
+that clears the finished task history, and an About section: the app's version
+(from `mygo.App.Version`, which the build links in from `mygo.json`), the Go it was
+built with, the toolkit versions from the build's own module info, and the data and
+log folders with a button that opens each and one that copies the lot — with every
+manager's name, version, state, package count and gaps — into a bug report.
+
+The package managers are tabs, one per manager, with the first chosen. A tab holds
+a panel of key-value rows, because the page is read as a list of answers: Status
+(available, or the red "executable not found"), Version, Executable with its path
+field and Apply, Packages (counted from `Data.Rows` and rebuilt only when
+`Data.Version` changes), Capabilities, and Enabled. The tabs follow the manager's
+ID rather than its position, so a rescan that reorders or adds managers keeps the
+tab the user was on.
+
+Capabilities are badges, one per capability in the adapter guide's order: a check
+in green for what the manager offers and a cross in red for what it does not. That
+is where a button disabled elsewhere in the window has its reason, and it costs a
+glance instead of reading the sentence this page used to carry.
 
 The path field shows the saved override; the detected path is its muted
 placeholder, so an empty field means "detect automatically". Apply stays visible
 and disabled until the draft differs, and the field submits on Enter. Rows are
 rebuilt only when `Data.ManagersVersion` changes, so an unapplied draft survives
-the frames in between.
+the frames in between, and the chosen tab is restored from the ID it was on.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
 subprocess and every write touches the config file. The control moves first and

@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // View is the settings page. Sections are stacked on one scrollable
@@ -58,6 +59,10 @@ type View struct {
 
 	rows []managerRow
 	seen int
+	// tab is the chosen manager's tab and tabID the manager it belongs to, so a
+	// rescan that reorders or adds managers keeps the tab the user was on.
+	tab   int
+	tabID string
 	// about is what the build is and where it keeps its files, loaded once when
 	// the page is built.
 	about inventory.About
@@ -186,6 +191,14 @@ func (s *View) Sync() {
 		rows = append(rows, row)
 	}
 	s.rows = rows
+	// The chosen tab belongs to a manager, not to a position.
+	s.tab = 0
+	for i, row := range s.rows {
+		if row.info.ID == s.tabID {
+			s.tab = i
+			break
+		}
+	}
 }
 
 // invalidate makes the next build rebuild the rows from the backend, which is
@@ -197,6 +210,8 @@ func (s *View) Invalidate() {
 func (s *View) general(c *ui.Context) {
 	s.section(c, locales.SettingsGeneral(), "", nil, func() {
 		s.themeRow(c)
+		parts.Divider(c)
+		s.languageRow(c)
 		parts.Divider(c)
 		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.AutoScan, func(on bool) {
 			if s.OnSetAutoScan != nil {
@@ -217,13 +232,11 @@ func (s *View) general(c *ui.Context) {
 		})
 		parts.Divider(c)
 		s.logLevelRow(c)
-		parts.Divider(c)
-		s.languageRow(c)
 	})
 }
 
 func (s *View) managers(c *ui.Context) {
-	s.section(c, locales.SettingsManagers(), locales.SettingsManagersDesc(), func() {
+	s.section(c, locales.SettingsManagers(), "", func() {
 		label := locales.SettingsRedetect()
 		if s.detecting {
 			label = locales.SettingsDetecting()
@@ -235,11 +248,112 @@ func (s *View) managers(c *ui.Context) {
 			s.OnReload()
 		}
 	}, func() {
-		for i := range s.rows {
-			if i > 0 {
-				parts.Divider(c)
+		s.managerTabs(c)
+	})
+}
+
+// managerTabs puts one tab per manager above the panel of the chosen one: a page
+// of five managers is five screens of settings, and one of them is being changed
+// at a time. The choice follows the manager's ID, so a rescan that reorders or
+// adds managers keeps the tab the user was on.
+func (s *View) managerTabs(c *ui.Context) {
+	if len(s.rows) == 0 {
+		return
+	}
+	if s.tab < 0 || s.tab >= len(s.rows) {
+		s.tab = 0
+	}
+	labels := make([]string, len(s.rows))
+	for i := range s.rows {
+		labels[i] = s.rows[i].info.Name
+	}
+	components.Tabs(c, &s.tab, components.TabsUnderline, labels...)
+	if s.tab >= 0 && s.tab < len(s.rows) {
+		s.tabID = s.rows[s.tab].info.ID
+	}
+	ui.Column(c).FillWidth().Children(func() {
+		s.managerPanel(c, &s.rows[s.tab])
+	})
+}
+
+// managerPanel is one manager's settings as a list of answers: what it is, what
+// it can do, and the two controls that change it. A label and a value rather than
+// a form, because most of the page is information and the parts that are not are
+// obvious as controls.
+func (s *View) managerPanel(c *ui.Context, row *managerRow) {
+	t := c.Theme()
+	ui.Column(c).FillWidth().Children(func() {
+		s.field(c, locales.SettingsManagerStatus(), func() {
+			status, color := locales.SettingsManagerAvailable(), t.Success
+			if !row.info.Available {
+				status, color = locales.SettingsNotFound(), t.Danger
 			}
-			s.managerControl(c, &s.rows[i])
+			components.Text(c, status).FontSize(12).TextColor(color)
+		})
+		parts.Divider(c)
+		s.field(c, locales.SettingsManagerVersion(), func() {
+			components.Text(c, parts.OrDash(row.info.Version)).FontSize(12)
+		})
+		parts.Divider(c)
+		s.field(c, locales.SettingsManagerExecutable(), func() {
+			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+				box := components.TextBox(c, &row.path, components.TextBoxOptions{}).
+					Label(locales.SettingsExecPathLabel(row.info.Name)).
+					Placeholder(s.pathHint(row)).
+					PlaceholderColor(t.TextMuted).
+					Grow(1).MinWidth(0)
+				if box.Submitted() {
+					s.applyPath(row)
+				}
+				apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
+				apply.Label(locales.SettingsApplyPathFor(row.info.Name))
+				apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
+				if apply.Clicked() {
+					s.applyPath(row)
+				}
+			})
+		})
+		parts.Divider(c)
+		s.field(c, locales.SettingsManagerPackages(), func() {
+			components.Text(c, s.packageCount(row.info.ID)).FontSize(12)
+		})
+		parts.Divider(c)
+		s.field(c, locales.SettingsCapabilities(), func() {
+			s.capabilityBadges(c, row.info.Capabilities)
+		})
+		parts.Divider(c)
+		s.field(c, locales.SettingsManagerEnabled(), func() {
+			before := row.enabled
+			sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
+			sw.Disabled(s.busy)
+			if row.enabled != before && s.OnSetEnabled != nil {
+				s.OnSetEnabled(row.info.ID, row.enabled)
+			}
+		})
+	})
+}
+
+// field is one line of a key-value block: what it is on the leading side, what it
+// says across the rest of the row, so a long path has room and badges can wrap.
+func (s *View) field(c *ui.Context, label string, value func()) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().Padding(10, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		components.Text(c, label).FontSize(12).TextColor(t.TextMuted).Width(100).Shrink(0)
+		ui.Box(c).Grow(1).MinWidth(0).Children(value)
+	})
+}
+
+// capabilityBadges shows what a manager offers, one badge per capability: a check
+// in green for what it does and a cross in red for what it does not, so a gap is
+// visible without reading a sentence about it.
+func (s *View) capabilityBadges(c *ui.Context, caps manager.Capabilities) {
+	ui.Row(c).FillWidth().Gap(6).Wrap().Children(func() {
+		for _, item := range capabilitiesOf(caps) {
+			tone, icon := components.BadgeSuccess, lucide.Check()
+			if !item.supported {
+				tone, icon = components.BadgeDanger, lucide.X()
+			}
+			components.Badge(c, item.name, components.BadgeOptions{Tone: tone, Icon: icon})
 		}
 	})
 }
@@ -292,11 +406,7 @@ func (s *View) switchRow(c *ui.Context, title, description string, value *bool, 
 // palette follows the frame's dark state, so nothing else has to change with it.
 func (s *View) themeRow(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			components.Text(c, locales.SettingsAppearance())
-			components.Text(c, locales.SettingsAppearanceDesc()).
-				FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
-		})
+		components.Text(c, locales.SettingsAppearance()).Grow(1).MinWidth(0)
 		before := s.theme
 		sel := components.Select(c, &s.theme)
 		sel.Trigger.Label(locales.SettingsAppearance()).Width(150).Children(func() {
@@ -345,11 +455,7 @@ func (s *View) logLevelRow(c *ui.Context) {
 
 func (s *View) languageRow(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			components.Text(c, locales.SettingsLanguage())
-			components.Text(c, locales.SettingsLanguageDesc()).
-				FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
-		})
+		components.Text(c, locales.SettingsLanguage()).Grow(1).MinWidth(0)
 		before := s.language
 		sel := components.Select(c, &s.language)
 		sel.Trigger.Label(locales.SettingsLanguage()).Width(150).Children(func() {
@@ -401,7 +507,7 @@ func (s *View) tasks(c *ui.Context) {
 // aboutSection is what this build is and where it keeps its files, with a way to
 // open either folder and to copy the lot into a bug report.
 func (s *View) aboutSection(c *ui.Context) {
-	s.section(c, locales.SettingsAbout(), locales.SettingsAboutDesc(), func() {
+	s.section(c, locales.SettingsAbout(), "", func() {
 		copy := components.Button(c, locales.AboutCopy(), components.ButtonGhost)
 		if copy.Clicked() {
 			c.WriteClipboard(s.diagnostics())
@@ -428,25 +534,26 @@ func (s *View) aboutSection(c *ui.Context) {
 // tooltip with the whole value.
 func (s *View) aboutRow(c *ui.Context, label, value, folder string) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		components.Text(c, label).FontSize(12).TextColor(t.TextMuted).Width(110).Shrink(0)
-		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-			if value == "" {
-				components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+	s.field(c, label, func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
+				if value == "" {
+					components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+					return
+				}
+				components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
+			})
+			if folder == "" || s.OnOpenPath == nil {
 				return
 			}
-			components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
+			path := value
+			open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
+			open.Label(locales.AboutOpen(folder))
+			open.Disabled(path == "")
+			if open.Clicked() {
+				s.OnOpenPath(path)
+			}
 		})
-		if folder == "" || s.OnOpenPath == nil {
-			return
-		}
-		path := value
-		open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
-		open.Label(locales.AboutOpen(folder))
-		open.Disabled(path == "")
-		if open.Clicked() {
-			s.OnOpenPath(path)
-		}
 	})
 }
 
@@ -567,27 +674,35 @@ func (s *View) managerCounts() map[string]int {
 	return counts
 }
 
-// unsupportedCapabilities names the actions a manager does not advertise, in the
-// order the adapter guide's capability matrix lists them, and is empty when the
-// manager offers every one: a row says what is missing rather than listing what
-// is there.
-func unsupportedCapabilities(cap manager.Capabilities) string {
+// capability is one thing a manager may offer, named the way the page shows it
+// and the copied diagnostics spell it.
+type capability struct {
+	name      string
+	supported bool
+}
+
+// capabilitiesOf names what a manager advertises, in the order the adapter
+// guide's capability matrix lists them.
+func capabilitiesOf(caps manager.Capabilities) []capability {
+	return []capability{
+		{locales.CapabilityInstalled(), caps.ListInstalled},
+		{locales.CapabilityOutdated(), caps.ListOutdated},
+		{locales.CapabilityPackageInfo(), caps.GetPackageInfo},
+		{locales.CapabilitySearch(), caps.Search},
+		{locales.CapabilityInstall(), caps.Install},
+		{locales.CapabilityUninstall(), caps.Uninstall},
+		{locales.CapabilityUpdate(), caps.Update},
+		{locales.CapabilityVersions(), caps.ListVersions},
+	}
+}
+
+// unsupportedCapabilities names the actions a manager does not advertise, for the
+// diagnostics text, and is empty when the manager offers every one.
+func unsupportedCapabilities(caps manager.Capabilities) string {
 	missing := make([]string, 0, 8)
-	for _, item := range []struct {
-		supported bool
-		label     func() string
-	}{
-		{cap.ListInstalled, locales.CapabilityInstalled},
-		{cap.ListOutdated, locales.CapabilityOutdated},
-		{cap.GetPackageInfo, locales.CapabilityPackageInfo},
-		{cap.Search, locales.CapabilitySearch},
-		{cap.Install, locales.CapabilityInstall},
-		{cap.Uninstall, locales.CapabilityUninstall},
-		{cap.Update, locales.CapabilityUpdate},
-		{cap.ListVersions, locales.CapabilityVersions},
-	} {
+	for _, item := range capabilitiesOf(caps) {
 		if !item.supported {
-			missing = append(missing, item.label())
+			missing = append(missing, item.name)
 		}
 	}
 	if len(missing) == 0 {
