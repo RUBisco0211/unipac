@@ -154,7 +154,6 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 					if installed {
 						components.Badge(c, locales.SearchInstalled(), components.BadgeOptions{
 							Tone: components.BadgeSuccess,
-							Icon: lucide.Check(),
 						})
 					}
 				})
