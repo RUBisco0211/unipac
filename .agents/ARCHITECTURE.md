@@ -350,6 +350,11 @@ fixture instead, because anything it imported would have to import it back.
 The installed and outdated pages are the same `list.View` with `OutdatedOnly`
 set, so a change to the table applies to both.
 
+Switching pages plays a 200 ms fade and rise: the content area wraps the page in
+a box keyed by `Page`, and `ui.ElementTransition` animates it in and out. MyGo
+keeps a copy of the page that is gone for the exit, so only one page is ever
+built, and it fades in place when the desktop asks for less motion.
+
 Rules that replace the Vue ones:
 
 - Each page is a struct holding retained state; its `Build(c *ui.Context)` method builds the interface from that state on every frame.

@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
@@ -44,6 +45,23 @@ const (
 	PageTasks
 	PageSettings
 )
+
+// pageTransition is how the content area changes page: the arriving page fades
+// in from just below and the leaving one fades out upward. MyGo keeps a copy of
+// the page that is gone for the exit, so only one page is ever built; when the
+// desktop asks for less motion it fades in place instead of moving.
+var pageTransition = ui.ElementTransition{
+	Duration: 200 * time.Millisecond,
+	Enter:    &ui.Motion{Opacity: 0, Y: 8},
+	Exit:     &ui.Motion{Opacity: 0, Y: -4},
+}
+
+// pageKey is a page's identity in the element tree. It changes with the page, so
+// a switch plays one page leaving and another arriving instead of reusing one
+// element for both.
+func pageKey(p Page) string {
+	return "page:" + strconv.Itoa(int(p))
+}
 
 // UI is the retained state of the main window.
 type UI struct {
@@ -700,18 +718,22 @@ func (u *UI) content(c *ui.Context) {
 	root := ui.Column(c).Fill()
 	root.Children(func() {
 		ui.Column(c).Fill().Padding(top, 0, 0, 0).Children(func() {
-			switch u.page {
-			case PagePackages:
-				u.installed.Build(c)
-			case PageOutdated:
-				u.outdated.Build(c)
-			case PageSearch:
-				u.search.Build(c)
-			case PageTasks:
-				u.tasks.Build(c)
-			case PageSettings:
-				u.settings.Build(c)
-			}
+			// The key follows the page, so MyGo reads a switch as this page
+			// leaving and the next arriving.
+			ui.Box(c).Key(pageKey(u.page)).Fill().Transition(pageTransition).Children(func() {
+				switch u.page {
+				case PagePackages:
+					u.installed.Build(c)
+				case PageOutdated:
+					u.outdated.Build(c)
+				case PageSearch:
+					u.search.Build(c)
+				case PageTasks:
+					u.tasks.Build(c)
+				case PageSettings:
+					u.settings.Build(c)
+				}
+			})
 		})
 		u.jobFlight.Draw(c, root)
 	})

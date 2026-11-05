@@ -8,6 +8,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
+	"github.com/RUBisco0211/unipac/source/views/list"
 	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
 	"github.com/egoist/mygo/ui"
 )
@@ -220,5 +221,73 @@ func TestSidebarSwitchesPage(t *testing.T) {
 	tt.Frame()
 	if u.page != PageOutdated {
 		t.Fatalf("page after click = %v, want outdated", u.page)
+	}
+}
+
+// uiWithPages is a window whose content area can switch between the two list
+// pages, which is enough to exercise the page transition.
+func uiWithPages() *UI {
+	u := &UI{data: testui.Data(), history: []Page{PagePackages}, page: PagePackages}
+	u.installed = &list.View{Data: u.data, AllowRemove: true}
+	u.outdated = &list.View{Data: u.data, OutdatedOnly: true}
+	return u
+}
+
+func TestPageSwitchPlaysAnEntryAndExit(t *testing.T) {
+	u := uiWithPages()
+	tt := testui.Render(u.content, 900, 500)
+	tt.Frame()
+	if tt.FramePending() {
+		t.Fatal("the page area animates while nothing changes")
+	}
+	if !tt.HasText("ripgrep") {
+		t.Fatalf("the installed page is missing: %v", tt.Texts())
+	}
+
+	// The outdated page drops the current package, so it leaves while the page
+	// that replaces it fades in from just below.
+	u.page = PageOutdated
+	tt.Frame()
+	if !tt.FramePending() {
+		t.Fatal("switching pages started no transition")
+	}
+	if !tt.HasText("typescript") {
+		t.Errorf("the arriving page is missing: %v", tt.Texts())
+	}
+	start, ok := tt.Find("typescript")
+	if !ok {
+		t.Fatal("the arriving row was not laid out")
+	}
+
+	// Halfway the transition still runs, and the page sits where the entry put
+	// it rather than at its final place.
+	tt.Advance(100 * time.Millisecond)
+	if !tt.FramePending() {
+		t.Fatal("the transition ended before its halfway point")
+	}
+	mid, ok := tt.Find("typescript")
+	if !ok {
+		t.Fatal("the arriving row vanished midway")
+	}
+
+	tt.Advance(200 * time.Millisecond)
+	if tt.FramePending() {
+		t.Fatal("the transition never ended")
+	}
+	end, ok := tt.Find("typescript")
+	if !ok {
+		t.Fatal("the arriving row vanished")
+	}
+	if mid.Y > start.Y || end.Y > mid.Y {
+		t.Errorf("the page did not rise into place: start %v, halfway %v, end %v", start.Y, mid.Y, end.Y)
+	}
+	if rise := start.Y - end.Y; rise < 6 {
+		t.Errorf("the page started %v DIPs below its place, want the 8 of the entry", rise)
+	}
+	if tt.HasText("ripgrep") {
+		t.Errorf("the page that left is still shown: %v", tt.Texts())
+	}
+	if !tt.HasText("typescript") {
+		t.Errorf("the arriving page is gone: %v", tt.Texts())
 	}
 }
