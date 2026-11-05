@@ -530,3 +530,72 @@ func TestTaskVersionHasATooltip(t *testing.T) {
 		t.Errorf("%q showed %d times before the hover and %d after; want one more for its tooltip", version, before, after)
 	}
 }
+
+// The title bar's toggle closes the console and opens it again; the panel
+// slides, so a frame after the press is still moving.
+func TestConsoleToggleFromTheTitleBar(t *testing.T) {
+	v := viewFixture()
+	build := func(c *ui.Context) {
+		ui.Row(c).Children(func() { v.TitleAction(c) })
+	}
+	bar := render(t, build, 200, 48)
+	bar.Frame()
+
+	dialog := render(t, v.Build, 1000, 560)
+	dialog.Frame()
+	// The panel's own header is what goes away with it.
+	if !dialog.HasText(locales.TasksConsole()) {
+		t.Fatalf("the console is not there to close: %v", dialog.Texts())
+	}
+
+	if err := bar.Click(locales.TasksConsoleHide()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	dialog.Frame()
+	if !dialog.FramePending() {
+		t.Error("closing the console started no animation")
+	}
+	for range 40 {
+		dialog.Advance(30 * time.Millisecond)
+	}
+	dialog.Frame()
+	if dialog.HasText(locales.TasksConsole()) {
+		t.Errorf("the console is still shown: %v", dialog.Texts())
+	}
+
+	// The label named the action that will happen next.
+	if err := bar.Click(locales.TasksConsoleShow()); err != nil {
+		t.Fatalf("click to open: %v", err)
+	}
+	for range 40 {
+		dialog.Advance(30 * time.Millisecond)
+	}
+	dialog.Frame()
+	if !dialog.HasText(locales.TasksConsole()) {
+		t.Errorf("the console did not come back: %v", dialog.Texts())
+	}
+}
+
+// Choosing a task opens the console: its console is the reason to choose it.
+func TestChoosingATaskOpensTheConsole(t *testing.T) {
+	v := viewFixture()
+	v.ToggleConsole()
+	if !v.consoleClosed {
+		t.Fatal("the console is not closed")
+	}
+	v.Sync()
+	v.SelectedIndex = 1
+	v.choose()
+	if v.consoleClosed {
+		t.Error("choosing a task left the console closed")
+	}
+
+	// Revealing one from a notification opens it too.
+	v.ToggleConsole()
+	if !v.Reveal("3") {
+		t.Fatal("task 3 is missing")
+	}
+	if v.consoleClosed {
+		t.Error("revealing a task left the console closed")
+	}
+}

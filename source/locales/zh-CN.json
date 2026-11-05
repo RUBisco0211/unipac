@@ -165,5 +165,7 @@
   "settingsHoldToConfirm": "长按确认",
   "settingsHoldToConfirmDesc": "退出（有任务在运行）和卸载时，需要长按按钮而不是单击来确认。",
   "tasksQuitCancel": "继续运行",
-  "commonClickConfirm": "确认"
+  "commonClickConfirm": "确认",
+  "tasksConsoleShow": "显示控制台",
+  "tasksConsoleHide": "隐藏控制台"
 }

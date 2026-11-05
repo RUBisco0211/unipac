@@ -144,6 +144,7 @@ func New(service inventory.Service) *UI {
 		OnCancel:      u.CancelTask,
 		OnSelect:      u.loadTaskOutput,
 	}
+	u.tasks.TitleActions = u.tasks.TitleAction
 	u.tasks.Apply(service.ListTasks())
 	u.knownTasks = taskStates(u.tasks.All())
 	u.settings = settings.New(service, u.data)

@@ -56,6 +56,9 @@ type View struct {
 	// splitPercent is the table pane's share of the page; the split writes it
 	// as the user drags the divider.
 	SplitPercent float32
+	// consoleClosed hides the console panel. It is a closed flag rather than an
+	// open one, so a page built without it shows the console.
+	consoleClosed bool
 
 	// output is the selected task's console, loaded on demand from the task
 	// manager. outputSeq is the sequence it corresponds to; outputWanted is the
@@ -132,6 +135,7 @@ func (s *View) Reveal(id string) bool {
 	s.statusFilter = nil
 	s.selectedID = id
 	s.applied.version = -1
+	s.showConsole()
 	return true
 }
 
@@ -210,6 +214,7 @@ func (s *View) choose() {
 		return
 	}
 	s.selectedID = s.rows[s.SelectedIndex].ID
+	s.showConsole()
 	if s.OnSelect != nil {
 		s.OnSelect(s.selectedID)
 	}
@@ -515,17 +520,68 @@ func (s *View) Build(c *ui.Context) {
 	// below it; the console's surface runs to the window's top edge, like the
 	// sidebar's.
 	top := sidebar.HeaderHeight(c) + 16
-	split := components.SplitPercent(c, &s.SplitPercent, func() {
-		s.tablePane(c, top)
-	}, func() {
-		s.consolePane(c, top)
-	}, components.SplitOptions{
-		FirstMin:  360,
-		SecondMin: 280,
-		Default:   64,
+	root := ui.Column(c).Fill()
+	root.Children(func() {
+		// A box of no size owns the panel's animation, so its share slides
+		// between open and closed instead of jumping.
+		grip := ui.Box(c).Key("console-grip").Width(0).Height(0)
+		shown := grip.AnimateTo("console", s.consoleShare(), ui.Snappy)
+		if s.consoleClosed && shown <= 0.001 {
+			// Closed: the table takes the page, with no divider left behind.
+			s.tablePane(c, top)
+			return
+		}
+		// The share is a percentage of the room; the panel's own minimum shrinks
+		// with it, so closing it reaches nothing rather than its minimum width.
+		percent := s.SplitPercent + (100-s.SplitPercent)*(1-shown)
+		split := components.SplitPercent(c, &percent, func() {
+			s.tablePane(c, top)
+		}, func() {
+			s.consolePane(c, top)
+		}, components.SplitOptions{
+			FirstMin:  360,
+			SecondMin: secondMin * shown,
+			Default:   64,
+		})
+		split.Label(locales.TasksResizePanel())
+		split.Fill()
 	})
-	split.Label(locales.TasksResizePanel())
-	split.Fill()
+}
+
+// consoleShare is where the panel's animation is heading: 1 open, 0 closed.
+func (s *View) consoleShare() float32 {
+	if s.consoleClosed {
+		return 0
+	}
+	return 1
+}
+
+// secondMin is the console's narrowest, before closing takes it to nothing.
+const secondMin = 280
+
+// ToggleConsole opens or closes the console panel.
+func (s *View) ToggleConsole() {
+	s.consoleClosed = !s.consoleClosed
+}
+
+// showConsole opens the panel, which a chosen task does: its console is the
+// reason to choose it.
+func (s *View) showConsole() {
+	s.consoleClosed = false
+}
+
+// TitleAction draws the panel's toggle in the title bar, naming what the press
+// will do.
+func (s *View) TitleAction(c *ui.Context) {
+	label, icon := locales.TasksConsoleHide(), lucide.PanelRightClose()
+	if s.consoleClosed {
+		label, icon = locales.TasksConsoleShow(), lucide.PanelRightOpen()
+	}
+	button := components.IconButton(c, icon, label, components.IconButtonPlain)
+	components.Tooltip(c, button, label)
+	if button.Clicked() {
+		s.ToggleConsole()
+	}
 }
 
 // tablePane is the filter bar and the task table.

@@ -1417,3 +1417,23 @@ func CommonClickConfirm() string { return In(i18n.Locale()).CommonClickConfirm()
 func (msgs Messages) CommonClickConfirm() string {
 	return Catalog.Format(msgs.locale, "commonClickConfirm", nil)
 }
+
+// TasksConsoleShow says "Show console"
+// in the language the app shows.
+func TasksConsoleShow() string { return In(i18n.Locale()).TasksConsoleShow() }
+
+// TasksConsoleShow says "Show console"
+// in the language of msgs.
+func (msgs Messages) TasksConsoleShow() string {
+	return Catalog.Format(msgs.locale, "tasksConsoleShow", nil)
+}
+
+// TasksConsoleHide says "Hide console"
+// in the language the app shows.
+func TasksConsoleHide() string { return In(i18n.Locale()).TasksConsoleHide() }
+
+// TasksConsoleHide says "Hide console"
+// in the language of msgs.
+func (msgs Messages) TasksConsoleHide() string {
+	return Catalog.Format(msgs.locale, "tasksConsoleHide", nil)
+}

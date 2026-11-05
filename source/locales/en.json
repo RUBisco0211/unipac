@@ -210,5 +210,7 @@
   "settingsHoldToConfirm": "Hold to confirm",
   "settingsHoldToConfirmDesc": "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it.",
   "tasksQuitCancel": "Keep running",
-  "commonClickConfirm": "Confirm"
+  "commonClickConfirm": "Confirm",
+  "tasksConsoleShow": "Show console",
+  "tasksConsoleHide": "Hide console"
 }
