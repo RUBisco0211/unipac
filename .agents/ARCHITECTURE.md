@@ -14,7 +14,7 @@ of the old stack remains, and these are the decisions worth not revisiting:
 | Shell | `mygo.json`, `mygo.App`, `sidebar.NewShell`; no `wails.json` and no embedded frontend |
 | UI | Go views in `views/`; no Vue, Vite, vue-router, vue-i18n or shadcn-vue |
 | Boundary | Views call `App` methods directly; there is no generated binding layer |
-| Dialogs | `mygo.Dialog`; the Wails dialog helper is gone |
+| Dialogs | Onevra `Dialog` for the app's own questions, `mygo.Dialog` for native ones; the Wails dialog helper is gone |
 | Go directive | `go 1.27.3` or newer |
 | Module path | `github.com/RUBisco0211/unipac` |
 | SQLite driver | `modernc.org/sqlite`, pure Go, so `CGO_ENABLED=0` builds actually run |
@@ -64,7 +64,7 @@ Exported methods:
 - `ListEnabledManagers() []manager.Info`
 - `GetCachedPackages() ([]manager.Package, error)`
 - `UpdateCache() error`
-- `SearchPackages(keyword, managerIDs) ([]manager.Package, error)`
+- `SearchPackages(keyword, managerIDs) (manager.SearchResult, error)`
 - `GetPackageInfo(managerID, name) (string, error)`
 - `ListPackageVersions(managerID, name) ([]string, error)`
 - `InstallPackage(pkg, opt)`, `UpdatePackage(pkg, opt)`
@@ -73,6 +73,10 @@ Exported methods:
 - `ListTasks() []tasks.Snapshot`, `TaskOutput(id) tasks.Output`
 - `SetTaskListener(fn)`, `CancelTask(id) error`
 - `UnfinishedTasks() int`, `StopTasks()`
+- settings: `ManagerOverrides`, `SetManagerEnabled`, `SetManagerExecPath`,
+  `ReloadManagers`, `Language`/`Languages`/`SetLanguage`, `AutoScanOnLaunch`/
+  `SetAutoScanOnLaunch`, `LogLevel`/`LogLevels`/`SetLogLevel`, and
+  `HoldToConfirm`/`SetHoldToConfirm`
 
 Every action method records a task per package around the adapter call, so its
 command, outcome and console output outlive the call. The batch methods fan out
@@ -104,6 +108,8 @@ Background Work.
 - `Package`: normalized package data used by the registry, cache, views, and table.
 - `Adapter`: interface implemented by package-manager integrations.
 - `ActionResult` and `ActionOptions`: common command result and options types.
+- `SearchResult` and `MaxSearchResults`: what one search returned, and whether a
+  manager had more than the 200 it may contribute.
 
 The backend manager registry is the source of truth for which package managers exist. The views must not maintain a parallel list of managers such as `brew`, `npm`, `pip`, or `cargo`.
 
@@ -273,16 +279,18 @@ replaced silently: it is renamed to `unipac.json.bad-<time>` beside itself, a
 warning names both paths, and the app starts on defaults, so a hand edit that
 broke the JSON can be recovered instead of lost. It
 holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
-file keeps scanning), `language` (the tag chosen in Settings, absent or empty to
-follow the system), and `managers`, a map of `manager.Settings` keyed by
-manager ID. Only user choices live there: an absent entry means "on, detected
+file keeps scanning), `hold_to_confirm` (nil means on: a destructive
+confirmation holds rather than clicks), `language` (the tag chosen in Settings,
+absent or empty to follow the system), and `managers`, a map of
+`manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
 paths in it were auto-detected rather than chosen.
 
-`SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan`, `SetLogLevel` and
-`SetLanguage` write a copy and only replace `Instance` after the file write
-succeeds, so a failed save leaves the running app on the values it started with.
+`SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan`, `SetHoldToConfirm`,
+`SetLogLevel` and `SetLanguage` write a copy and only replace `Instance` after
+the file write succeeds, so a failed save leaves the running app on the values it
+started with.
 
 Upgrading from the snapshot format is one-way and lossy on purpose: the old
 `exec_path` values were auto-detected, not chosen, so they are not imported. On
@@ -299,11 +307,12 @@ the log level without a restart.
 
 `backend/util/` contains shared helpers for:
 
-- App root and safe path creation.
-- JSON file read/write.
-- Command execution and line collection.
+- App root and safe path creation, and moving the root a previous version used.
+- `EnsureToolPath`, which gives the process the PATH the user's shell has.
+- JSON file read/write, atomically.
+- Command execution and line collection, with the reporting an adapter can mute
+  for the probes that are not the command a task runs.
 - Parallel collection.
-- Dialogs, currently through Wails; these move to `mygo.Dialog`.
 
 Command helpers are backend-only. Views should request operations through `App` methods rather than constructing package-manager commands.
 
@@ -311,7 +320,7 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 ### Shell, Window, and Theme
 
-`sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts.
+`sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts, which `ShellOptions.Toasts` places at the bottom right.
 
 - Five sidebar entries map to the five pages: Packages, Outdated, Search, Tasks, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
 - Give the window a 1024 × 620 minimum; `sidebar.NewShell` defaults to 820 × 740,
@@ -321,7 +330,9 @@ Command helpers are backend-only. Views should request operations through `App` 
 - Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme`: it repaints the root with the theme's opaque background, which covers the window material behind the sidebar and costs the blur.
 - The app defines no native menus yet. The old `open_settings` Wails event and its
   `useWailsEvents.ts` listener are gone; settings is a page in the sidebar.
-- Dialogs use `mygo.Dialog` with the window as `Parent`, so macOS shows them as sheets.
+- A question about the app's own state is an Onevra `Dialog` built with the
+  content, so it follows the theme and can ask for a hold; `mygo.Dialog` with the
+  window as `Parent` is for the macOS-only cases, such as a sheet over the window.
 
 ### Views
 
@@ -331,12 +342,12 @@ together, and nothing has to be found across a 900-line file:
 
 | Package | Holds | Imports |
 | --- | --- | --- |
-| `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling and task notifications | every view package below |
+| `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling, task notifications and the window's toasts (bottom right) | every view package below |
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
 | `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
-| `views/search` | the search page: the query field, the manager selection, results marked with what is already installed, install | `inventory`, `parts`, `flight` |
+| `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install or update | `inventory`, `parts`, `flight` |
 | `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
@@ -393,7 +404,7 @@ visible and disabled, and a tooltip names the reason: the manager is turned off,
 it does not support the action, the package is already current, or another
 action is running. MyGo
 shows no tooltip on a disabled element, so the reason hangs on the wrapper row
-that `actionSlot` builds, not on the button.
+that `parts.ActionSlot` builds, not on the button.
 
 ### Components
 
@@ -404,11 +415,11 @@ Use MyGo's `ui` package for layout (`Box`, `Column`, `Row`, `Spacer`, `Grid`, `O
 ### Manager Discovery
 
 Views load manager metadata through `App.ListManagers()` and the user's saved
-overrides through `App.ManagerOverrides()`, and keep both in `data`:
+overrides through `App.ManagerOverrides()`, and keep both in `inventory.Data`:
 
-- `managers` and `names`
-- `overrides`, a map of `manager.Settings`
-- `managersVersion`, bumped when either changes, so the settings page rebuilds
+- `Managers` and `Names`
+- `Overrides`, a map of `manager.Settings`
+- `ManagersVersion`, bumped when either changes, so the settings page rebuilds
   its rows only then
 
 Manager IDs stay opaque: display the backend-provided `name` and gate actions on
@@ -421,7 +432,8 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 
 The settings page is one scrollable column of sections separated by rules, not cards.
 A section has a title with an optional trailing action, a sentence saying what
-its settings do, and a rule above the rows. The sections are startup behavior,
+its settings do, and a rule above the rows. The sections are startup behavior —
+scanning on launch, and whether a destructive confirmation is a hold or a click —
 the log level, the language (the app's languages plus System, named in their own
 language), and one row per package manager.
 
@@ -430,7 +442,7 @@ the executable path, an Apply button and a switch. The path field shows the save
 override; the detected path is its muted placeholder, so an empty field means
 "detect automatically". Apply stays visible and disabled until the draft differs,
 and the field submits on Enter. Rows are rebuilt only when
-`data.managersVersion` changes, so an unapplied draft survives the frames in
+`Data.ManagersVersion` changes, so an unapplied draft survives the frames in
 between.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
@@ -446,31 +458,37 @@ same look as the package tables. Its columns are operation, package, version,
 manager, status, started and finished; an update's version cell joins the old and
 new versions with `→`, and the time cells show the clock today or the date for an
 older task, with the full timestamp in a tooltip. A search field matches package,
-manager and command, and two multi-selects filter by operation kind and by
-package manager; their option counts follow the other filter and the query. The
-install kind uses a download icon.
+manager and command, and three multi-selects filter by operation kind, by status
+and by package manager; their option counts follow the other filters and the
+query. Revealing a task from a notification or a toast clears all of them, so a
+task cannot be hidden by its own filters. The install kind uses a download icon.
 
-The console is a permanent panel on the trailing edge: there is no show/hide
-control, and `components.SplitPercent` makes the divider draggable. The panel
-spans the window's height from the top edge like the sidebar, and when no task is
-chosen it shows a "select a task" hint rather than disappearing. The chosen
-task's header carries the cancel control while it runs and the retry control when
-it failed or was cancelled; retrying starts a new task and leaves the old record
-alone.
+The console is a `views/panel` on the trailing edge, which the title bar's
+toggle opens and closes and which a chosen task opens. It spans the window's
+height from the top edge like the sidebar, and when no task is chosen it shows a
+"select a task" hint rather than disappearing. Its width is a drag of its edge,
+a double click on that edge puts it away, and the width is a DIP value rather
+than a share, so the window growing leaves the panel as the user sized it. The
+chosen task's header carries the cancel control while it runs and the retry
+control when it failed or was cancelled; retrying starts a new task and leaves
+the old record alone.
 
 The table is keyed by task ID, so a task keeps its row identity as running ones
 come and go. Its package cell carries the package name over the command, the
 same two-line shape as the package tables, so rows have the same height. A thin
 indeterminate bar sits over the table's top while tasks are queued or running or
-a stored console is loading, like the refresh bar on the package pages. The
+a stored console is loading, like the refresh bar on the package pages; it is
+painted on the table's own box, so it stops where the panel begins. The
 console is a `components.List` with `FollowEnd`, which keeps the newest line in
 view until the user scrolls up, and starts at the end when a different task is
 chosen. `views/ansi` parses SGR sequences into colored spans, so
 bold, standard and 256/true colors look as the tool meant them; stderr is not
 tinted by itself. Homebrew, npm and Cargo's action commands ask for color
 (`HOMEBREW_COLOR`, `FORCE_COLOR`, `CARGO_TERM_COLOR`) because they print to a
-pipe; the other adapters' output stays plain. The panel also
-shows the stored command and executable path.
+pipe; the other adapters' output stays plain. Above the console, the panel shows
+the command the task ran as a block that can be selected and copied, with a
+button that copies it and confirms with a toast; the executable path is stored
+with the task but not shown, since the command already names it.
 
 Snapshots carry metadata and `OutputSeq`, not the console itself. Choosing a
 task asks `App.TaskOutput` off the UI thread; a live task answers from memory and
@@ -489,9 +507,12 @@ may have been skipped while another page was shown.
 On each listener frame the UI compares the new task states with the previous
 ones. A task that moved from queued/running to succeeded or failed — or that was
 created and finished between two frames — produces a `mygo.Notification` through
-`mygo.NewNotification`, grouped under `unipac.tasks`, with the operation and
-package in the title/body and the error message on a failure. History loaded at
-startup is in the previous-state map, so it stays quiet; cancelled tasks and
+`mygo.NewNotification`, grouped under `unipac.tasks`. Its title is the same
+label the toast uses — "Could not update bun", or "Could not update 3 packages"
+for a batch — and its body is the package and its manager: the command's output
+is the task's console, which a click opens, not something to repeat in a
+notification. History loaded at startup is in the previous-state map, so it stays
+quiet; cancelled tasks and
 quitting are quiet too. `NotificationsSupported` is checked and `Show` called off
 the UI thread; on macOS notifications require a packaged app, which `mygo dev`
 and `mygo build` produce, not `go run`.
@@ -501,24 +522,35 @@ strips that prefix and calls `UI.openTask`, which clears the filters, selects th
 task and loads its console, so a click works while the app is running and after
 it has been relaunched.
 
+A failed action's toast carries that same ID in its `TaskID`, so it offers one
+`Show task` button that opens the console instead of repeating the command's
+output, which is what the toast said before and why a 25-line npm failure showed
+22 warnings and never the error. Toasts are queued on `inventory.Data` and turned
+into MyGo toasts while the content builds, since one cannot be added from the job
+that produced it; the window places them at the bottom right.
+
 ### Title Bar and Count Badges
 
 The title bar's trailing edge holds an icon-only tasks button, built in
-`windowTitle` after a `Spacer`. It navigates to the tasks page and carries the
+`windowTitle` after a `Spacer`, and before it the buttons the page showing
+offers: every page view takes a `TitleActions` builder, and `UI.titleActions`
+picks the one for the page. `parts.TitleButton` builds them all in the same box,
+so the tasks button and a page's own share a height and a centre whatever their
+icons are. It navigates to the tasks page and carries the
 same running-task count as the sidebar's Tasks item. The sidebar's Outdated and
 Tasks entries put that count at the trailing edge, after the label, through
 `SidebarItemWithSlots`: `trailingCount` is a small accent pill, capped at "99+",
 and draws nothing for zero. The title bar button keeps the count over its icon,
 where there is no label to sit beside. Both counts are derived state — outdated
-rows from `data.rows` (enabled managers only), running tasks from the task
+rows from `Data.Rows` (enabled managers only), running tasks from the task
 snapshots — so a refresh or a task listener frame updates the badge with the rest
 of the shell.
 
 Starting an action also starts a flight: the control that was pressed reports its
-window point, `UI.runAction` records it with the tasks button's last rectangle,
-and `flightOverlay` animates a circular package icon from the press point to the
-button. It uses a fixed 300 ms ease-out, not a spring, and disappears as it
-arrives, so it is a signal rather than something that sits on the button. `Jump`
+window point through `flight.OriginOf`, `UI.runTask` hands it the tasks button's
+last rectangle, and `flight.Flight.ToTasks`/`Draw` animate a circular package icon
+from the press point to the button. It uses a fixed 300 ms ease-out, not a
+spring, and disappears as it arrives, so it is a signal rather than something that sits on the button. `Jump`
 places a new flight at its start, so a second action does not begin at the
 previous flight's end. The overlay is absolute and lives beside the page in the
 content root; it takes no layout room and passes under the transparent part of
@@ -528,18 +560,33 @@ the floating header at the very end, where the tasks button covers it.
 
 `UI.Run` registers both `Window.OnClose` and `App.OnBeforeQuit`. Either one asks
 `App.UnfinishedTasks`; when queued or running tasks remain, it prevents the close
-and calls `askToQuit`. That runs `mygo.Dialog.Message` off the UI thread (the
-dialog blocks its caller) with the window as parent, so the question is visible
-even when the window is minimized. Confirming sets an atomic `quitAccepted`,
-runs `StopTasks`, and then quits: `StopTasks` marks every unfinished task
-cancelled and cancels its context, so `exec.CommandContext` kills the child. A
-crash or a force-quit skips this, and the next startup marks the leftover rows
-cancelled. Cancelled tasks keep their record, can be retried, and are not
-announced by a notification.
+and opens the window's own quit dialog (`askToQuit` sets `quitOpen` and
+`quitPending` and invalidates). The dialog is an Onevra `Dialog` built with the
+content, so it follows the theme and can ask for a hold, and it names the number
+of unfinished tasks. Keeping running closes it and leaves the tasks alone;
+confirming sets an atomic `quitAccepted`, runs `StopTasks`, and then quits:
+`StopTasks` marks every unfinished task cancelled and cancels its context, so
+`exec.CommandContext` kills the child. A crash or a force-quit skips this, and
+the next startup marks the leftover rows cancelled. Cancelled tasks keep their
+record, can be retried, and are not announced by a notification.
 
 ### Table and Actions
 
 `views/parts` replaces `PackagesDataTable.vue` and `packages-columns.ts`. Use `TableVirtualized` so a few thousand rows scroll smoothly; keep rows a fixed height, which rules out variable-height cells. Keep row identity stable across refreshes so selection and scroll position survive an update.
+
+Every table puts `t.Space(2)` of padding either side of itself, and that is its
+only table-level inset: Onevra lays a header cell and a row cell out through one
+call with one padding and offers no per-column inset, so the table's own edge is
+the only place a first cell's padding reaches the header too. Columns whose cells
+are one short element — the manager badge, the status badge, the row buttons —
+centre their headers, and their cells centre with them; a text column keeps its
+header and rows on the leading edge. Versions and descriptions carry a tooltip,
+because the cells are one line and clip.
+
+`parts.LoadingBar` paints its sweep on the element it is given rather than adding
+an absolutely positioned one: `Absolute()` places an element against the window,
+not against the box it is built in, so a bar built inside a page ran under a side
+panel.
 
 The keyed row list also sets `KeepOffset`: with a `Key` and without it, MyGo
 keeps the row at the top of the viewport in place, so sorting a column would
@@ -550,7 +597,12 @@ viewport where it is while the rows under it change order.
 
 Action availability is capability-driven, and the result is never a disappearing button: an unsupported action stays visible and disabled, with a tooltip naming the missing capability. A user must be able to tell "this manager cannot search" from "the app is broken".
 
-Uninstall opens a dialog, and the dialog's confirm button is a `HoldToConfirm` gesture, so removing a package takes a deliberate press-and-hold after the dialog is open. Batch uninstall opens one dialog for every target and confirms them with the same gesture.
+Uninstall opens a dialog whose confirm is a `HoldToConfirm` gesture, so removing a
+package takes a deliberate press-and-hold after the dialog is open. Batch
+uninstall opens one dialog for every target and confirms them the same way. When
+the user turns holding off in Settings, both this confirm and the quit dialog's
+are plain danger buttons instead, and the list views learn it through their
+`HoldsToConfirm` wiring.
 
 ### Localization
 
@@ -583,9 +635,11 @@ Views may rebuild several times for one event. Trigger side effects through hand
 Startup:
 
 1. `mygo.App.Run()` starts the runtime and calls the `WhenReady` callback.
-2. `App.Startup` initializes the app root.
+2. `App.Startup` moves the previous version's data directory into the app root,
+   creates the root, and points MyGo's `PathUserData` at it.
 3. Config is loaded or created.
-4. Logging is initialized.
+4. Logging is initialized, and `EnsureToolPath` takes the PATH the user's shell
+   has.
 5. Cache is initialized.
 6. The task store opens, loads its history, and marks leftover unfinished rows
    cancelled.
@@ -643,6 +697,8 @@ Task UI:
 
 - Version selection is not implemented: no page offers `ListVersions` yet, even
   for managers that advertise it.
+- The console's width lives in the page's memory: it goes back to 380 on the next
+  launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.
 
 ## Resolved
@@ -659,3 +715,16 @@ Kept so nobody re-opens them:
 - `App` methods for search, info, versions and the actions exist and route
   through the registry's capability checks.
 - The module path is `github.com/RUBisco0211/unipac` on Go 1.27.3.
+- The package tables' first cell and the header above it line up because the
+  padding is on the table's own edge, not in the cell: Onevra lays both out
+  through one call and has no per-column inset.
+- A search is capped at 200 per manager and says when it cut one; Homebrew's
+  details come in batches of 100 so a single command never carries thousands of
+  names.
+- An outdated package the installed list does not have is not added as a row.
+- Installing records the version it goes to, and an action's console no longer
+  holds the probes an adapter ran to decide what to run.
+- On macOS a launch from outside a shell finds the managers: the app takes the
+  PATH the login shell has.
+- A config file that does not parse is kept as `unipac.json.bad-<time>` instead
+  of being replaced without a word.

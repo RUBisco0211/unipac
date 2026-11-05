@@ -46,6 +46,12 @@ Batch operations should be routed by manager. If the frontend sends mixed-manage
 
 ## Shared Implementation Notes
 
+A search returns at most `manager.MaxSearchResults` (200) packages from each
+manager, and the registry cuts a longer answer and reports it as truncated. Each
+adapter asks its own tool for that many, so the cap means the same thing
+everywhere; `brew search` has no such flag, and the details of a large result are
+asked for in batches of 100 instead.
+
 ### Command Execution
 
 The current `util.Exec` uses `cmd.Output()`, which discards stderr and fails on non-zero exits. Some package managers use non-zero exits for useful states, especially outdated checks. Add or extend command helpers before implementing all adapters:
@@ -79,7 +85,7 @@ Adapters should ignore unsupported optional flags rather than leaking frontend c
 
 Some package-manager CLIs support handling multiple packages in a single command, while others only accept one package per invocation for a given action. Adapters should choose the safest native shape:
 
-- Use one command when the CLI explicitly supports multiple targets, such as `uv tool uninstall <name>...`, `uv tool upgrade <name>...`, `npm update -g <name...>`, or `brew upgrade <name...>`.
+- Use one command when the CLI explicitly supports multiple targets, such as `uv tool uninstall <name>...`, `uv tool upgrade <name>...`, or `brew upgrade <name...>`.
 - Use one command per package when the CLI only accepts a single package spec, such as `uv tool install <package>` or `pipx install <package>`.
 - For one-command-per-package actions, controlled concurrency is allowed. Prefer a small worker limit such as `2` or `3`, preserve context cancellation, and stop returning success if any package action fails.
 - Keep command argument construction isolated in helper functions so sequential and concurrent execution paths share the same package-spec behavior.
@@ -119,10 +125,10 @@ CLI plan:
 - List installed: `npm ls -g --depth=0 --json`
 - List outdated: `npm outdated -g --json`
 - Info: `npm view <name> --json`
-- Search: `npm search <keyword> --json`
+- Search: `npm search <keyword> --json --searchlimit 200`
 - Install: `npm install -g <name>` or `npm install -g <name>@<version>`
 - Uninstall: `npm uninstall -g <name>`
-- Update: `npm update -g <name...>`
+- Update: `npm install -g <name>@<version>...`
 - Versions: `npm view <name> versions --json`
 
 Normalize installed packages from top-level `dependencies` entries. `npm outdated` may return a non-zero exit code when outdated packages exist, so the command helper must still parse stdout when present.
@@ -197,7 +203,7 @@ First-pass capabilities:
 CLI plan:
 
 - List installed: `cargo install --list`
-- Search: `cargo search <keyword> --limit 20`
+- Search: `cargo search <keyword> --limit 200`
 - Install: `cargo install <name>` or `cargo install <name> --version <version>`
 - Uninstall: `cargo uninstall <name>`
 
@@ -205,14 +211,14 @@ Parse installed package header lines like `crate-name v1.2.3:`. Ignore following
 
 Cargo does not have a built-in universal update command for all `cargo install` packages. A future implementation may integrate an optional external tool such as `cargo-install-update`, but that must be treated as a separate dependency and preflighted explicitly.
 
-## uv tool Adapter
+## UV Tool Adapter
 
 Manage Python command-line tools installed by `uv tool`. Treat this as a separate manager from `pip` and `pipx`; it owns uv's tool environments, not arbitrary Python packages in the active interpreter.
 
 Metadata:
 
 - `ID`: `uv-tool`
-- `Name`: `uv tool`
+- `Name`: `UV Tool`
 - `ExecName`: `uv`
 
 First-pass capabilities:

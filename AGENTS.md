@@ -1,7 +1,7 @@
 # UniPac
 
 UniPac is a desktop package manager: one place to inspect and act on packages
-installed by Homebrew, npm, pip, pipx, Cargo and uv tool, without learning each
+installed by Homebrew, npm, pip, pipx, Cargo and UV Tool, without learning each
 manager's command line.
 
 The window is native Go, drawn by [MyGo](https://github.com/egoist/mygo) with
@@ -39,8 +39,9 @@ Load both before writing or reviewing UI code.
   no background work inside them.
 - `views/` is one package per page (`list`, `search`, `settings`, `tasks`) plus
   the shared packages `inventory` (the `Service` interface and shared state),
-  `parts`, `ansi` and `flight`. Pages never import each other or `views` itself;
-  the shell owns the wiring and passes callbacks to a page's exported fields.
+  `parts`, `panel` (a collapsible side panel), `ansi` and `flight`. Pages never
+  import each other or `views` itself; the shell owns the wiring and passes
+  callbacks to a page's exported fields.
 - Elements expire at the end of a build pass. Keep application state and
   `ui.Handle`, never an element.
 - Prefer Onevra controls. Use MyGo's styled widgets only where Onevra has no

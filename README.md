@@ -18,7 +18,10 @@ webview, no JavaScript.
 - Discovers the package managers available on the host.
 - Lists installed and outdated packages in a native UI, cached in SQLite.
 - Reports each manager's capabilities so unsupported actions stay disabled.
-- Adds search, install, uninstall, update and version lookup incrementally.
+- Searches across managers, marking what is installed and what has a newer
+  version.
+- Records every install, update and uninstall as a task with its console, which
+  can be cancelled, retried and opened from a notification.
 
 ## Supported Package Managers
 
