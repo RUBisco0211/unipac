@@ -257,6 +257,13 @@ func (l *View) syncSelection() {
 // selectColumnWidth is the width of the checkbox column.
 const selectColumnWidth = 40
 
+// firstCellInset is where a row's first cell starts on the page: the table's
+// inset, then its cell padding. The header's controls are laid out absolutely,
+// so they take this rather than the container's padding.
+func firstCellInset(t *ui.Theme) float32 {
+	return t.Space(2.5) + t.Space(1.5)
+}
+
 func (l *View) columns() []ui.TableColumn {
 	columns := []ui.TableColumn{{Title: "", ID: "select", Width: selectColumnWidth, Fixed: true}}
 	columns = append(columns, parts.Fields()...)
@@ -546,13 +553,16 @@ func (l *View) body(c *ui.Context) {
 		// with that item to wherever the sort puts it.
 		l.table.List.KeepOffset = true
 		t := c.Theme()
-		ui.Column(c).Fill().Children(func() {
+		// The inset is on the table, not on a cell: Onevra lays a header cell
+		// and a row cell out with the same padding and has no per-column inset,
+		// so this is the only place the first header cell sees it too.
+		ui.Column(c).Fill().Padding(0, 0, 0, t.Space(1.5)).Children(func() {
 			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
 				l.cell(c, row, col)
 			}).Fill()
 			// The table header only takes text, so the select-all control is
 			// laid over the first header cell, on the same padding the cells use.
-			ui.Row(c).Absolute().Top(0).Left(t.Space(2.5) + 6).Height(t.Space(8)).
+			ui.Row(c).Absolute().Top(0).Left(firstCellInset(t)).Height(t.Space(8)).
 				AlignItems(ui.Center).Children(func() {
 				all := l.allSelected()
 				box := components.Checkbox(c, &all, "").Label(locales.PackagesSelectAll())
@@ -562,7 +572,7 @@ func (l *View) body(c *ui.Context) {
 			})
 			if len(l.chosen) > 0 {
 				titleWidth, _ := c.MeasureText(0, ui.Span{Text: locales.TablePackage(), Weight: 600})
-				left := selectColumnWidth + t.Space(2.5) + titleWidth + t.Space(2)
+				left := firstCellInset(t) + selectColumnWidth + titleWidth + t.Space(2)
 				ui.Row(c).Absolute().Top(0).Left(left).Height(t.Space(8)).
 					AlignItems(ui.Center).Children(func() {
 					// Badge pins itself to the cross-start; centre it on the
@@ -580,8 +590,7 @@ func (l *View) cell(c *ui.Context, row, col int) {
 	switch col {
 	case 0:
 		checked := l.isChosen(pkg)
-		// 6 DIPs past the cell padding, to line up with the toolbar's inset.
-		ui.Row(c).Padding(0, 0, 0, 6).Children(func() {
+		ui.Row(c).Children(func() {
 			box := components.Checkbox(c, &checked, "").Label(pkg.Name)
 			if box.Changed() {
 				l.choose(pkg, checked)
@@ -590,7 +599,7 @@ func (l *View) cell(c *ui.Context, row, col int) {
 	case l.actions:
 		l.rowActions(c, pkg)
 	default:
-		parts.Cell(c, pkg, col-1, l.Data.Name, false)
+		parts.Cell(c, pkg, col-1, l.Data.Name, inventory.MarkNone)
 	}
 }
 

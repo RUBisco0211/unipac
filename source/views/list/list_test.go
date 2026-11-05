@@ -11,6 +11,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/theme"
 )
 
 func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
@@ -529,5 +530,38 @@ func TestRowActionsStayInTheActionsColumn(t *testing.T) {
 		if right := button.X + button.W; right > width-12 {
 			t.Errorf("%q ends at %.0f, inside the trailing pad of a %d window: %+v", want, right, width, button)
 		}
+	}
+}
+
+// The header's select-all sits over the first column's checkboxes, so it must
+// land on the same inset: the header controls are absolute and do not follow
+// the table's padding unless they add it themselves.
+func TestSelectAllAlignsWithTheRowCheckboxes(t *testing.T) {
+	l := &View{Data: fixture(), AllowRemove: true}
+	tt := render(t, l.Build, 900, 500)
+
+	header, ok := tt.Find(locales.PackagesSelectAll())
+	if !ok {
+		t.Fatal("the select-all control is missing")
+	}
+	row, ok := tt.Find("ripgrep")
+	if !ok {
+		t.Fatal("the first row is missing")
+	}
+	if header.X != row.X {
+		t.Errorf("select-all starts at %.0f, a row checkbox at %.0f", header.X, row.X)
+	}
+	// The table's inset plus its cell padding, which the header's absolute
+	// control has to add for itself.
+	if want := theme.Palette(false).Space(2.5) + theme.Palette(false).Space(1.5); header.X != want {
+		t.Errorf("the first cell starts at %.0f, want %.0f", header.X, want)
+	}
+	// And the header's own text stays to the right of it.
+	title, ok := tt.Find(locales.TablePackage())
+	if !ok {
+		t.Fatal("the package header is missing")
+	}
+	if title.X <= header.X+header.W {
+		t.Errorf("the package header at %.0f overlaps the select-all control %+v", title.X, header)
 	}
 }

@@ -669,9 +669,8 @@ func (s *View) body(c *ui.Context) {
 		s.table.List.Key = func(row int) any { return s.rows[row].ID }
 		s.table.List.KeepOffset = true
 		s.table.List.OnChange = s.choose
-		// The table's own first-cell padding is a little tighter than the
-		// toolbar; one spacing unit puts its first column under the search box.
-		ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1)).Children(func() {
+		// The table's inset from the page, as the package tables have.
+		ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
 			components.TableVirtualized(c, &s.table, s.columns(), len(s.rows), func(row, col int) {
 				s.cell(c, row, col)
 			}).Fill()
@@ -884,22 +883,7 @@ func (s *View) consolePane(c *ui.Context, top float32) {
 		ui.Box(c).FillWidth().Height(1).Shrink(0).Background(t.Border)
 
 		if task.Command != "" {
-			ui.Column(c).Shrink(0).Gap(t.Space(1)).
-				Padding(t.Space(2), t.Space(4), t.Space(2), t.Space(4)).Children(func() {
-				for _, command := range strings.Split(task.Command, "\n") {
-					components.Text(c, "$ "+command).Font(terminalFont).FontSize(11.5).
-						TextColor(t.TextMuted).Wrap()
-				}
-			})
-		}
-		if task.ExecPath != "" {
-			ui.Row(c).Shrink(0).Gap(t.Space(1)).AlignItems(ui.Center).
-				Padding(0, t.Space(4), t.Space(2), t.Space(4)).Children(func() {
-				components.Icon(c, lucide.Terminal()).Size(13, 13).Shrink(0).TextColor(t.TextMuted)
-				path := components.Text(c, task.ExecPath).Font(terminalFont).FontSize(11).
-					SingleLine().TextColor(t.TextMuted)
-				components.Tooltip(c, path, task.ExecPath)
-			})
+			commandBlock(c, task.Command)
 		}
 
 		ui.Box(c).FillWidth().Height(1).Shrink(0).Background(t.Border.Alpha(0.6))
@@ -937,7 +921,9 @@ func (s *View) panelActions(c *ui.Context, task tasks.Snapshot) {
 
 func (s *View) consoleBody(c *ui.Context, task tasks.Snapshot) {
 	t := c.Theme()
-	ui.Column(c).Fill().Padding(t.Space(2), t.Space(4), t.Space(2.5), t.Space(4)).Children(func() {
+	// No right inset: the console's scrollbar sits on the panel's edge, and the
+	// rows keep the text clear of it instead.
+	ui.Column(c).Fill().Padding(t.Space(2), 0, t.Space(2.5), t.Space(4)).Children(func() {
 		if task.State == tasks.StateQueued {
 			consoleNote(c, locales.TasksQueuedHint())
 			return
@@ -964,7 +950,7 @@ func (s *View) consoleBody(c *ui.Context, task tasks.Snapshot) {
 		s.log.FollowEnd = true
 		components.List(c, &s.log, len(output.Lines), func(row int) {
 			line := output.Lines[row]
-			ui.Box(c).FillWidth().Padding(t.Space(0.5), 0).Children(func() {
+			ui.Box(c).FillWidth().Padding(t.Space(0.5), t.Space(2)).Children(func() {
 				ui.RichText(c, ansi.Spans(line.Text, t)...).
 					Font(terminalFont).FontSize(11.5).
 					TextColor(t.Text.Alpha(0.9)).Selectable()
@@ -1020,6 +1006,30 @@ func (s *View) FinishOutput(id string, request int, output tasks.Output) (reload
 	s.outputReady = true
 	s.outputLoading = false
 	return s.outputWanted > s.outputSeq
+}
+
+// commandBlock shows the command a task ran, as a block to read and copy rather
+// than a line to scroll past. The executable is not shown beside it: the command
+// already names it, and a path is what copying the command avoids typing.
+func commandBlock(c *ui.Context, command string) {
+	t := c.Theme()
+	ui.Row(c).Shrink(0).Padding(t.Space(1), t.Space(4), t.Space(2), t.Space(4)).Children(func() {
+		ui.Row(c).FillWidth().Gap(t.Space(1)).AlignItems(ui.Start).
+			Padding(t.Space(1.5), t.Space(2)).Radius(t.Radius).
+			Background(t.Text.Alpha(0.04)).Border(1, t.Border.Alpha(0.6)).Children(func() {
+			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+				for _, line := range strings.Split(command, "\n") {
+					components.Text(c, line).Font(terminalFont).FontSize(11.5).
+						TextColor(t.Text).Selectable().Wrap()
+				}
+			})
+			copied := components.IconButton(c, lucide.Copy(), locales.CommonCopyCommand(), components.IconButtonPlain)
+			if copied.Clicked() {
+				c.WriteClipboard(command)
+				c.Toast(locales.ToastCommandCopied())
+			}
+		})
+	})
 }
 
 func consoleNote(c *ui.Context, text string) {

@@ -10,6 +10,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -61,6 +62,28 @@ func hslToRGB(h, s, l float64) ui.Color {
 		return uint8(math.Round(v * 255))
 	}
 	return ui.RGBA(channel(h+1.0/3), channel(h), channel(h-1.0/3), 1)
+}
+
+// markNote annotates a package's name with what the page knows about it. A mark
+// and a word, not a pill: this says something about the name rather than giving
+// the row a label of its own.
+func markNote(c *ui.Context, mark inventory.Mark) {
+	t := c.Theme()
+	var icon *ui.SVG
+	var text string
+	var color ui.Color
+	switch mark {
+	case inventory.MarkInstalled:
+		icon, text, color = lucide.Check(), locales.SearchInstalled(), t.Success
+	case inventory.MarkUpdate:
+		icon, text, color = lucide.CircleArrowUp(), locales.SearchUpdateAvailable(), t.Accent
+	default:
+		return
+	}
+	ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+		components.Icon(c, icon).Size(12, 12).TextColor(color)
+		components.Text(c, text).FontSize(12).TextColor(color)
+	})
 }
 
 // ManagerBadge renders the manager label in a badge tinted by the manager ID.
@@ -140,9 +163,9 @@ func SearchFields() []ui.TableColumn {
 // SearchFieldIndex maps a search column back to its Fields index.
 var SearchFieldIndex = []int{0, 2, 3}
 
-// Cell renders field, indexing Fields. installed marks a package the inventory
-// already holds, which only a search result can be.
-func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string, installed bool) {
+// Cell renders field, indexing Fields. mark is what the page says about the
+// package beside its name, which only a search result has.
+func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string, mark inventory.Mark) {
 	t := c.Theme()
 	switch field {
 	case 0:
@@ -151,14 +174,7 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 			ui.Column(c).Gap(1).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 					components.Tooltip(c, components.Text(c, pkg.Name).SingleLine(), pkg.Name)
-					if installed {
-						// A mark and a word, not a pill: this annotates the name
-						// rather than labelling the row.
-						ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-							components.Icon(c, lucide.Check()).Size(12, 12).TextColor(t.Success)
-							components.Text(c, locales.SearchInstalled()).FontSize(12).TextColor(t.Success)
-						})
-					}
+					markNote(c, mark)
 				})
 				description := pkg.Description
 				if description == "" {

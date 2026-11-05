@@ -103,13 +103,18 @@ func TestTaskClickOpensConsole(t *testing.T) {
 	for _, want := range []string{
 		"==> Upgrading typescript",
 		"==> Pouring typescript",
-		"$ brew upgrade typescript",
-		"/opt/homebrew/bin/brew",
+		// The command is a block to copy, named as it reads in a shell; the
+		// executable behind it is not a line of its own.
+		"brew upgrade typescript",
+		locales.CommonCopyCommand(),
 		locales.TasksCancel(),
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("console is missing %q: %v", want, tt.Texts())
 		}
+	}
+	if tt.HasText("/opt/homebrew/bin/brew") {
+		t.Errorf("the executable path is still shown: %v", tt.Texts())
 	}
 }
 
