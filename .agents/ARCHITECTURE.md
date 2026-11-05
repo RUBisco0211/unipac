@@ -611,10 +611,16 @@ are plain danger buttons instead, and the list views learn it through their
 
 A search result whose manager lists versions can be installed at any of them.
 The row's install button opens the search page's own dialog instead of starting
-the task: the versions newest first, a field filtering them, and a confirm that
-stays disabled until one is chosen. Every other manager's install button starts
-the task as it always did — the control is absent rather than disabled, because
-the reason is the manager.
+the task: the versions newest first with the newest already chosen, a field
+filtering them, and a confirm that installs the choice. Every other manager's
+install button starts the task as it always did — the control is absent rather
+than disabled, because the reason is the manager.
+
+It is a `Dialog` and not a `components.Select` because a select keeps its open
+state inside MyGo, and the page has to know when the dialog opens to start the
+fetch and when it closes to leave the choice alone. The dialog also holds what a
+select cannot: the loading line, the failure line, and the note that the list
+was cut.
 
 The page owns the lookup: `versions` holds one `versionState` per package for the
 life of the page, so opening the dialog again shows what already arrived and a
@@ -632,8 +638,10 @@ before the cap, so a search reaches a version the cap hid.
 
 Choosing a version installs it through `OnInstallVersion`,
 `InstallPackage(pkg, ActionOptions{Version: v})`, so the task records the version
-it goes to and the tasks page shows it. A lookup that fails says so and offers
-`Install latest`, which is what the row's button did before the dialog existed.
+it goes to and the tasks page shows it. The newest is chosen when the list
+arrives, because installing latest is what the button did before the dialog
+existed: confirming takes one click, and choosing another version takes two. A
+lookup that fails says so and offers `Install latest`, which is the same thing.
 
 Only installing chooses a version. An update keeps the newest, because a
 downgrade is a different conversation and Homebrew cannot do it at all.
