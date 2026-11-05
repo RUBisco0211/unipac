@@ -6,9 +6,11 @@ import (
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/theme"
 )
 
 func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
@@ -292,5 +294,148 @@ func TestSearchMarksInstalledResults(t *testing.T) {
 	}
 	if seen != 1 {
 		t.Errorf("%d results are marked installed, want 1", seen)
+	}
+}
+
+// The search table ends where the package tables do, and its install button is
+// built once, in the actions column rather than in the trailing pad.
+func TestSearchTableInsetsAndOneActionButton(t *testing.T) {
+	const width = 900
+	s := &View{Data: fixture()}
+	s.BeginQuery()
+	s.Apply(1, "vite", manager.SearchResult{Packages: []manager.Package{
+		{Name: "vite", Manager: "npm", Version: "5.0.0"},
+	}}, nil)
+	tt := render(t, s.Build, width, 500)
+
+	seen := 0
+	for _, text := range tt.Texts() {
+		if text == locales.ActionsInstall() {
+			seen++
+		}
+	}
+	if seen != 1 {
+		t.Errorf("%d install buttons, want one", seen)
+	}
+	button, ok := tt.Find(locales.ActionsInstall())
+	if !ok {
+		t.Fatal("the install button is missing")
+	}
+	if right := button.X + button.W; right > width-12 {
+		t.Errorf("the install button ends at %.0f, inside the trailing pad of a %d window: %+v", right, width, button)
+	}
+}
+
+// A result the inventory holds at another version offers an update instead of an
+// install, and says so beside its name; the same version is simply installed.
+func TestSearchRowOffersAnUpdateForANewerVersion(t *testing.T) {
+	s := &View{Data: fixture()}
+	s.BeginQuery()
+	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
+		{Name: "typescript", Manager: "npm", Version: "6.0.0"}, // the inventory has 5.9.3
+	}}, nil)
+	tt := render(t, s.Build, 900, 500)
+
+	if !tt.HasText(locales.SearchUpdateAvailable()) {
+		t.Errorf("the newer version is not marked: %v", tt.Texts())
+	}
+	if tt.HasText(locales.SearchInstalled()) {
+		t.Errorf("the row claims to be installed and current: %v", tt.Texts())
+	}
+	if !tt.HasText(locales.ActionsUpdate()) {
+		t.Errorf("the row does not offer an update: %v", tt.Texts())
+	}
+	if tt.HasText(locales.ActionsInstall()) {
+		t.Errorf("the row still offers an install: %v", tt.Texts())
+	}
+}
+
+// The stored version is the current one: installed, and the button stays an
+// install, which is how a package is reinstalled.
+func TestSearchRowMarksTheInstalledVersion(t *testing.T) {
+	s := &View{Data: fixture()}
+	s.BeginQuery()
+	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
+		{Name: "typescript", Manager: "npm", Version: "5.9.3"},
+	}}, nil)
+	tt := render(t, s.Build, 900, 500)
+
+	if !tt.HasText(locales.SearchInstalled()) {
+		t.Errorf("the installed version is not marked: %v", tt.Texts())
+	}
+	if tt.HasText(locales.SearchUpdateAvailable()) {
+		t.Errorf("a current package is marked updatable: %v", tt.Texts())
+	}
+	if !tt.HasText(locales.ActionsInstall()) {
+		t.Errorf("the install button is missing: %v", tt.Texts())
+	}
+}
+
+// The update button calls the page's update, not its install.
+func TestSearchUpdateCallsOnUpdate(t *testing.T) {
+	s := &View{Data: fixture()}
+	var installed, updated []string
+	s.OnInstall = func(pkg manager.Package, _ flight.Origin) { installed = append(installed, pkg.Name) }
+	s.OnUpdate = func(pkg manager.Package, _ flight.Origin) { updated = append(updated, pkg.Name) }
+	s.BeginQuery()
+	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
+		{Name: "typescript", Manager: "npm", Version: "6.0.0"},
+	}}, nil)
+
+	tt := render(t, s.Build, 900, 500)
+	if err := tt.Click(locales.ActionsUpdate()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	if len(updated) != 1 || updated[0] != "typescript" {
+		t.Errorf("updated = %v, want typescript", updated)
+	}
+	if len(installed) != 0 {
+		t.Errorf("install was called for an update: %v", installed)
+	}
+}
+
+// The header's first cell and the row's share the table's inset: Onevra lays both
+// out with the same padding, so an inset on a cell alone leaves the header behind.
+func TestSearchHeaderStartsWhereItsRowsDo(t *testing.T) {
+	s := &View{Data: fixture()}
+	s.BeginQuery()
+	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
+		{Name: "typescript", Manager: "npm", Version: "6.0.0"},
+	}}, nil)
+	tt := render(t, s.Build, 900, 500)
+
+	header, ok := tt.Find(locales.TablePackage())
+	if !ok {
+		t.Fatal("the package header is missing")
+	}
+	if want := theme.Palette(false).Space(1.5) + theme.Palette(false).Space(2.5); header.X != want {
+		t.Errorf("the header starts at %.0f, want the table's inset and cell padding, %.0f", header.X, want)
+	}
+	row, ok := tt.Find("typescript")
+	if !ok {
+		t.Fatal("the result row is missing")
+	}
+	// The row starts with a 16-wide icon and an 8-wide gap before its name.
+	if want := header.X + 16 + 8; row.X != want {
+		t.Errorf("the name starts at %.0f, want %.0f under the header", row.X, want)
+	}
+}
+
+// A working row's button turns, and holds still when the desktop asks for less
+// motion.
+func TestSearchWorkingButtonTurns(t *testing.T) {
+	s := &View{Data: fixture()}
+	s.BeginQuery()
+	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
+		{Name: "typescript", Manager: "npm", Version: "6.0.0"},
+	}}, nil)
+	s.Data.BeginTask("update", []manager.Package{{Manager: "npm", Name: "typescript"}})
+
+	tt := render(t, s.Build, 900, 500)
+	if !tt.HasText(locales.ActionsUpdating()) {
+		t.Fatalf("the row does not say it is updating: %v", tt.Texts())
+	}
+	if !tt.FramePending() {
+		t.Fatal("the working button asks for no further frames")
 	}
 }
