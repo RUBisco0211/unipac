@@ -60,9 +60,19 @@ func (a *App) Startup(ctx context.Context) error {
 	a.ctx = ctx
 	a.runCtx, a.cancel = context.WithCancel(ctx)
 
-	if err := util.InitAppRoot("unipac"); err != nil {
+	// One directory for every build, named as the bundle is. The framework
+	// keeps its own files, the window state among them, in a directory named
+	// after the binary, so `mygo dev` and the shipped app would otherwise
+	// disagree about where they are; point it at the same place.
+	if moved, err := util.MigrateAppRoot("unipac"); err != nil {
+		slog.Warn("could not move the app data to its new directory", "error", err)
+	} else if moved {
+		slog.Info("moved the app data to its new directory", "dir", util.AppDirName)
+	}
+	if err := util.InitAppRoot(util.AppDirName); err != nil {
 		return a.fail("init app root dir", err)
 	}
+	mygo.App.SetPath(mygo.PathUserData, util.AppRoot)
 
 	if err := config.Init(); err != nil {
 		return a.fail("load app config", err)

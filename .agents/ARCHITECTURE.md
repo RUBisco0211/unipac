@@ -257,6 +257,14 @@ snapshots.
 
 ### Config and Logging
 
+The app root is `com.rubisco.unipac` under the user's config directory, the same
+directory for `mygo dev` and the shipped app: it is the bundle identifier from
+`mygo.json`, and a test keeps the two equal. MyGo would otherwise name its own
+directory after the binary (`UniPac`, `UniPac Dev`), so `App.Startup` points
+`PathUserData` at the app root and the window state lands there too. A version
+that ran under the old `unipac` directory is moved into it once, on first start;
+a directory already in place is never overwritten.
+
 `backend/config/config.go` loads or creates `unipac.json` under the app root. The
 file is written to a temporary file beside it and renamed into place, so a crash
 mid-write cannot leave a truncated config that the next load replaces with

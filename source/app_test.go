@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
+	"github.com/RUBisco0211/unipac/source/backend/util"
 )
 
 // An install records the version it goes to. A search result is not installed,
@@ -29,5 +32,24 @@ func TestTaskVersions(t *testing.T) {
 		if old != tc.old || next != tc.next {
 			t.Errorf("%s: versions = %q -> %q, want %q -> %q", tc.name, old, next, tc.old, tc.next)
 		}
+	}
+}
+
+// The directory the app keeps its files in is the bundle identifier, and the
+// two must not drift apart: the identifier names the app to the system, and
+// this names it on disk.
+func TestAppDirNameIsTheBundleIdentifier(t *testing.T) {
+	raw, err := os.ReadFile("../mygo.json")
+	if err != nil {
+		t.Skipf("mygo.json is not beside the package: %v", err)
+	}
+	var manifest struct {
+		Identifier string `json:"identifier"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("mygo.json: %v", err)
+	}
+	if util.AppDirName != manifest.Identifier {
+		t.Errorf("app dir = %q, bundle identifier = %q", util.AppDirName, manifest.Identifier)
 	}
 }
