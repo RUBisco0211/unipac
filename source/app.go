@@ -211,6 +211,21 @@ func (a *App) Languages() []string {
 
 // SetLanguage saves the chosen language and applies it at once. An empty tag
 // follows the system again.
+// Notifications reports whether a finished task is announced.
+func (a *App) Notifications() bool {
+	return config.Instance.NotifiesOnFinish()
+}
+
+// SetNotifications saves whether a finished task is announced.
+func (a *App) SetNotifications(on bool) error {
+	slog.InfoContext(a.ctx, "changing notifications", "on", on)
+	if err := config.SetNotifications(on); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save notifications", "error", err)
+		return err
+	}
+	return nil
+}
+
 // Theme is the saved appearance: "light", "dark", or "" to follow the system.
 func (a *App) Theme() string {
 	return config.Instance.Theme

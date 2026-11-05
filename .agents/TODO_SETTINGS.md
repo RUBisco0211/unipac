@@ -25,7 +25,7 @@ Branch: `feature/settings`.
 
 ## Phase B — backend, in this order
 
-- [ ] **Manager version.** `manager.Info.Version`, captured where preflight
+- [x] **Manager version.** `manager.Info.Version`, captured where preflight
       already runs `--version`: `util.CheckCommandVersion` throws the output away
       today. A `util.CommandVersion` returns the first line and a generic reader
       takes the first version-looking token, because the seven outputs differ
@@ -36,7 +36,7 @@ Branch: `feature/settings`.
       applied with `mygo.Theme.SetSource` before the window opens and on change.
       Onevra's palette already follows the frame's dark state, so the page needs
       no other work.
-- [ ] **Notifications.** A `notifications` config value (nil = on) read before
+- [x] **Notifications.** A `notifications` config value (nil = on) read before
       announcing a finished task, with a switch in General.
 - [ ] **About.** App version (a constant in package main, pinned by a test against
       `mygo.json` the way `TestAppDirNameIsTheBundleIdentifier` pins the

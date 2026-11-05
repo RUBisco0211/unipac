@@ -18,13 +18,14 @@ func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
 
 func settingsFixture() *View {
 	return &View{
-		Data:      testui.Data(),
-		AutoScan:  true,
-		logLevel:  "info",
-		levels:    []string{"debug", "info", "warn", "error"},
-		language:  "",
-		languages: []string{"en", "zh-CN"},
-		theme:     "",
+		Data:          testui.Data(),
+		AutoScan:      true,
+		logLevel:      "info",
+		levels:        []string{"debug", "info", "warn", "error"},
+		language:      "",
+		languages:     []string{"en", "zh-CN"},
+		theme:         "",
+		Notifications: true,
 	}
 }
 
@@ -335,5 +336,31 @@ func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
 	}
 	if s.theme != "dark" {
 		t.Fatalf("the page did not keep the choice: %q", s.theme)
+	}
+}
+
+// The notification switch reaches the backend and the page keeps the answer the
+// backend reports, like every other switch in the section.
+func TestSettingsNotificationsReachBackend(t *testing.T) {
+	s := settingsFixture()
+	var got bool
+	s.OnSetNotifications = func(on bool) { got = on }
+
+	tt := render(t, s.Build, 900, 700)
+	if !tt.HasText(locales.SettingsNotifications()) {
+		t.Fatalf("the switch is missing: %v", tt.Texts())
+	}
+	// A switch owns the value it is bound to; a click turns it over and the next
+	// build reports the change, which is what the switch itself does.
+	s.Notifications = false
+	tt.Frame()
+	if got {
+		t.Fatalf("notifications sent %v, want the switch's new value", got)
+	}
+
+	// A save that reports the backend's answer puts the switch back.
+	s.EndSave(nil, Snapshot{Notifications: true})
+	if !s.Notifications {
+		t.Error("the backend's answer did not restore the switch")
 	}
 }

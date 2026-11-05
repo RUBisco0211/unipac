@@ -31,6 +31,8 @@ type View struct {
 	OnSetLanguage func(tag string)
 	OnSetTheme    func(value string)
 	OnSetHold     func(on bool)
+	// OnSetNotifications saves whether a finished task is announced.
+	OnSetNotifications func(on bool)
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
 
@@ -40,6 +42,9 @@ type View struct {
 	// HoldToConfirm is how a destructive confirmation is answered, a hold or a
 	// click; the shell reads it for the quit dialog.
 	HoldToConfirm bool
+	// Notifications is whether a finished task is announced; the shell reads it
+	// before showing one.
+	Notifications bool
 	logLevel      string
 	levels        []string
 	language      string
@@ -77,6 +82,7 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		Data:          d,
 		AutoScan:      service.AutoScanOnLaunch(),
 		HoldToConfirm: service.HoldToConfirm(),
+		Notifications: service.Notifications(),
 		logLevel:      service.LogLevel(),
 		levels:        service.LogLevels(),
 		language:      service.Language(),
@@ -93,6 +99,7 @@ type Snapshot struct {
 	Language      string
 	Theme         string
 	HoldToConfirm bool
+	Notifications bool
 }
 
 // BeginSave marks the page busy for one settings write and reports false when
@@ -117,6 +124,7 @@ func (s *View) EndSave(err error, saved Snapshot) {
 	s.language = saved.Language
 	s.theme = saved.Theme
 	s.HoldToConfirm = saved.HoldToConfirm
+	s.Notifications = saved.Notifications
 	if err != nil {
 		s.err = err.Error()
 		s.Invalidate()
@@ -189,6 +197,12 @@ func (s *View) general(c *ui.Context) {
 		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), &s.HoldToConfirm, func(on bool) {
 			if s.OnSetHold != nil {
 				s.OnSetHold(on)
+			}
+		})
+		parts.Divider(c)
+		s.switchRow(c, locales.SettingsNotifications(), locales.SettingsNotificationsDesc(), &s.Notifications, func(on bool) {
+			if s.OnSetNotifications != nil {
+				s.OnSetNotifications(on)
 			}
 		})
 		parts.Divider(c)

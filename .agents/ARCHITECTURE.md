@@ -282,8 +282,8 @@ holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
 file keeps scanning), `hold_to_confirm` (nil means on: a destructive
 confirmation holds rather than clicks), `language` (the tag chosen in Settings,
 absent or empty to follow the system), `theme` (`light`, `dark`, or absent to
-follow the system), and `managers`, a map of `manager.Settings` keyed by manager
-ID. Only user choices live there: an absent entry means "on, detected
+follow the system), `notifications` (nil means on, so a finished task is
+announced), and `managers`, a map of `manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
 paths in it were auto-detected rather than chosen.
@@ -515,8 +515,8 @@ may have been skipped while another page was shown.
 
 ### Notifications
 
-On each listener frame the UI compares the new task states with the previous
-ones. A task that moved from queued/running to succeeded or failed — or that was
+On each listener frame, when notifications are on and the app is not quitting,
+the UI compares the new task states with the previous ones. A task that moved from queued/running to succeeded or failed — or that was
 created and finished between two frames — produces a `mygo.Notification` through
 `mygo.NewNotification`, grouped under `unipac.tasks`. Its title is the same
 label the toast uses — "Could not update bun", or "Could not update 3 packages"

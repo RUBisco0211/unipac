@@ -173,6 +173,8 @@
   "appearanceSystem": "跟随系统",
   "appearanceLight": "浅色",
   "appearanceDark": "深色",
+  "settingsNotifications": "系统通知",
+  "settingsNotificationsDesc": "安装、更新或卸载结束时发送系统通知。",
   "settingsPackageCount": "{count} 个包",
   "settingsUnsupported": "不支持：{list}",
   "commonListSeparator": "、",

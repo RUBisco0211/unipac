@@ -1488,6 +1488,26 @@ func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
 
+// SettingsNotifications says "Notifications"
+// in the language the app shows.
+func SettingsNotifications() string { return In(i18n.Locale()).SettingsNotifications() }
+
+// SettingsNotifications says "Notifications"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifications() string {
+	return Catalog.Format(msgs.locale, "settingsNotifications", nil)
+}
+
+// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification."
+// in the language the app shows.
+func SettingsNotificationsDesc() string { return In(i18n.Locale()).SettingsNotificationsDesc() }
+
+// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification."
+// in the language of msgs.
+func (msgs Messages) SettingsNotificationsDesc() string {
+	return Catalog.Format(msgs.locale, "settingsNotificationsDesc", nil)
+}
+
 // SettingsPackageCount says "{count, plural, =0 {no packages} one {# package} other {# packages}}"
 // in the language the app shows.
 func SettingsPackageCount(count int) string { return In(i18n.Locale()).SettingsPackageCount(count) }

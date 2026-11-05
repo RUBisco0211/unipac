@@ -163,6 +163,7 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
 	u.settings.OnSetTheme = u.SetTheme
+	u.settings.OnSetNotifications = u.SetNotifications
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
@@ -526,12 +527,18 @@ func (u *UI) openTask(id string) {
 // since the last listener update. Cancelled tasks are quiet: the user stopped
 // them, or the app is quitting.
 func (u *UI) announceTaskResults(previous map[string]tasks.State, list []tasks.Snapshot) {
-	if u.quitAccepted.Load() {
+	if u.quitAccepted.Load() || !u.notificationsOn() {
 		return
 	}
 	for _, task := range finishedTasks(previous, list) {
 		u.notifyTask(task)
 	}
+}
+
+// notificationsOn reports whether a finished task should be announced. The
+// setting follows the switch in Settings: nothing else is announced either way.
+func (u *UI) notificationsOn() bool {
+	return u.settings == nil || u.settings.Notifications
 }
 
 // finishedTasks are the tasks that succeeded or failed since the previous
@@ -1013,6 +1020,13 @@ func (u *UI) SetHoldToConfirm(on bool) {
 
 // SetTheme saves the appearance; the backend applies it to the window and to the
 // next launch.
+// SetNotifications saves whether a finished task is announced.
+func (u *UI) SetNotifications(on bool) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetNotifications(on)
+	})
+}
+
 func (u *UI) SetTheme(value string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetTheme(value)
@@ -1047,6 +1061,7 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			Language:      u.svc.Language(),
 			Theme:         u.svc.Theme(),
 			HoldToConfirm: u.svc.HoldToConfirm(),
+			Notifications: u.svc.Notifications(),
 		}
 		win.Update(func() {
 			s.EndSave(err, saved)

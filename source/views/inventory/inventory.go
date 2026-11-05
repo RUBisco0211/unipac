@@ -34,6 +34,8 @@ type Service interface {
 	Languages() []string
 	Theme() string
 	SetTheme(value string) error
+	Notifications() bool
+	SetNotifications(on bool) error
 	SetLanguage(tag string) error
 	AutoScanOnLaunch() bool
 	SetAutoScanOnLaunch(on bool) error

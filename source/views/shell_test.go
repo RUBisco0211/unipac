@@ -639,6 +639,7 @@ func (wiredService) LogLevels() []string                           { return nil 
 func (wiredService) Language() string                              { return "" }
 func (wiredService) Languages() []string                           { return nil }
 func (wiredService) Theme() string                                 { return "" }
+func (wiredService) Notifications() bool                           { return true }
 
 // The search page's version picker is the shell's to answer. A page that lost
 // the wiring would quietly install the newest version instead of asking, which
@@ -650,5 +651,22 @@ func TestSearchPageAsksTheShellForVersions(t *testing.T) {
 	}
 	if u.search.OnInstallVersion == nil {
 		t.Error("the search page cannot install a chosen version")
+	}
+}
+
+// The notification switch is what decides whether a finished task is announced,
+// and a window whose settings page has not been built still announces.
+func TestNotificationsFollowTheSetting(t *testing.T) {
+	u := &UI{data: testui.Data()}
+	if !u.notificationsOn() {
+		t.Error("a window without a settings page does not announce")
+	}
+	u.settings = &settings.View{Notifications: false}
+	if u.notificationsOn() {
+		t.Error("the switch did not stop the announcements")
+	}
+	u.settings.Notifications = true
+	if !u.notificationsOn() {
+		t.Error("turning the switch back on did not resume them")
 	}
 }
