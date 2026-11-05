@@ -93,14 +93,13 @@ func (l *View) Build(c *ui.Context) {
 					TextColor(c.Theme().Danger)
 			}
 		})
-		// The slot is always reserved and the bar is drawn over it, so nothing
-		// moves when a refresh starts or stops.
-		ui.Column(c).Fill().Padding(2, 0, 0, 0).Children(func() {
-			l.body(c)
-			if l.Data.Refreshing {
-				parts.LoadingBar(c)
-			}
-		})
+		// The bar is painted on the body's own box, so it spans the table and
+		// takes no room: nothing moves when a refresh starts or stops.
+		body := ui.Column(c).Fill().Padding(2, 0, 0, 0)
+		body.Children(func() { l.body(c) })
+		if l.Data.Refreshing {
+			parts.LoadingBar(c, body)
+		}
 	})
 	l.uninstallDialog(c)
 	l.bulkDialog(c)

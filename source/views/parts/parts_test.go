@@ -15,7 +15,8 @@ import (
 func TestLoadingBarPaints(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {
 		c.SetTheme(theme.Palette(false))
-		ui.Column(c).Fill().Children(func() { LoadingBar(c).Width(240) })
+		box := ui.Box(c).FillWidth().Height(12)
+		LoadingBar(c, box)
 	}, 240, 12)
 	tt.Advance(600 * time.Millisecond)
 
@@ -30,6 +31,44 @@ func TestLoadingBarPaints(t *testing.T) {
 	}
 	if len(colors) < 2 {
 		t.Fatalf("loading bar painted one colour only: %v", colors)
+	}
+}
+
+// It paints on the box it is given, so a page beside a panel keeps the bar to
+// its own share: an absolute element measured the window instead.
+func TestLoadingBarStopsAtItsBox(t *testing.T) {
+	const (
+		boxWidth = 200
+		window   = 600
+	)
+	tt := ui.NewTester(func(c *ui.Context) {
+		c.SetTheme(theme.Palette(false))
+		ui.Row(c).Fill().Children(func() {
+			content := ui.Column(c).Width(boxWidth).Shrink(0).FillHeight()
+			content.Children(func() {
+				box := ui.Box(c).FillWidth().Height(40)
+				LoadingBar(c, box)
+			})
+			// Beside it, plain page: nothing of the bar may show here.
+			ui.Column(c).Grow(1)
+		})
+	}, window, 40)
+	tt.Advance(600 * time.Millisecond)
+
+	img := tt.Image()
+	beside := img.At(window-1, 1)
+	for x := boxWidth + 1; x < window; x++ {
+		for y := 0; y < 3; y++ {
+			if img.At(x, y) != beside {
+				t.Fatalf("the bar reaches x=%d, y=%d, past its %d wide box", x, y, boxWidth)
+			}
+		}
+	}
+	// And inside the box it does paint, or the test above would pass on a bar
+	// that never showed.
+	inside := img.At(boxWidth/2, 0)
+	if inside == beside {
+		t.Errorf("nothing was painted on the box: %v", inside)
 	}
 }
 

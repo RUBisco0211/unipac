@@ -118,30 +118,34 @@ func ManagerBadge(c *ui.Context, id, label string) {
 		Border(1, tint.Alpha(borderAlpha))
 }
 
-// LoadingBar draws a thin indeterminate bar: a highlight sweeping across while
-// the table loads or reloads.
-func LoadingBar(c *ui.Context) ui.Element {
+// LoadingBar draws a thin indeterminate bar along the top edge of e: a
+// highlight sweeping across while the table inside it loads or reloads.
+//
+// It paints on e rather than adding an element, because an absolute one measures
+// the window, not the box it is built in: a page with a side panel had the bar
+// run under the panel. Painting on the box keeps it within the page's share by
+// construction, and it takes no room, as before.
+func LoadingBar(c *ui.Context, e ui.Element) {
 	t := c.Theme()
-	// Absolute, so showing it never moves what is under it.
-	e := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Height(2).
-		Background(t.Border.Alpha(0.35)).Clip()
 	e.Draw(func(p *ui.Painter, r ui.Rect) {
-		if r.W <= 0 || r.H <= 0 {
+		if r.W <= 0 {
 			return
 		}
 		// Keep the bar moving on its own; nothing else asks for these frames.
 		p.AnimationFrameRate(60)
 		const (
+			height = 2
 			span   = 0.28 // the highlight's share of the width
 			period = 1.2  // seconds per sweep
 		)
+		track := ui.Rect{X: r.X, Y: r.Y, W: r.W, H: height}
+		p.Fill(track, t.Border.Alpha(0.35), 0)
 		seconds := float64(p.Now().UnixNano()) / 1e9
 		phase := math.Mod(seconds, period) / period
 		width := r.W * span
 		x := r.X - width + (r.W+width)*float32(phase)
-		p.Fill(ui.Rect{X: x, Y: r.Y, W: width, H: r.H}, t.Accent, 0)
+		p.Fill(ui.Rect{X: x, Y: r.Y, W: width, H: height}, t.Accent, 0)
 	})
-	return e
 }
 
 // Placeholder fills a page with a centred icon and a line of text.

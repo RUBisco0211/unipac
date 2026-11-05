@@ -546,12 +546,13 @@ func (s *View) TitleAction(c *ui.Context) {
 func (s *View) tablePane(c *ui.Context, top float32) {
 	ui.Column(c).Fill().MinWidth(0).Padding(top, 0, 0, 0).Children(func() {
 		s.toolbar(c)
-		ui.Box(c).Fill().MinHeight(0).Children(func() {
-			s.body(c)
-			if s.loading() {
-				parts.LoadingBar(c)
-			}
-		})
+		// The bar is painted on the table's own box, so it stops where the panel
+		// begins instead of running under it.
+		body := ui.Box(c).Fill().MinHeight(0)
+		body.Children(func() { s.body(c) })
+		if s.loading() {
+			parts.LoadingBar(c, body)
+		}
 	})
 }
 

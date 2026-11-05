@@ -68,14 +68,15 @@ func (s *View) Build(c *ui.Context) {
 			s.toolbar(c)
 			s.chips(c)
 		})
-		// The bar sits over the body, whose slot is always reserved, so the
-		// placeholder or results do not move when a search starts or ends.
-		ui.Column(c).Fill().MinHeight(0).Children(func() {
-			s.body(c)
-			if s.searching {
-				parts.LoadingBar(c).Label(locales.SearchProgress())
-			}
-		})
+		// The bar is painted on the body's own box, so it spans the results and
+		// takes no room: the placeholder or results do not move when a search
+		// starts or ends.
+		body := ui.Column(c).Fill().MinHeight(0)
+		body.Children(func() { s.body(c) })
+		if s.searching {
+			body.Label(locales.SearchProgress())
+			parts.LoadingBar(c, body)
+		}
 	})
 }
 
