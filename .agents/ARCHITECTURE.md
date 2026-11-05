@@ -351,9 +351,14 @@ The installed and outdated pages are the same `list.View` with `OutdatedOnly`
 set, so a change to the table applies to both.
 
 Switching pages plays a 200 ms fade and rise: the content area wraps the page in
-a box keyed by `Page`, and `ui.ElementTransition` animates it in and out. MyGo
-keeps a copy of the page that is gone for the exit, so only one page is ever
-built, and it fades in place when the desktop asks for less motion.
+a box keyed by `Page`, and `ui.ElementTransition` animates it in. The page that
+leaves is gone at once, with no `Exit`: MyGo draws an exit from a copy of the
+element tree re-laid out as an absolute element, and a virtualized table does not
+keep its width in that copy, so the old page flashed with a narrower table as it
+went. MyGo's router avoids the same thing by fading only the page coming in. The
+transition animates colors alone, so the box takes the width the layout gives it
+in the frame it gets it instead of growing into it, as the table would on the
+frame after a switch.
 
 Rules that replace the Vue ones:
 

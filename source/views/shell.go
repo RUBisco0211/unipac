@@ -47,18 +47,21 @@ const (
 )
 
 // pageTransition is how the content area changes page: the arriving page fades
-// in from just below and the leaving one fades out upward. MyGo keeps a copy of
-// the page that is gone for the exit, so only one page is ever built; when the
-// desktop asks for less motion it fades in place instead of moving.
+// in from just below, and the page that leaves is gone at once.
+//
+// There is no Exit on purpose. MyGo's exit draws a copy of the element tree, not
+// the frame it showed: the copy is laid out again as an absolute element, and a
+// virtualized table does not keep its width in it, so the old page flashed with
+// a narrower table on the way out. MyGo's own router refuses the same thing for
+// the same reason, and fades only the page coming in.
+//
+// Colors is set alone so that Position and Size stay out: a page whose table
+// finds its width a frame after the switch must take that width at once, not
+// grow into it for the whole duration.
 var pageTransition = ui.ElementTransition{
 	Duration: 200 * time.Millisecond,
-	// Colors is set alone on purpose: with none of the three set, MyGo animates
-	// position and size too, and a page whose table finds its width a frame
-	// after the switch would grow into it for the whole duration instead of
-	// snapping, which reads as the page flashing at a wrong width.
-	Colors: true,
-	Enter:  &ui.Motion{Opacity: 0, Y: 8},
-	Exit:   &ui.Motion{Opacity: 0, Y: -4},
+	Colors:   true,
+	Enter:    &ui.Motion{Opacity: 0, Y: 8},
 }
 
 // pageKey is a page's identity in the element tree. It changes with the page, so

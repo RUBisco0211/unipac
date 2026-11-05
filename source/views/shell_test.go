@@ -233,19 +233,40 @@ func uiWithPages() *UI {
 	return u
 }
 
-func TestPageSwitchPlaysAnEntryAndExit(t *testing.T) {
+// ink counts the pixels of r that differ from the window's background, which is
+// how a test sees what a page drew: labels do not cover the copy of a page that
+// is on its way out.
+func ink(tt *ui.Tester, r ui.Rect) int {
+	corner := tt.Image().At(1, 1)
+	n := 0
+	for y := int(r.Y); y < int(r.Y+r.H); y++ {
+		for x := int(r.X); x < int(r.X+r.W); x++ {
+			if tt.Image().At(x, y) != corner {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func TestPageSwitchFadesTheArrivingPage(t *testing.T) {
 	u := uiWithPages()
 	tt := testui.Render(u.content, 900, 500)
 	tt.Frame()
 	if tt.FramePending() {
 		t.Fatal("the page area animates while nothing changes")
 	}
-	if !tt.HasText("ripgrep") {
+	gone, ok := tt.Find("ripgrep")
+	if !ok {
 		t.Fatalf("the installed page is missing: %v", tt.Texts())
 	}
+	if ink(tt, gone) == 0 {
+		t.Fatal("the installed page draws nothing where its row is")
+	}
 
-	// The outdated page drops the current package, so it leaves while the page
-	// that replaces it fades in from just below.
+	// The outdated page drops the current package. It takes the content area
+	// while it fades in from just below; the page it replaces is gone at once,
+	// so nothing of it is left to draw at a wrong width.
 	u.page = PageOutdated
 	tt.Frame()
 	if !tt.FramePending() {
@@ -253,6 +274,9 @@ func TestPageSwitchPlaysAnEntryAndExit(t *testing.T) {
 	}
 	if !tt.HasText("typescript") {
 		t.Errorf("the arriving page is missing: %v", tt.Texts())
+	}
+	if left := ink(tt, gone); left != 0 {
+		t.Errorf("the page that left still draws %d pixels", left)
 	}
 	start, ok := tt.Find("typescript")
 	if !ok {
@@ -283,12 +307,6 @@ func TestPageSwitchPlaysAnEntryAndExit(t *testing.T) {
 	}
 	if rise := start.Y - end.Y; rise < 6 {
 		t.Errorf("the page started %v DIPs below its place, want the 8 of the entry", rise)
-	}
-	if tt.HasText("ripgrep") {
-		t.Errorf("the page that left is still shown: %v", tt.Texts())
-	}
-	if !tt.HasText("typescript") {
-		t.Errorf("the arriving page is gone: %v", tt.Texts())
 	}
 }
 
