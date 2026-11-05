@@ -1,69 +1,113 @@
 package util
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"os"
-	"path/filepath"
+	"os/exec"
 	"strings"
+	"time"
 )
 
-// ToolDirs are where the package managers UniPac drives install their
-// executables: the Homebrew prefixes, the per-user bins pipx, uv and cargo
-// write into, and bun's. They follow the system ones, so a PATH from a shell
-// still decides first.
-var ToolDirs = []string{
-	"/opt/homebrew/bin",
-	"/opt/homebrew/sbin",
-	"/usr/local/bin",
-	"/usr/local/sbin",
-	"~/.local/bin",
-	"~/.cargo/bin",
-	"~/.bun/bin",
-}
+// shellPathTimeout bounds how long the login shell may take to report its PATH.
+// A shell that sources a heavy rc file can take a moment; the app does not wait
+// longer than this for it.
+var shellPathTimeout = 3 * time.Second
 
-// EnsureToolPath appends the tool directories that exist to PATH, and returns
-// the PATH it set.
+// EnsureToolPath gives the process the PATH a terminal has, and returns it.
 //
 // An app opened from Finder, the Dock or Spotlight is launched by launchd with
-// a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), not with the one a shell
-// had: every manager then looks missing and a scan replaces the cache with the
-// few packages that PATH can find. Adding the directories the tools live in
-// makes a launch from outside a shell behave like one from inside it.
+// `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, not with the one the user's shell
+// builds: every manager then looks missing, and the scan that follows replaces
+// the package cache with the few packages that PATH can find. Asking the login
+// shell for its PATH is what makes a launch from outside a shell behave like
+// one from inside it, with the user's own `nvm`, `volta` or `asdf` directories
+// included rather than a list of guesses.
+//
+// The shell's PATH comes first and the process's own entries follow, so a
+// directory this process was given still resolves. When the shell cannot be
+// asked, PATH is left as it is and the failure is logged: probing managers then
+// reports what it finds, which is what the settings page can fix with a path.
 func EnsureToolPath() string {
-	path := extendPath(os.Getenv("PATH"), os.Getenv("HOME"), ToolDirs...)
-	if path != os.Getenv("PATH") {
+	current := os.Getenv("PATH")
+	shellPath, err := loginShellPath()
+	if err != nil {
+		slog.Warn("util: could not read the login shell's PATH; using the one this process has",
+			"shell", os.Getenv("SHELL"), "error", err)
+		return current
+	}
+	path := mergePaths(shellPath, current)
+	if path != current {
 		_ = os.Setenv("PATH", path)
 	}
+	slog.Debug("util: PATH taken from the login shell", "path", path)
 	return path
 }
 
-// extendPath returns path with the directories of dirs that exist, and that
-// path does not already hold, appended in order. "~" means home.
-func extendPath(path, home string, dirs ...string) string {
-	seen := make(map[string]bool, len(dirs))
-	for _, dir := range strings.Split(path, string(os.PathListSeparator)) {
-		if dir != "" {
-			seen[dir] = true
+// loginShellPath asks the user's shell for the PATH it would give a command. It
+// tries an interactive login shell first, whose rc files set up tools like nvm,
+// then a plain login shell.
+func loginShellPath() (string, error) {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+	var err error
+	for _, args := range [][]string{
+		{"-ilc", `printf %s "$PATH"`},
+		{"-lc", `printf %s "$PATH"`},
+	} {
+		var out []byte
+		out, err = runShell(shell, args...)
+		if err != nil {
+			continue
+		}
+		if path := lastLine(string(out)); path != "" {
+			return path, nil
 		}
 	}
-	out := path
-	for _, dir := range dirs {
-		if strings.HasPrefix(dir, "~/") {
-			if home == "" {
+	if err == nil {
+		err = errors.New("the shell printed no PATH")
+	}
+	return "", err
+}
+
+// runShell runs the shell with args, giving up after shellPathTimeout.
+func runShell(shell string, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), shellPathTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, shell, args...)
+	// A login shell may print banners and warnings; only its last line is read.
+	return cmd.Output()
+}
+
+// lastLine returns the last non-empty line of out, trimmed: rc files print
+// their own messages before the PATH.
+func lastLine(out string) string {
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		line := strings.TrimSpace(lines[i])
+		if line != "" && strings.Contains(line, "/") {
+			return line
+		}
+	}
+	return ""
+}
+
+// mergePaths returns first's directories followed by those of rest that it lacks,
+// without duplicates.
+func mergePaths(first, rest string) string {
+	seen := make(map[string]bool)
+	var out []string
+	for _, path := range []string{first, rest} {
+		for _, dir := range strings.Split(path, string(os.PathListSeparator)) {
+			if dir == "" || seen[dir] {
 				continue
 			}
-			dir = filepath.Join(home, strings.TrimPrefix(dir, "~/"))
+			seen[dir] = true
+			out = append(out, dir)
 		}
-		if seen[dir] {
-			continue
-		}
-		if info, err := os.Stat(dir); err != nil || !info.IsDir() {
-			continue
-		}
-		if out != "" {
-			out += string(os.PathListSeparator)
-		}
-		out += dir
-		seen[dir] = true
 	}
-	return out
+	return strings.Join(out, string(os.PathListSeparator))
 }

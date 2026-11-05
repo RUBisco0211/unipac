@@ -7,83 +7,57 @@ import (
 	"testing"
 )
 
-// makeDirs creates the directories a test wants to exist.
-func makeDirs(t *testing.T, root string, names ...string) {
-	t.Helper()
-	for _, name := range names {
-		if err := os.MkdirAll(filepath.Join(root, name), 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-}
-
-// Only the tool directories that exist are added, after the ones already there,
-// without duplicates.
-func TestExtendPath(t *testing.T) {
-	home := t.TempDir()
-	tools := t.TempDir()
-	makeDirs(t, tools, "brew/bin", "cargo/bin")
-
-	homeTool := filepath.Join(home, ".local", "bin")
-	if err := os.MkdirAll(homeTool, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	got := extendPath("/usr/bin:/bin", home,
-		filepath.Join(tools, "brew", "bin"),
-		filepath.Join(tools, "missing", "bin"),
-		"/usr/bin",
-		homeTool,
-		filepath.Join(tools, "cargo", "bin"),
+// The shell's PATH comes first, and what the process already had follows
+// without duplicates: a directory the process was given still resolves.
+func TestMergePaths(t *testing.T) {
+	sep := string(os.PathListSeparator)
+	got := mergePaths(
+		strings.Join([]string{"/opt/homebrew/bin", "/usr/bin", "/bin"}, sep),
+		strings.Join([]string{"/usr/sbin", "/usr/bin"}, sep),
 	)
-	want := strings.Join([]string{
-		"/usr/bin", "/bin",
-		filepath.Join(tools, "brew", "bin"),
-		homeTool,
-		filepath.Join(tools, "cargo", "bin"),
-	}, string(os.PathListSeparator))
+	want := strings.Join([]string{"/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin"}, sep)
 	if got != want {
-		t.Errorf("path = %q, want %q", got, want)
+		t.Errorf("merged = %q, want %q", got, want)
 	}
 }
 
-// A tool in an added directory is found by name afterwards, which is what makes
-// a launch from outside a shell work.
-func TestEnsureToolPathFindsATool(t *testing.T) {
-	home := t.TempDir()
-	tools := t.TempDir()
-	binDir := filepath.Join(tools, "brew", "bin")
-	makeDirs(t, tools, "brew/bin")
+// A shell prints its banners before the PATH; the last line is the answer.
+func TestLastLineSkipsWhatTheShellPrints(t *testing.T) {
+	out := "Last login: Fri Nov  7 10:00:00\nempty PATH, empty mind\n/opt/homebrew/bin:/usr/bin:/bin\n"
+	if got := lastLine(out); got != "/opt/homebrew/bin:/usr/bin:/bin" {
+		t.Errorf("lastLine = %q", got)
+	}
+	if got := lastLine("\n\n"); got != "" {
+		t.Errorf("lastLine of nothing = %q", got)
+	}
+}
 
-	bin := filepath.Join(binDir, "fake-manager")
-	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+// The shell is asked, and its PATH is what the process ends up with.
+func TestEnsureToolPathAsksTheShell(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "fakeshell")
+	script := "#!/bin/sh\necho 'a banner from an rc file'\necho '/tmp/one:/tmp/two'\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-
-	t.Setenv("HOME", home)
+	t.Setenv("SHELL", fake)
 	t.Setenv("PATH", "/usr/bin:/bin")
-	saved := ToolDirs
-	ToolDirs = []string{binDir}
-	t.Cleanup(func() { ToolDirs = saved })
 
-	if _, err := GetExecPath("fake-manager"); err == nil {
-		t.Fatal("the tool was found before the path was extended")
+	path := EnsureToolPath()
+	if path != "/tmp/one:/tmp/two"+string(os.PathListSeparator)+"/usr/bin:/bin" {
+		t.Errorf("path = %q", path)
 	}
-	EnsureToolPath()
-	if path, err := GetExecPath("fake-manager"); err != nil || path != bin {
-		t.Fatalf("GetExecPath = %q, %v; want %q", path, err, bin)
+	if os.Getenv("PATH") != path {
+		t.Errorf("PATH = %q, want what EnsureToolPath returned", os.Getenv("PATH"))
 	}
 }
 
-// A PATH that already holds the directories is left alone.
-func TestExtendPathLeavesAnExtendedPath(t *testing.T) {
-	home := t.TempDir()
-	tools := t.TempDir()
-	makeDirs(t, tools, "brew/bin")
+// A shell that cannot be asked leaves PATH alone, so the app still starts.
+func TestEnsureToolPathKeepsPathWhenTheShellFails(t *testing.T) {
+	t.Setenv("SHELL", filepath.Join(t.TempDir(), "missing"))
+	t.Setenv("PATH", "/usr/bin:/bin")
 
-	bin := filepath.Join(tools, "brew", "bin")
-	path := strings.Join([]string{"/usr/bin", bin}, string(os.PathListSeparator))
-	if got := extendPath(path, home, bin); got != path {
-		t.Errorf("path = %q, want it unchanged %q", got, path)
+	if path := EnsureToolPath(); path != "/usr/bin:/bin" {
+		t.Errorf("path = %q, want the one it had", path)
 	}
 }
