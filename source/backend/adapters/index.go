@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"github.com/RUBisco0211/unipac/source/backend/adapters/brew"
+	"github.com/RUBisco0211/unipac/source/backend/adapters/bun"
 	"github.com/RUBisco0211/unipac/source/backend/adapters/cargo"
 	"github.com/RUBisco0211/unipac/source/backend/adapters/npm"
 	"github.com/RUBisco0211/unipac/source/backend/adapters/pip"
@@ -13,6 +14,7 @@ import (
 func GetAdapterConstructors() []manager.AdapterConstructor {
 	return []manager.AdapterConstructor{
 		brew.NewAdapter,
+		bun.NewAdapter,
 		npm.NewAdapter,
 		pip.NewAdapter,
 		pipx.NewAdapter,
