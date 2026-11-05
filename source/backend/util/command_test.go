@@ -87,3 +87,25 @@ func TestRunReportsEventsToContext(t *testing.T) {
 		t.Errorf("collected stderr = %q", res.Stderr)
 	}
 }
+
+// A probe an adapter runs to decide what to do is not the command the user
+// asked for: WithoutReporting keeps it, and its output, out of the task console.
+func TestWithoutReportingDropsTheCommands(t *testing.T) {
+	var events []Event
+	ctx := WithReporter(context.Background(), func(ev Event) { events = append(events, ev) })
+
+	if _, err := Exec(ctx, "printf", []string{"reported"}, nil); err != nil {
+		t.Fatalf("Exec: %v", err)
+	}
+	if len(events) == 0 {
+		t.Fatal("the command did not report")
+	}
+
+	events = nil
+	if _, err := Exec(WithoutReporting(ctx), "printf", []string{"quiet"}, nil); err != nil {
+		t.Fatalf("Exec: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("a quiet command reported %v", events)
+	}
+}

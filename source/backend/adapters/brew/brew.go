@@ -464,8 +464,12 @@ func splitBrewPackageNames(pkgs []manager.Package, casks map[string]bool) ([]str
 // from the cask list, which reads the Caskroom and so needs no tap trust; a
 // package not installed yet, as one picked from search, is asked about.
 func (a *Adapter) caskNames(pkgs []manager.Package) (map[string]bool, error) {
+	// These calls work out what to run; they are not what the user asked for, so
+	// they stay out of the task's console.
+	quiet := *a
+	quiet.ctx = util.WithoutReporting(a.ctx)
 	casks := make(map[string]bool, len(pkgs))
-	if installed, err := a.listCasks(); err == nil {
+	if installed, err := quiet.listCasks(); err == nil {
 		for _, pkg := range installed {
 			casks[pkg.Name] = true
 		}
@@ -484,7 +488,7 @@ func (a *Adapter) caskNames(pkgs []manager.Package) (map[string]bool, error) {
 		return casks, nil
 	}
 	args := append([]string{"info", "--json=v2"}, rest...)
-	output, err := util.Exec(a.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1"})
+	output, err := util.Exec(quiet.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1"})
 	if err != nil {
 		// A name Homebrew refuses to load, as a cask of an untrusted tap, goes to
 		// the formula command, and brew says what is wrong with it.

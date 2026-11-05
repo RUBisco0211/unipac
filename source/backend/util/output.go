@@ -29,6 +29,16 @@ type Event struct {
 	Text string
 }
 
+// WithoutReporting returns a context whose commands report nothing. It is for
+// the calls an adapter makes to find out what to run, not for the command the
+// user asked for: a task's console shows that command, not the probes around it.
+func WithoutReporting(ctx context.Context) context.Context {
+	if reporterFrom(ctx) == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, reporterKey{}, Reporter(nil))
+}
+
 // Reporter receives a command's events while it runs.
 type Reporter func(Event)
 

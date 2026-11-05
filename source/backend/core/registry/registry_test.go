@@ -23,6 +23,7 @@ type fakeAdapter struct {
 	listErr    error
 	searches   int
 	searchHits []manager.Package
+	outdated   []manager.Package
 }
 
 func (f *fakeAdapter) Info() *manager.Info { return f.info }
@@ -41,7 +42,7 @@ func (f *fakeAdapter) GetPackageInfo(manager.Package) (string, error) { return "
 
 func (f *fakeAdapter) ListInstalled() ([]manager.Package, error) { return f.packages, f.listErr }
 
-func (f *fakeAdapter) ListOutdated() ([]manager.Package, error) { return nil, nil }
+func (f *fakeAdapter) ListOutdated() ([]manager.Package, error) { return f.outdated, nil }
 
 func (f *fakeAdapter) Search(string) ([]manager.Package, error) {
 	f.searches++
@@ -336,5 +337,32 @@ func TestSearchPackagesCutsAManagerAtTheLimit(t *testing.T) {
 	if len(result.Packages) != 3 || result.Truncated {
 		t.Errorf("result = %d packages, truncated %v; want 3 and not truncated",
 			len(result.Packages), result.Truncated)
+	}
+}
+
+// An outdated entry the installed list does not have is not a row: it would carry
+// no version and its action would fail, as an uninstalled cask did once.
+func TestScanDoesNotAddPackagesOnlyOutdated(t *testing.T) {
+	a := fake(true)
+	a.info.ID, a.info.Name = "a", "A"
+	a.info.Available, a.info.Enabled = true, true
+	a.info.Capabilities.ListOutdated = true
+	a.packages = []manager.Package{{Name: "mole", Version: "1.68.0", Manager: "a", Installed: true}}
+	a.outdated = []manager.Package{
+		{Name: "mole", Version: "1.68.0", LatestVersion: "1.69.0"},
+		{Name: "dorso", Version: "", LatestVersion: ""},
+	}
+	reg := newTestRegistry(a)
+	reg.rebuild(map[string]manager.Settings{"a": {}}, true)
+
+	pkgs, reliable, err := reg.GetInstalledPackages()
+	if err != nil || !reliable {
+		t.Fatalf("scan = %v, reliable %v", err, reliable)
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("packages = %+v, want only what is installed", pkgs)
+	}
+	if pkgs[0].Name != "mole" || !pkgs[0].Outdated || pkgs[0].LatestVersion != "1.69.0" {
+		t.Errorf("package = %+v, want the installed one marked outdated", pkgs[0])
 	}
 }

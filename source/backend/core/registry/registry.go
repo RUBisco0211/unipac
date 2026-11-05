@@ -252,18 +252,22 @@ func (reg *Registry) mergeOutdatedPackages(pkgs []manager.Package, list []manage
 			item.Installed = true
 			item.Outdated = true
 			key := packageKey(item.Manager, item.Name)
-			if pos, ok := index[key]; ok {
-				if item.LatestVersion != "" {
-					pkgs[pos].LatestVersion = item.LatestVersion
-				}
-				if item.Version != "" {
-					pkgs[pos].Version = item.Version
-				}
-				pkgs[pos].Outdated = true
-			} else {
-				index[key] = len(pkgs)
-				pkgs = append(pkgs, item)
+			pos, ok := index[key]
+			if !ok {
+				// The installed list is the inventory. An outdated entry it does
+				// not have would be a row with no version and no description,
+				// whose action fails: an uninstalled cask once showed up this way.
+				slog.DebugContext(reg.ctx, "outdated package is not in the installed list",
+					"manager", adp.Info().ID, "package", item.Name)
+				continue
 			}
+			if item.LatestVersion != "" {
+				pkgs[pos].LatestVersion = item.LatestVersion
+			}
+			if item.Version != "" {
+				pkgs[pos].Version = item.Version
+			}
+			pkgs[pos].Outdated = true
 		}
 	}
 	return pkgs

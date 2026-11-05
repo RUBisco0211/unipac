@@ -558,22 +558,7 @@ func (a *App) runRegistryAction(ctx context.Context, kind tasks.Kind, pkg manage
 // beginTask records a queued task, naming the manager as the interface shows it
 // rather than exposing an ID.
 func (a *App) beginTask(kind tasks.Kind, pkg manager.Package, opt manager.ActionOptions) *tasks.Task {
-	oldVersion, newVersion := pkg.Version, pkg.LatestVersion
-	switch kind {
-	case tasks.KindInstall:
-		oldVersion = ""
-		if opt.Version != "" {
-			newVersion = opt.Version
-		}
-	case tasks.KindUninstall:
-		newVersion = ""
-	case tasks.KindUpdate:
-		// A requested version belongs to an install; an update goes to the
-		// latest version the list knows.
-		if newVersion == "" {
-			newVersion = pkg.Version
-		}
-	}
+	oldVersion, newVersion := taskVersions(kind, pkg, opt)
 	return tasks.Default.Begin(a.runCtx, kind, tasks.Target{
 		ManagerID:   pkg.Manager,
 		ManagerName: a.managerLabel(pkg.Manager),
@@ -581,6 +566,32 @@ func (a *App) beginTask(kind tasks.Kind, pkg manager.Package, opt manager.Action
 		Version:     oldVersion,
 		NewVersion:  newVersion,
 	})
+}
+
+// taskVersions is what a task records it changed from and to. An install has no
+// old version and goes to the one it asked for: a search result carries that in
+// Version, since it is not installed yet and has no latest of its own.
+func taskVersions(kind tasks.Kind, pkg manager.Package, opt manager.ActionOptions) (old, next string) {
+	old, next = pkg.Version, pkg.LatestVersion
+	switch kind {
+	case tasks.KindInstall:
+		old = ""
+		if next == "" {
+			next = pkg.Version
+		}
+		if opt.Version != "" {
+			next = opt.Version
+		}
+	case tasks.KindUninstall:
+		next = ""
+	case tasks.KindUpdate:
+		// A requested version belongs to an install; an update goes to the
+		// latest version the list knows.
+		if next == "" {
+			next = pkg.Version
+		}
+	}
+	return old, next
 }
 
 // managerLabel resolves a manager ID to the backend-provided display name. An
