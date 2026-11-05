@@ -565,3 +565,35 @@ func TestSelectAllAlignsWithTheRowCheckboxes(t *testing.T) {
 		t.Errorf("the package header at %.0f overlaps the select-all control %+v", title.X, header)
 	}
 }
+
+// textCount counts the elements showing s, so a tooltip that appears adds one.
+func textCount(tt *ui.Tester, s string) int {
+	n := 0
+	for _, text := range tt.Texts() {
+		if text == s {
+			n++
+		}
+	}
+	return n
+}
+
+// Every version and every description carries a tooltip: the cells are one line
+// and clip, so the tooltip is where the whole value is read.
+func TestVersionAndDescriptionHaveTooltips(t *testing.T) {
+	l := &View{Data: fixture(), AllowRemove: true}
+	tt := render(t, l.Build, 900, 500)
+
+	for _, want := range []string{"Line-oriented search tool", "6.0.0"} {
+		target, ok := tt.Find(want)
+		if !ok {
+			t.Fatalf("%q is not on screen", want)
+		}
+		before := textCount(tt, want)
+		tt.Move(target.X+target.W/2, target.Y+target.H/2)
+		tt.Advance(time.Second)
+		tt.Frame()
+		if after := textCount(tt, want); after != before+1 {
+			t.Errorf("%q showed %d times before the hover and %d after; want one more for its tooltip", want, before, after)
+		}
+	}
+}

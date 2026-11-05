@@ -500,3 +500,33 @@ func TestRevealClearsTheStatusFilter(t *testing.T) {
 		t.Errorf("rows = %d of %d, want every task shown", len(v.rows), len(v.all))
 	}
 }
+
+// The version cell is one line and clips, so it carries its value as a tooltip.
+func TestTaskVersionHasATooltip(t *testing.T) {
+	v := viewFixture()
+	tt := render(t, v.Build, 1000, 560)
+
+	const version = "2.31.0"
+	target, ok := tt.Find(version)
+	if !ok {
+		t.Fatalf("%q is not on screen", version)
+	}
+	before := 0
+	for _, text := range tt.Texts() {
+		if text == version {
+			before++
+		}
+	}
+	tt.Move(target.X+target.W/2, target.Y+target.H/2)
+	tt.Advance(time.Second)
+	tt.Frame()
+	after := 0
+	for _, text := range tt.Texts() {
+		if text == version {
+			after++
+		}
+	}
+	if after != before+1 {
+		t.Errorf("%q showed %d times before the hover and %d after; want one more for its tooltip", version, before, after)
+	}
+}

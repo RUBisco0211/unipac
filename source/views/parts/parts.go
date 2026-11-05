@@ -180,7 +180,7 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 				if description == "" {
 					description = locales.TableNoDescription()
 				}
-				components.Text(c, description).SingleLine().TextColor(t.TextMuted)
+				components.Tooltip(c, components.Text(c, description).SingleLine().TextColor(t.TextMuted), description)
 			})
 		})
 	case 1:
@@ -200,7 +200,8 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 		}
 		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 			components.Icon(c, lucide.GitBranch).Size(14, 14).TextColor(color)
-			components.Text(c, OrDash(latest)).SingleLine().TextColor(color)
+			version := OrDash(latest)
+			components.Tooltip(c, components.Text(c, version).SingleLine().TextColor(color), version)
 		})
 	case 3:
 		ManagerBadge(c, pkg.Manager, managerName(pkg.Manager))

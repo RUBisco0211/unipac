@@ -768,6 +768,12 @@ func (s *View) operationCell(c *ui.Context, task tasks.Snapshot) {
 	})
 }
 
+// versionLine draws one version with its own value as the tooltip, as the
+// package tables do: the cell is one line and clips.
+func versionLine(c *ui.Context, version string, color ui.Color) {
+	components.Tooltip(c, components.Text(c, version).SingleLine().TextColor(color), version)
+}
+
 func versionCell(c *ui.Context, task tasks.Snapshot) {
 	t := c.Theme()
 	old, new := task.Version, task.NewVersion
@@ -775,23 +781,23 @@ func versionCell(c *ui.Context, task tasks.Snapshot) {
 	case tasks.KindUpdate:
 		if old != "" && new != "" && old != new {
 			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
-				components.Text(c, old).SingleLine().TextColor(t.TextMuted)
+				components.Tooltip(c, components.Text(c, old).SingleLine().TextColor(t.TextMuted), old)
 				components.Text(c, "→").TextColor(t.TextMuted)
-				components.Text(c, new).SingleLine().TextColor(t.Accent)
+				components.Tooltip(c, components.Text(c, new).SingleLine().TextColor(t.Accent), new)
 			})
 			return
 		}
 		if new == "" {
 			new = old
 		}
-		components.Text(c, parts.OrDash(new)).SingleLine()
+		versionLine(c, parts.OrDash(new), t.Text)
 	case tasks.KindInstall:
 		if new == "" {
 			new = old
 		}
-		components.Text(c, parts.OrDash(new)).SingleLine().TextColor(t.Accent)
+		versionLine(c, parts.OrDash(new), t.Accent)
 	default:
-		components.Text(c, parts.OrDash(old)).SingleLine().TextColor(t.TextMuted)
+		versionLine(c, parts.OrDash(old), t.TextMuted)
 	}
 }
 
