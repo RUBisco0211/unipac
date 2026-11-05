@@ -598,3 +598,27 @@ func TestQuitConfirmClicksWhenHoldingIsOff(t *testing.T) {
 		t.Error("the click did not confirm the quit")
 	}
 }
+
+// Messages stack at the bottom right, away from the title bar and the sidebar's
+// controls.
+func TestToastsSitBottomRight(t *testing.T) {
+	if toastOptions.Placement != components.ToastBottomEnd {
+		t.Fatalf("toasts are placed %v, want the bottom end", toastOptions.Placement)
+	}
+	tt := render(t, func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { components.Toasts(c, toastOptions) })
+		c.Toast("a-message")
+	}, 900, 500)
+	tt.Frame()
+
+	toast, ok := tt.Find("a-message")
+	if !ok {
+		t.Fatalf("the toast is missing: %v", tt.Texts())
+	}
+	if toast.X+toast.W/2 < 450 {
+		t.Errorf("the toast is at %.0f, on the leading half of a 900 wide window", toast.X)
+	}
+	if toast.Y+toast.H/2 < 250 {
+		t.Errorf("the toast is at y=%.0f, on the top half of a 500 high window", toast.Y)
+	}
+}

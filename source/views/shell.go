@@ -47,6 +47,10 @@ const (
 	PageSettings
 )
 
+// toastOptions places the window's messages at the bottom right, out of the way
+// of the title bar and the sidebar's own controls.
+var toastOptions = components.ToastOptions{Placement: components.ToastBottomEnd}
+
 // pageTransition is how the content area changes page: the arriving page fades
 // in from just below, and the page that leaves is gone at once.
 //
@@ -177,6 +181,7 @@ func (u *UI) Run() {
 		LeftHeader:   u.leftHeader,
 		ContentTitle: u.windowTitle,
 		Content:      u.content,
+		Toasts:       toastOptions,
 	})
 	win := u.shell.Window()
 	win.OnClose(func(e *mygo.CloseEvent) {
