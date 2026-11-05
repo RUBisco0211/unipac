@@ -4,13 +4,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
+	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
 	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
 	"github.com/egoist/mygo/ui"
+	"github.com/oneo-me/onevra/source/components"
 )
 
 func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
@@ -340,5 +343,94 @@ func TestPageTransitionSnapsLayout(t *testing.T) {
 	tt.Advance(250 * time.Millisecond)
 	if after, _ := tt.Find("page"); after.W != found.W {
 		t.Fatalf("the page box kept resizing: %.0f then %.0f", found.W, after.W)
+	}
+}
+
+// A failed action says what failed and on what, not the command's output: the
+// output is the task's console, and the toast points at the task.
+func TestFailureToastNamesTheOperationAndItsTask(t *testing.T) {
+	got := failureToast("update", []manager.Package{{Manager: "npm", Name: "bun"}}, "28")
+	if want := locales.ToastUpdateFailed("bun"); got.Title != want {
+		t.Errorf("title = %q, want %q", got.Title, want)
+	}
+	if got.Tone != components.ToastError {
+		t.Errorf("tone = %q, want an error toast", got.Tone)
+	}
+	if got.TaskID != "28" {
+		t.Errorf("task = %q, want the task the action created", got.TaskID)
+	}
+}
+
+// A batch counts its packages instead of naming one of them.
+func TestFailureToastCountsABatch(t *testing.T) {
+	pkgs := []manager.Package{{Name: "a"}, {Name: "b"}, {Name: "c"}}
+	got := failureToast("remove", pkgs, "")
+	if want := locales.ToastRemoveFailed(locales.ToastSeveralPackages("3")); got.Title != want {
+		t.Errorf("title = %q, want %q", got.Title, want)
+	}
+	if got.TaskID != "" {
+		t.Errorf("task = %q, want none", got.TaskID)
+	}
+}
+
+// The task an action created is the newest one its packages have; another
+// manager's package of the same name is not it.
+func TestNewestTaskFindsTheTaskJustRun(t *testing.T) {
+	list := []tasks.Snapshot{
+		{ID: "9", ManagerID: "brew", Package: "bun"},
+		{ID: "27", ManagerID: "npm", Package: "bun"},
+		{ID: "28", ManagerID: "npm", Package: "bun"},
+	}
+	if got := newestTask(list, []manager.Package{{Manager: "npm", Name: "bun"}}); got != "28" {
+		t.Fatalf("task = %q, want 28", got)
+	}
+	if got := newestTask(list, []manager.Package{{Manager: "cargo", Name: "bun"}}); got != "" {
+		t.Fatalf("task = %q, want none", got)
+	}
+}
+
+// stubService answers the two calls opening a task makes; the embedded
+// interface stands in for the rest.
+type stubService struct {
+	inventory.Service
+	list []tasks.Snapshot
+}
+
+func (s stubService) ListTasks() []tasks.Snapshot    { return s.list }
+func (s stubService) TaskOutput(string) tasks.Output { return tasks.Output{} }
+
+// The toast about a task carries the action that opens it, and the action lands
+// on the tasks page with that task selected.
+func TestToastActionOpensItsTask(t *testing.T) {
+	data := testui.Data()
+	u := &UI{
+		data:  data,
+		tasks: &taskspage.View{Data: data, SelectedIndex: -1},
+		svc: stubService{list: []tasks.Snapshot{{
+			ID: "28", Kind: tasks.KindUpdate, State: tasks.StateFailed,
+			ManagerID: "npm", ManagerName: "NPM", Package: "bun",
+		}}},
+	}
+	toast := u.toastFor(inventory.Toast{Title: "bun failed", Tone: components.ToastError, TaskID: "28"})
+	if toast.Action != locales.ToastShowTask() || toast.OnAction == nil {
+		t.Fatalf("toast = %+v, want the action that shows the task", toast)
+	}
+
+	toast.OnAction()
+	if u.page != PageTasks {
+		t.Errorf("page = %v, want tasks", u.page)
+	}
+	// The page places its selection in the frame it builds, as the window does.
+	u.tasks.Sync()
+	if task, ok := u.tasks.Selected(); !ok || task.ID != "28" {
+		t.Errorf("selected = %+v, want task 28", task)
+	}
+}
+
+// A toast with no task shows no action.
+func TestToastWithoutTaskHasNoAction(t *testing.T) {
+	u := &UI{data: testui.Data()}
+	if toast := u.toastFor(inventory.Toast{Title: "Updated"}); toast.Action != "" || toast.OnAction != nil {
+		t.Fatalf("toast = %+v, want no action", toast)
 	}
 }

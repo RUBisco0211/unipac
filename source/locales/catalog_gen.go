@@ -1301,3 +1301,53 @@ func OperationCount(count int) string { return In(i18n.Locale()).OperationCount(
 func (msgs Messages) OperationCount(count int) string {
 	return Catalog.Format(msgs.locale, "operationCount", map[string]any{"count": count})
 }
+
+// ToastInstallFailed says "Could not install {name}"
+// in the language the app shows.
+func ToastInstallFailed(name string) string { return In(i18n.Locale()).ToastInstallFailed(name) }
+
+// ToastInstallFailed says "Could not install {name}"
+// in the language of msgs.
+func (msgs Messages) ToastInstallFailed(name string) string {
+	return Catalog.Format(msgs.locale, "toastInstallFailed", map[string]any{"name": name})
+}
+
+// ToastUpdateFailed says "Could not update {name}"
+// in the language the app shows.
+func ToastUpdateFailed(name string) string { return In(i18n.Locale()).ToastUpdateFailed(name) }
+
+// ToastUpdateFailed says "Could not update {name}"
+// in the language of msgs.
+func (msgs Messages) ToastUpdateFailed(name string) string {
+	return Catalog.Format(msgs.locale, "toastUpdateFailed", map[string]any{"name": name})
+}
+
+// ToastRemoveFailed says "Could not remove {name}"
+// in the language the app shows.
+func ToastRemoveFailed(name string) string { return In(i18n.Locale()).ToastRemoveFailed(name) }
+
+// ToastRemoveFailed says "Could not remove {name}"
+// in the language of msgs.
+func (msgs Messages) ToastRemoveFailed(name string) string {
+	return Catalog.Format(msgs.locale, "toastRemoveFailed", map[string]any{"name": name})
+}
+
+// ToastSeveralPackages says "{count} packages"
+// in the language the app shows.
+func ToastSeveralPackages(count string) string { return In(i18n.Locale()).ToastSeveralPackages(count) }
+
+// ToastSeveralPackages says "{count} packages"
+// in the language of msgs.
+func (msgs Messages) ToastSeveralPackages(count string) string {
+	return Catalog.Format(msgs.locale, "toastSeveralPackages", map[string]any{"count": count})
+}
+
+// ToastShowTask says "Show task"
+// in the language the app shows.
+func ToastShowTask() string { return In(i18n.Locale()).ToastShowTask() }
+
+// ToastShowTask says "Show task"
+// in the language of msgs.
+func (msgs Messages) ToastShowTask() string {
+	return Catalog.Format(msgs.locale, "toastShowTask", nil)
+}

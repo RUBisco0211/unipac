@@ -299,23 +299,93 @@ func (u *UI) runTask(op string, pkgs []manager.Package, at flight.Origin, fn fun
 	win := u.shell.Window()
 	go func() {
 		result, err := fn()
+		// The task exists as soon as the action returns, so the toast can point
+		// at it and the console it kept. Asked off the UI thread: ListTasks
+		// copies its snapshots under its own lock.
+		failed := err != nil || !result.Success
+		var taskID string
+		if failed && u.svc != nil {
+			taskID = newestTask(u.svc.ListTasks(), pkgs)
+		}
 		win.Update(func() {
 			u.data.EndTask(pkgs)
 			switch {
-			case err != nil:
-				u.data.QueueToast(err.Error(), components.ToastError)
-			case result.Message == tasks.CancelledMessage:
+			case result.Message == tasks.CancelledMessage && err == nil:
 				// The cancel action already told the user.
-			case !result.Success:
-				u.data.QueueToast(result.Message, components.ToastError)
+			case failed:
+				u.data.QueueToast(failureToast(op, pkgs, taskID))
 			default:
-				u.data.QueueToast(done, components.ToastSuccess)
+				u.data.QueueToast(inventory.Toast{Title: done, Tone: components.ToastSuccess})
 			}
 			if !u.quitAccepted.Load() {
 				u.Refresh()
 			}
 		})
 	}()
+}
+
+// toastFor turns a queued message into the toast that shows it. One about a task
+// offers to open it: the message is the outcome, and the console behind it is
+// the task's, not something to repeat in a toast.
+func (u *UI) toastFor(t inventory.Toast) ui.Toast {
+	toast := ui.Toast{Title: t.Title, Type: t.Tone}
+	if t.TaskID != "" {
+		id := t.TaskID
+		toast.Action = locales.ToastShowTask()
+		toast.OnAction = func() { u.openTask(id) }
+	}
+	return toast
+}
+
+// failureToast is what a failed action says: which operation failed on what, and
+// the way to its console. The command's output is the task's, not the toast's;
+// it is often dozens of lines whose first ones are warnings.
+func failureToast(op string, pkgs []manager.Package, taskID string) inventory.Toast {
+	subject := ""
+	switch len(pkgs) {
+	case 1:
+		subject = pkgs[0].Name
+	default:
+		subject = locales.ToastSeveralPackages(strconv.Itoa(len(pkgs)))
+	}
+	var title string
+	switch op {
+	case "install":
+		title = locales.ToastInstallFailed(subject)
+	case "remove":
+		title = locales.ToastRemoveFailed(subject)
+	default:
+		title = locales.ToastUpdateFailed(subject)
+	}
+	return inventory.Toast{Title: title, Tone: components.ToastError, TaskID: taskID}
+}
+
+// newestTask is the task an action just created, found among the tasks of the
+// packages it ran on: the action has returned, so its task is the newest one
+// those packages have.
+func newestTask(list []tasks.Snapshot, pkgs []manager.Package) string {
+	type target struct{ manager, pkg string }
+	want := make(map[target]struct{}, len(pkgs))
+	for _, pkg := range pkgs {
+		want[target{pkg.Manager, pkg.Name}] = struct{}{}
+	}
+	best, bestID := "", -1
+	for _, task := range list {
+		if _, ok := want[target{task.ManagerID, task.Package}]; !ok {
+			continue
+		}
+		id, err := strconv.Atoi(task.ID)
+		if err != nil {
+			if best == "" {
+				best = task.ID
+			}
+			continue
+		}
+		if id > bestID {
+			best, bestID = task.ID, id
+		}
+	}
+	return best
 }
 
 // navigate moves to a page and records it, so back and forward can replay the
@@ -355,10 +425,10 @@ func (u *UI) CancelTask(task tasks.Snapshot) {
 				case errors.Is(err, tasks.ErrTaskNotRunning):
 					message = locales.TasksCancelFinished()
 				}
-				u.data.QueueToast(message, components.ToastError)
+				u.data.QueueToast(inventory.Toast{Title: message, Tone: components.ToastError})
 				return
 			}
-			u.data.QueueToast(locales.ToastCancelled(), components.ToastInfo)
+			u.data.QueueToast(inventory.Toast{Title: locales.ToastCancelled(), Tone: components.ToastInfo})
 		})
 	}()
 }
@@ -715,7 +785,7 @@ func (u *UI) runningTasks() int {
 
 func (u *UI) content(c *ui.Context) {
 	for _, t := range u.data.DrainToasts() {
-		c.AddToast(ui.Toast{Title: t.Title, Type: t.Tone})
+		c.AddToast(u.toastFor(t))
 	}
 	// The tasks page keeps its own top inset: its console surface runs to the
 	// window's top edge, like the sidebar's.

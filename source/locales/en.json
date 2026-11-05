@@ -212,5 +212,10 @@
         "type": "int"
       }
     }
-  }
+  },
+  "toastInstallFailed": "Could not install {name}",
+  "toastUpdateFailed": "Could not update {name}",
+  "toastRemoveFailed": "Could not remove {name}",
+  "toastSeveralPackages": "{count} packages",
+  "toastShowTask": "Show task"
 }

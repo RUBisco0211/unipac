@@ -74,10 +74,12 @@ type Data struct {
 }
 
 // Toast is a message queued for the next frame, because MyGo adds toasts while
-// building rather than from the job that produced the result.
+// building rather than from the job that produced the result. TaskID, when set,
+// is the task the message is about, so the toast can offer to show it.
 type Toast struct {
-	Title string
-	Tone  string
+	Title  string
+	Tone   string
+	TaskID string
 }
 
 // New loads the inventory the app starts with.
@@ -209,8 +211,8 @@ func (d *Data) AnyRunning(pkgs []manager.Package) bool {
 	return false
 }
 
-func (d *Data) QueueToast(title, tone string) {
-	d.Toasts = append(d.Toasts, Toast{Title: title, Tone: tone})
+func (d *Data) QueueToast(t Toast) {
+	d.Toasts = append(d.Toasts, t)
 }
 
 // DrainToasts hands the queued messages to the builder and clears the queue.

@@ -139,7 +139,8 @@ func (s *View) hasTask(id string) bool {
 	return false
 }
 
-func (s *View) selected() (tasks.Snapshot, bool) {
+// Selected is the task the page shows the console of, if any.
+func (s *View) Selected() (tasks.Snapshot, bool) {
 	if s.SelectedIndex < 0 || s.SelectedIndex >= len(s.rows) {
 		return tasks.Snapshot{}, false
 	}
@@ -736,7 +737,7 @@ func runningBadge(c *ui.Context) ui.Element {
 func (s *View) consolePane(c *ui.Context, top float32) {
 	t := c.Theme()
 	ui.Column(c).FillHeight().Background(t.Text.Alpha(0.03)).Children(func() {
-		task, ok := s.selected()
+		task, ok := s.Selected()
 		if !ok {
 			ui.Column(c).Shrink(0).Padding(top+2, t.Space(4), t.Space(2), t.Space(4)).Children(func() {
 				components.Text(c, locales.TasksConsole()).FontSize(13).Bold()

@@ -167,5 +167,10 @@
         "type": "int"
       }
     }
-  }
+  },
+  "toastInstallFailed": "{name} 安装失败",
+  "toastUpdateFailed": "{name} 更新失败",
+  "toastRemoveFailed": "{name} 卸载失败",
+  "toastSeveralPackages": "{count} 个包",
+  "toastShowTask": "查看任务"
 }
