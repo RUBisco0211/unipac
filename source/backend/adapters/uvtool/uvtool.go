@@ -23,7 +23,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		ctx: ctx,
 		info: &manager.Info{
 			ID:       managerID,
-			Name:     "uv tool",
+			Name:     "UV Tool",
 			ExecName: "uv",
 			Capabilities: *manager.
 				DefaultCapabilities().

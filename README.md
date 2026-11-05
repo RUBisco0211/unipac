@@ -30,7 +30,7 @@ and the UI treats manager IDs as opaque values.
 - pip
 - pipx
 - Cargo
-- uv tool
+- UV Tool
 
 Support is uneven while the project is under active development: some managers
 list reliably while other actions remain disabled or incomplete.
