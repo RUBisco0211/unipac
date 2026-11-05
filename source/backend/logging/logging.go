@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/RUBisco0211/unipac/source/backend/util"
+	"github.com/egoist/mygo"
 )
 
 var AppLogDir string
@@ -64,7 +65,7 @@ func Init(cfg Config) error {
 	logWriter = io.MultiWriter(os.Stderr, LogFile)
 	handler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level:     logLevel,
-		AddSource: util.IsDev(),
+		AddSource: mygo.IsDev(),
 	})
 	slog.SetDefault(slog.New(handler))
 	return nil
@@ -87,7 +88,7 @@ func SetLevel(level string) error {
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(logWriter, &slog.HandlerOptions{
 		Level:     logLevel,
-		AddSource: util.IsDev(),
+		AddSource: mygo.IsDev(),
 	})))
 	return nil
 }
