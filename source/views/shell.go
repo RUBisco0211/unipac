@@ -594,7 +594,6 @@ func (u *UI) RetryTask(task tasks.Snapshot, at flight.Origin) {
 		Name:          task.Package,
 		Version:       task.Version,
 		LatestVersion: task.NewVersion,
-		IsGUI:         task.IsGUI,
 	}
 	switch task.Kind {
 	case tasks.KindInstall:

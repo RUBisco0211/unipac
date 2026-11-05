@@ -8,6 +8,5 @@ type Package struct {
 	Manager       string `json:"manager,omitempty" db:"manager"`
 	Installed     bool   `json:"installed" db:"installed"`
 	Outdated      bool   `json:"outdated" db:"outdated"`
-	IsGUI         bool   `json:"is_gui" db:"is_gui"`
 	Description   string `json:"description,omitempty" db:"description"`
 }

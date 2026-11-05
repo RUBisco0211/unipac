@@ -160,7 +160,6 @@ func normalizeInstalled(records []ToolRecord) []manager.Package {
 			Version:   record.Version,
 			Manager:   managerID,
 			Installed: true,
-			IsGUI:     false,
 		})
 	}
 	return pkgs
@@ -179,7 +178,6 @@ func normalizeOutdated(records []ToolRecord) []manager.Package {
 			Manager:       managerID,
 			Installed:     true,
 			Outdated:      true,
-			IsGUI:         false,
 		})
 	}
 	return pkgs

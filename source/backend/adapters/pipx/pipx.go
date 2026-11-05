@@ -92,7 +92,6 @@ func (a Adapter) ListInstalled() ([]manager.Package, error) {
 			Version:   venv.Metadata.MainPackage.PackageVersion,
 			Manager:   a.Info().ID,
 			Installed: true,
-			IsGUI:     false,
 		})
 	}
 	return pkgs, nil

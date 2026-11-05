@@ -579,7 +579,6 @@ func (a *App) beginTask(kind tasks.Kind, pkg manager.Package, opt manager.Action
 		Name:        pkg.Name,
 		Version:     oldVersion,
 		NewVersion:  newVersion,
-		IsGUI:       pkg.IsGUI,
 	})
 }
 

@@ -204,8 +204,8 @@ and the version the operation goes to, so the page can show an update as
 #### Persistence
 
 `cache/tasks.db` (SQLite, pure-Go driver) keeps one row per task: kind, state,
-manager, package, old and new version, GUI flag, command, executable path,
-message, started at, finished at and a truncation flag. Console output lives in
+manager, package, old and new version, command, executable path, message,
+started at, finished at and a truncation flag. Console output lives in
 `package_task_output`, one row per line, so appending never rewrites a log and
 the full console survives a restart. A single background writer drains the
 store queue, so the command's output goroutine does not wait for each SQLite

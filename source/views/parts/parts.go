@@ -120,13 +120,12 @@ func Placeholder(c *ui.Context, text string) {
 }
 
 // Fields are the columns shared by the installed, outdated and search
-// tables, in order: package, installed version, latest version, type, manager.
+// tables, in order: package, installed version, latest version, manager.
 func Fields() []ui.TableColumn {
 	return []ui.TableColumn{
 		{Title: locales.TablePackage(), ID: "name", MinWidth: 180, Sortable: true, Fixed: true},
 		{Title: locales.TableInstalled(), ID: "version", Width: 100, Fixed: true},
 		{Title: locales.TableLatest(), ID: "latest", Width: 100, Fixed: true},
-		{Title: locales.TableType(), ID: "type", Width: 92, Sortable: true, Fixed: true},
 		{Title: locales.TableManager(), ID: "manager", Width: 108, Sortable: true, Fixed: true},
 	}
 }
@@ -139,7 +138,7 @@ func SearchFields() []ui.TableColumn {
 }
 
 // SearchFieldIndex maps a search column back to its Fields index.
-var SearchFieldIndex = []int{0, 2, 3, 4}
+var SearchFieldIndex = []int{0, 2, 3}
 
 // Cell renders field, indexing Fields.
 func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string) {
@@ -177,26 +176,8 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 			components.Text(c, OrDash(latest)).SingleLine().TextColor(color)
 		})
 	case 3:
-		typeBadge(c, pkg.IsGUI)
-	case 4:
 		ManagerBadge(c, pkg.Manager, managerName(pkg.Manager))
 	}
-}
-
-// typeBadge tells a GUI package from a command-line tool by tone and icon, so
-// the two read apart at a glance.
-func typeBadge(c *ui.Context, isGUI bool) {
-	options := components.BadgeOptions{
-		Tone: components.BadgeNeutral,
-		Icon: lucide.Terminal(),
-	}
-	label := locales.TypeCli()
-	if isGUI {
-		label = locales.TypeGui()
-		options.Tone = components.BadgeAccent
-		options.Icon = lucide.Monitor()
-	}
-	components.Badge(c, label, options).AlignSelf(ui.Center)
 }
 
 // OrDash keeps empty cells readable.
@@ -219,14 +200,6 @@ func ActionTooltip(c *ui.Context, slot ui.Element, enabled bool, reason string) 
 		return
 	}
 	components.Tooltip(c, slot, reason)
-}
-
-// TypeLabel names a package type in the user's language.
-func TypeLabel(isGUI bool) string {
-	if isGUI {
-		return locales.TypeGui()
-	}
-	return locales.TypeCli()
 }
 
 // Divider is a hairline rule between sections.

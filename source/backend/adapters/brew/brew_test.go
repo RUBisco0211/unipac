@@ -2,6 +2,7 @@ package brew
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -40,8 +41,8 @@ func TestParseCaskList(t *testing.T) {
 		if found.Version != want.version {
 			t.Errorf("%s version = %q, want %q", want.name, found.Version, want.version)
 		}
-		if !found.Installed || !found.IsGUI {
-			t.Errorf("%s = %+v, want an installed cask", want.name, found)
+		if !found.Installed {
+			t.Errorf("%s = %+v, want an installed package", want.name, found)
 		}
 	}
 }
@@ -50,7 +51,7 @@ func TestParseCaskList(t *testing.T) {
 // version still installed used to come out as one version holding both.
 func TestLineParserTakesTheLinkedVersion(t *testing.T) {
 	a := &Adapter{ctx: context.Background(), info: &manager.Info{ID: "brew"}}
-	parse := a.lineParserFunc(false)
+	parse := a.lineParserFunc()
 
 	pkg, err := parse("aom 3.14.1 3.15.3")
 	if err != nil {
@@ -59,7 +60,7 @@ func TestLineParserTakesTheLinkedVersion(t *testing.T) {
 	if pkg.Name != "aom" || pkg.Version != "3.15.3" {
 		t.Fatalf("package = %+v, want aom at 3.15.3", pkg)
 	}
-	if !pkg.Installed || pkg.IsGUI || pkg.Manager != "brew" {
+	if !pkg.Installed || pkg.Manager != "brew" {
 		t.Errorf("package = %+v, want an installed formula of brew", pkg)
 	}
 
@@ -70,5 +71,18 @@ func TestLineParserTakesTheLinkedVersion(t *testing.T) {
 
 	if _, err := parse("aom"); err == nil {
 		t.Error("a line without a version parsed")
+	}
+}
+
+// Homebrew installs a cask with --cask and a formula without; the split follows
+// what the names resolved to, not a field on the package.
+func TestSplitBrewPackageNamesRoutesCasks(t *testing.T) {
+	pkgs := []manager.Package{{Name: "mole"}, {Name: "flux-markdown"}, {Name: "wget"}}
+	formulas, casks := splitBrewPackageNames(pkgs, map[string]bool{"flux-markdown": true})
+	if want := []string{"mole", "wget"}; !slices.Equal(formulas, want) {
+		t.Errorf("formulas = %v, want %v", formulas, want)
+	}
+	if want := []string{"flux-markdown"}; !slices.Equal(casks, want) {
+		t.Errorf("casks = %v, want %v", casks, want)
 	}
 }

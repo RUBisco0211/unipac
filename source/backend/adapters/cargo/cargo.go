@@ -122,7 +122,6 @@ func parseCargoInstalled(output string, managerID string) []manager.Package {
 			Version:   matches[2],
 			Manager:   managerID,
 			Installed: true,
-			IsGUI:     false,
 		})
 	}
 	return pkgs
@@ -146,7 +145,6 @@ func parseCargoSearch(output string, managerID string) []manager.Package {
 			Version:     matches[2],
 			Manager:     managerID,
 			Installed:   false,
-			IsGUI:       false,
 			Description: description,
 		})
 	}

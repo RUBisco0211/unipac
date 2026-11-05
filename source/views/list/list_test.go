@@ -26,7 +26,7 @@ func TestListViewShowsRows(t *testing.T) {
 
 	for _, want := range []string{
 		"ripgrep", "14.1.1", "Line-oriented search tool",
-		"Homebrew", "typescript", "6.0.0", locales.TypeCli(),
+		"Homebrew", "typescript", "6.0.0",
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
@@ -452,7 +452,7 @@ func TestManagerFilterMultiSelect(t *testing.T) {
 	}
 }
 
-// longList is a list long enough to scroll, with a type column that sorts into
+// longList is a list long enough to scroll, with a manager column that sorts into
 // a different order than the name column.
 func longList() *View {
 	d := fixture()
@@ -460,9 +460,8 @@ func longList() *View {
 	for i := range 200 {
 		d.Rows = append(d.Rows, manager.Package{
 			Name:      fmt.Sprintf("pkg-%03d", i),
-			Manager:   "brew",
+			Manager:   []string{"brew", "npm"}[i%2],
 			Installed: true,
-			IsGUI:     i%2 == 0,
 		})
 	}
 	return &View{Data: d, chosen: map[string]struct{}{}, AllowRemove: true}
@@ -478,8 +477,8 @@ func TestSortKeepsScrollOffset(t *testing.T) {
 	tt.Frame()
 	before, _ := l.table.List.Visible()
 
-	if err := tt.Click(locales.TableType()); err != nil {
-		t.Fatalf("click the type header: %v", err)
+	if err := tt.Click(locales.TableManager()); err != nil {
+		t.Fatalf("click the manager header: %v", err)
 	}
 	tt.Frame()
 	after, _ := l.table.List.Visible()

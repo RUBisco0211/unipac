@@ -263,8 +263,6 @@ func (s *View) applySort() {
 	slices.SortStableFunc(s.results, func(a, b manager.Package) int {
 		var order int
 		switch col {
-		case "type":
-			order = strings.Compare(parts.TypeLabel(a.IsGUI), parts.TypeLabel(b.IsGUI))
 		case "manager":
 			order = strings.Compare(
 				strings.ToLower(s.Data.Name(a.Manager)),

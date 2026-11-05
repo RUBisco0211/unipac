@@ -32,7 +32,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 	}
 }
 
-func (a *Adapter) lineParserFunc(cask bool) util.LineHandler[manager.Package] {
+func (a *Adapter) lineParserFunc() util.LineHandler[manager.Package] {
 	return func(line string) (manager.Package, error) {
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
@@ -49,7 +49,6 @@ func (a *Adapter) lineParserFunc(cask bool) util.LineHandler[manager.Package] {
 			// and the last is the one linked.
 			Version:   fields[len(fields)-1],
 			Installed: true,
-			IsGUI:     cask,
 			Manager:   a.Info().ID,
 		}, nil
 	}
@@ -89,7 +88,7 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 			a.info.ExecPath,
 			[]string{"list", "--formula", "--versions"},
 			nil,
-			a.lineParserFunc(false),
+			a.lineParserFunc(),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to list formulas: %w", err)
@@ -136,7 +135,7 @@ func parseCaskList(output string) ([]manager.Package, error) {
 		if c.Token == "" {
 			continue
 		}
-		pkg := manager.Package{Name: c.Token, Installed: true, IsGUI: true}
+		pkg := manager.Package{Name: c.Token, Installed: true}
 		if len(c.Versions) > 0 {
 			pkg.Version = c.Versions[len(c.Versions)-1]
 		}
@@ -168,7 +167,6 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 			Version:       formula.InstalledVersions[0],
 			LatestVersion: formula.CurrentVersion,
 			Manager:       a.Info().ID,
-			IsGUI:         false,
 			Outdated:      true,
 		})
 	}
@@ -179,7 +177,6 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 			Version:       cask.InstalledVersions[0],
 			LatestVersion: cask.CurrentVersion,
 			Manager:       a.Info().ID,
-			IsGUI:         true,
 			Outdated:      true,
 		})
 	}
@@ -195,23 +192,23 @@ func (a *Adapter) GetPackageInfo(p manager.Package) (string, error) {
 	if err != nil || strings.Contains(output, "Error") {
 		return "", fmt.Errorf("failed to get package info: %w", err)
 	}
-	var obj map[string]any
+	// A cask and a formula are different things to Homebrew, and the answer says
+	// which one this name was.
+	var obj struct {
+		Formulae []json.RawMessage `json:"formulae"`
+		Casks    []json.RawMessage `json:"casks"`
+	}
 	if err := json.Unmarshal([]byte(output), &obj); err != nil {
 		return "", fmt.Errorf("failed to parse brew info output: %w", err)
 	}
-
-	var key string
-	if p.IsGUI {
-		key = "casks"
-	} else {
-		key = "formulae"
+	switch {
+	case len(obj.Casks) > 0:
+		return string(obj.Casks[0]), nil
+	case len(obj.Formulae) > 0:
+		return string(obj.Formulae[0]), nil
+	default:
+		return "", fmt.Errorf("brew info %s returned nothing", p.Name)
 	}
-
-	bytes, err := json.Marshal(obj[key].([]any)[0])
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal package info: %w", err)
-	}
-	return string(bytes), nil
 }
 
 // Search returns the list of packages matching the keyword for brew
@@ -258,23 +255,19 @@ func (a *Adapter) Search(keyword string) ([]manager.Package, error) {
 
 // searchEntry is an intermediate result from parsing brew search output
 type searchEntry struct {
-	Name   string
-	IsCask bool
+	Name string
 }
 
 // parseBrewSearch parses the flat list output from `brew search <keyword>`.
-// An empty line separates formulae (first group) from casks (second group).
 func parseBrewSearch(output string) []searchEntry {
 	lines := strings.Split(output, "\n")
 	entries := make([]searchEntry, 0, len(lines))
-	isCask := false
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
-			isCask = true
 			continue
 		}
-		entries = append(entries, searchEntry{Name: line, IsCask: isCask})
+		entries = append(entries, searchEntry{Name: line})
 	}
 	return entries
 }
@@ -312,7 +305,6 @@ func buildSearchResults(entries []searchEntry, info pkgLookup) []manager.Package
 		pkg := manager.Package{
 			Name:    e.Name,
 			Manager: "brew",
-			IsGUI:   e.IsCask,
 		}
 		if info != nil {
 			if d, ok := info[e.Name]; ok {
@@ -327,7 +319,11 @@ func buildSearchResults(entries []searchEntry, info pkgLookup) []manager.Package
 
 // Install installs the specified packages using brew
 func (a *Adapter) Install(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	formulas, casks := splitBrewPackageNames(pkgs)
+	caskOf, err := a.caskNames(pkgs)
+	if err != nil {
+		return manager.ErrorResult(err.Error()), nil
+	}
+	formulas, casks := splitBrewPackageNames(pkgs, caskOf)
 
 	if len(formulas) > 0 {
 		args := append([]string{"install"}, formulas...)
@@ -346,7 +342,11 @@ func (a *Adapter) Install(pkgs []manager.Package, opt manager.ActionOptions) (ma
 
 // Uninstall uninstalls the specified packages using brew
 func (a *Adapter) Uninstall(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	formulas, casks := splitBrewPackageNames(pkgs)
+	caskOf, err := a.caskNames(pkgs)
+	if err != nil {
+		return manager.ErrorResult(err.Error()), nil
+	}
+	formulas, casks := splitBrewPackageNames(pkgs, caskOf)
 
 	if len(formulas) > 0 {
 		args := append([]string{"uninstall"}, formulas...)
@@ -365,7 +365,11 @@ func (a *Adapter) Uninstall(pkgs []manager.Package, opt manager.ActionOptions) (
 
 // Update updates the specified packages using brew
 func (a *Adapter) Update(pkgs []manager.Package, opt manager.ActionOptions) (manager.ActionResult, error) {
-	formulas, casks := splitBrewPackageNames(pkgs)
+	caskOf, err := a.caskNames(pkgs)
+	if err != nil {
+		return manager.ErrorResult(err.Error()), nil
+	}
+	formulas, casks := splitBrewPackageNames(pkgs, caskOf)
 
 	if len(formulas) > 0 {
 		args := append([]string{"upgrade"}, formulas...)
@@ -389,14 +393,8 @@ func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
 		return nil, err
 	}
 
-	if pkg.IsGUI {
-		var cask brewCaskInfo
-		if err := json.Unmarshal([]byte(output), &cask); err != nil {
-			return nil, fmt.Errorf("failed to parse brew cask info output: %w", err)
-		}
-		if cask.Version == "" {
-			return []string{}, nil
-		}
+	var cask brewCaskInfo
+	if err := json.Unmarshal([]byte(output), &cask); err == nil && cask.Version != "" {
 		return []string{cask.Version}, nil
 	}
 
@@ -422,15 +420,62 @@ func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionRes
 	return manager.SuccessResult(successMsg), nil
 }
 
-func splitBrewPackageNames(pkgs []manager.Package) ([]string, []string) {
+// splitBrewPackageNames divides the packages by the command that installs each:
+// casks take --cask, formulae do not.
+func splitBrewPackageNames(pkgs []manager.Package, casks map[string]bool) ([]string, []string) {
 	formulas := make([]string, 0, len(pkgs))
-	casks := make([]string, 0, len(pkgs))
+	caskNames := make([]string, 0, len(pkgs))
 	for _, pkg := range pkgs {
-		if pkg.IsGUI {
-			casks = append(casks, pkg.Name)
+		if casks[pkg.Name] {
+			caskNames = append(caskNames, pkg.Name)
 		} else {
 			formulas = append(formulas, pkg.Name)
 		}
 	}
-	return formulas, casks
+	return formulas, caskNames
+}
+
+// caskNames says which of the packages are casks.
+//
+// Nothing in a package carries that: a cask and a formula are the same kind of
+// row here, and only Homebrew knows which a name is. The installed ones come
+// from the cask list, which reads the Caskroom and so needs no tap trust; a
+// package not installed yet, as one picked from search, is asked about.
+func (a *Adapter) caskNames(pkgs []manager.Package) (map[string]bool, error) {
+	casks := make(map[string]bool, len(pkgs))
+	if installed, err := a.listCasks(); err == nil {
+		for _, pkg := range installed {
+			casks[pkg.Name] = true
+		}
+	} else {
+		slog.DebugContext(a.ctx, "brew: cannot read the installed casks", "error", err)
+	}
+	// An installed package that is not a cask is a formula; only the ones being
+	// installed need asking about.
+	rest := make([]string, 0, len(pkgs))
+	for _, pkg := range pkgs {
+		if !pkg.Installed && !casks[pkg.Name] {
+			rest = append(rest, pkg.Name)
+		}
+	}
+	if len(rest) == 0 {
+		return casks, nil
+	}
+	args := append([]string{"info", "--json=v2"}, rest...)
+	output, err := util.Exec(a.ctx, a.info.ExecPath, args, []string{"HOMEBREW_NO_AUTO_UPDATE=1"})
+	if err != nil {
+		// A name Homebrew refuses to load, as a cask of an untrusted tap, goes to
+		// the formula command, and brew says what is wrong with it.
+		slog.DebugContext(a.ctx, "brew: cannot read the package types", "error", err)
+		return casks, nil
+	}
+	var list caskList
+	if err := json.Unmarshal([]byte(output), &list); err != nil {
+		slog.DebugContext(a.ctx, "brew: cannot parse the package types", "error", err)
+		return casks, nil
+	}
+	for _, c := range list.Casks {
+		casks[c.Token] = true
+	}
+	return casks, nil
 }

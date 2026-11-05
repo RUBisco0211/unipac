@@ -255,7 +255,6 @@ Recommended normalized package fields:
 - `Installed`: `true` for installed list results.
 - `Outdated`: `true` for outdated list results.
 - `LatestVersion`: latest package version from `uv tool list --outdated`, when parseable.
-- `IsGUI`: `false`.
 - `Fullname`: original install spec when available.
 
 `GetPackageInfo` should return a JSON string synthesized from the local parsed record, for example:

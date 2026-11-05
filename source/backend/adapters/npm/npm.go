@@ -84,7 +84,6 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 			Version:   dep.Version,
 			Manager:   a.Info().ID,
 			Installed: true,
-			IsGUI:     false,
 		})
 	}
 	return pkgs, nil
@@ -116,7 +115,6 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 			Manager:       a.Info().ID,
 			Installed:     true,
 			Outdated:      true,
-			IsGUI:         false,
 		})
 	}
 	return pkgs, nil

@@ -123,7 +123,7 @@ func TestTasksPersistAcrossRestart(t *testing.T) {
 		t.Fatalf("init: %v", err)
 	}
 	finished := Default.Begin(ctx, KindInstall, Target{
-		ManagerID: "brew", ManagerName: "Homebrew", Name: "persisted", Version: "2.0", IsGUI: true,
+		ManagerID: "brew", ManagerName: "Homebrew", Name: "persisted", Version: "2.0",
 	})
 	finished.Start()
 	finished.report(util.Event{
@@ -157,7 +157,7 @@ func TestTasksPersistAcrossRestart(t *testing.T) {
 	if done.State != StateSucceeded || done.StartedAt.IsZero() || done.FinishedAt.IsZero() {
 		t.Fatalf("finished task after reload = %+v", done)
 	}
-	if done.Version != "2.0" || !done.IsGUI {
+	if done.Version != "2.0" {
 		t.Errorf("target after reload = %+v", done)
 	}
 	if done.Command != "brew install --cask persisted" || done.ExecPath != "/opt/homebrew/bin/brew" {

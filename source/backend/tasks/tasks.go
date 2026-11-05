@@ -69,7 +69,6 @@ type Target struct {
 	Version string
 	// NewVersion is the version the operation installs or upgrades to.
 	NewVersion string
-	IsGUI      bool
 }
 
 // Line is one line of a task's console output.
@@ -98,7 +97,6 @@ type Snapshot struct {
 	Package     string
 	Version     string
 	NewVersion  string
-	IsGUI       bool
 	Command     string
 	ExecPath    string
 	StartedAt   time.Time
@@ -329,7 +327,6 @@ func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
 			Package:     target.Name,
 			Version:     target.Version,
 			NewVersion:  target.NewVersion,
-			IsGUI:       boolToInt(target.IsGUI),
 			StartedAt:   task.started.UnixNano(),
 		})
 		if err != nil {
@@ -738,7 +735,6 @@ func (t *Task) snapshot() Snapshot {
 		Package:     t.target.Name,
 		Version:     t.target.Version,
 		NewVersion:  t.target.NewVersion,
-		IsGUI:       t.target.IsGUI,
 		Command:     strings.Join(t.commands, "\n"),
 		ExecPath:    t.execPath,
 		StartedAt:   t.started,

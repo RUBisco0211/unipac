@@ -40,7 +40,6 @@ type taskRow struct {
 	Package     string `db:"package"`
 	Version     string `db:"version"`
 	NewVersion  string `db:"new_version"`
-	IsGUI       int    `db:"is_gui"`
 	Command     string `db:"command"`
 	ExecPath    string `db:"exec_path"`
 	Message     string `db:"message"`
@@ -130,8 +129,12 @@ func (s *store) prune(keep int) error {
 
 func (s *store) load(limit int) ([]taskRow, error) {
 	rows := make([]taskRow, 0)
+	// The columns are named, not taken with *: an older database still has the
+	// is_gui column that is no longer read.
 	err := s.db.SelectContext(s.ctx, &rows,
-		`SELECT * FROM package_tasks ORDER BY id DESC LIMIT ?`, limit)
+		`SELECT id, kind, state, manager_id, manager_name, package, version,
+		        new_version, command, exec_path, message, started_at, finished_at, truncated
+		   FROM package_tasks ORDER BY id DESC LIMIT ?`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -142,10 +145,10 @@ func (s *store) insert(row taskRow) (int64, error) {
 	res, err := s.db.ExecContext(s.ctx,
 		`INSERT INTO package_tasks
 		 (kind, state, manager_id, manager_name, package, version, new_version,
-		  is_gui, command, exec_path, message, started_at, finished_at, truncated)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  command, exec_path, message, started_at, finished_at, truncated)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		row.Kind, row.State, row.ManagerID, row.ManagerName, row.Package, row.Version,
-		row.NewVersion, row.IsGUI, row.Command, row.ExecPath, row.Message, row.StartedAt,
+		row.NewVersion, row.Command, row.ExecPath, row.Message, row.StartedAt,
 		row.FinishedAt, row.Truncated)
 	if err != nil {
 		return 0, err
@@ -221,7 +224,6 @@ func taskFromRow(row taskRow, m *Manager) *Task {
 			Name:        row.Package,
 			Version:     row.Version,
 			NewVersion:  row.NewVersion,
-			IsGUI:       row.IsGUI != 0,
 		},
 		state:      row.State,
 		started:    time.Unix(0, row.StartedAt),

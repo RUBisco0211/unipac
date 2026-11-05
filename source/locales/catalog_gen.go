@@ -264,16 +264,6 @@ func (msgs Messages) TableLatest() string {
 	return Catalog.Format(msgs.locale, "tableLatest", nil)
 }
 
-// TableType says "Type"
-// in the language the app shows.
-func TableType() string { return In(i18n.Locale()).TableType() }
-
-// TableType says "Type"
-// in the language of msgs.
-func (msgs Messages) TableType() string {
-	return Catalog.Format(msgs.locale, "tableType", nil)
-}
-
 // TableManager says "Manager"
 // in the language the app shows.
 func TableManager() string { return In(i18n.Locale()).TableManager() }
@@ -302,26 +292,6 @@ func TableNoDescription() string { return In(i18n.Locale()).TableNoDescription()
 // in the language of msgs.
 func (msgs Messages) TableNoDescription() string {
 	return Catalog.Format(msgs.locale, "tableNoDescription", nil)
-}
-
-// TypeGui says "GUI"
-// in the language the app shows.
-func TypeGui() string { return In(i18n.Locale()).TypeGui() }
-
-// TypeGui says "GUI"
-// in the language of msgs.
-func (msgs Messages) TypeGui() string {
-	return Catalog.Format(msgs.locale, "typeGui", nil)
-}
-
-// TypeCli says "CLI"
-// in the language the app shows.
-func TypeCli() string { return In(i18n.Locale()).TypeCli() }
-
-// TypeCli says "CLI"
-// in the language of msgs.
-func (msgs Messages) TypeCli() string {
-	return Catalog.Format(msgs.locale, "typeCli", nil)
 }
 
 // ActionsUpdate says "Update"

@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS package_tasks (
     package      TEXT    NOT NULL,
     version      TEXT    NOT NULL DEFAULT '',
     new_version  TEXT    NOT NULL DEFAULT '',
-    is_gui       INTEGER NOT NULL DEFAULT 0,
     command      TEXT    NOT NULL DEFAULT '',
     exec_path    TEXT    NOT NULL DEFAULT '',
     message      TEXT    NOT NULL DEFAULT '',

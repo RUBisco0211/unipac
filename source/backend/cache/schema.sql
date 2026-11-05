@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS installed_package_cache (
     manager TEXT NOT NULL,
     installed INTEGER NOT NULL DEFAULT 1,
     outdated INTEGER NOT NULL DEFAULT 0,
-    is_gui INTEGER NOT NULL DEFAULT 0,
     description TEXT,
     PRIMARY KEY(name, manager)
 )

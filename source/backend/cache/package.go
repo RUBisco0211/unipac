@@ -19,7 +19,8 @@ func (m *Cache) createPackageCacheTable() error {
 
 func (m *Cache) List() ([]manager.Package, error) {
 	result := make([]manager.Package, 0)
-	err := m.db.SelectContext(m.ctx, &result, "SELECT * FROM installed_package_cache ORDER BY name")
+	err := m.db.SelectContext(m.ctx, &result, `SELECT name, fullname, version, latest_version, manager, installed, outdated, description
+		FROM installed_package_cache ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +63,8 @@ func (m *Cache) UpdateCache(pkgs []manager.Package) (err error) {
 	}
 	// full update all scanned packages
 	query := `INSERT INTO installed_package_cache 
-    		(name, fullname, version, latest_version, manager, installed, outdated, is_gui, description) 
-			VALUES (:name, :fullname, :version, :latest_version, :manager, :installed, :outdated, :is_gui, :description)`
+    		(name, fullname, version, latest_version, manager, installed, outdated, description)
+			VALUES (:name, :fullname, :version, :latest_version, :manager, :installed, :outdated, :description)`
 	_, err = tx.NamedExecContext(m.ctx, query, pkgs)
 	if err != nil {
 		slog.ErrorContext(m.ctx, "Failed to insert into table installed_package_cache", "error", err)
