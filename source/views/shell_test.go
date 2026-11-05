@@ -291,3 +291,36 @@ func TestPageSwitchPlaysAnEntryAndExit(t *testing.T) {
 		t.Errorf("the arriving page is gone: %v", tt.Texts())
 	}
 }
+
+// A page box must not interpolate its layout: the table finds its width on the
+// frame after it is built, and growing through that width takes the whole
+// duration, which shows as the page flashing at a narrower width.
+func TestPageTransitionSnapsLayout(t *testing.T) {
+	settled := false
+	build := func(c *ui.Context) {
+		width := float32(120)
+		if settled {
+			width = 480
+		}
+		ui.Column(c).Fill().Children(func() {
+			ui.Box(c).Key(pageKey(PagePackages)).Width(width).Height(80).
+				Label("page").Transition(pageTransition)
+		})
+	}
+	tt := testui.Render(build, 600, 200)
+	tt.Frame()
+
+	settled = true
+	tt.Frame()
+	found, ok := tt.Find("page")
+	if !ok {
+		t.Fatal("the page box is not on screen")
+	}
+	if found.W < 470 || found.W > 490 {
+		t.Fatalf("the page box is %.0f wide on the frame it settled, want 480", found.W)
+	}
+	tt.Advance(250 * time.Millisecond)
+	if after, _ := tt.Find("page"); after.W != found.W {
+		t.Fatalf("the page box kept resizing: %.0f then %.0f", found.W, after.W)
+	}
+}

@@ -52,8 +52,13 @@ const (
 // desktop asks for less motion it fades in place instead of moving.
 var pageTransition = ui.ElementTransition{
 	Duration: 200 * time.Millisecond,
-	Enter:    &ui.Motion{Opacity: 0, Y: 8},
-	Exit:     &ui.Motion{Opacity: 0, Y: -4},
+	// Colors is set alone on purpose: with none of the three set, MyGo animates
+	// position and size too, and a page whose table finds its width a frame
+	// after the switch would grow into it for the whole duration instead of
+	// snapping, which reads as the page flashing at a wrong width.
+	Colors: true,
+	Enter:  &ui.Motion{Opacity: 0, Y: 8},
+	Exit:   &ui.Motion{Opacity: 0, Y: -4},
 }
 
 // pageKey is a page's identity in the element tree. It changes with the page, so
