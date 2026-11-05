@@ -62,7 +62,6 @@ type View struct {
 func (s *View) Build(c *ui.Context) {
 	s.syncManagers()
 	ui.Column(c).Fill().Gap(12).Children(func() {
-		// The page inset the toolbar and the table both start from.
 		ui.Column(c).Shrink(0).Gap(12).Padding(0, c.Theme().Space(4), 0, c.Theme().Space(4)).Children(func() {
 			s.toolbar(c)
 			s.chips(c)
@@ -263,7 +262,7 @@ func (s *View) columns() []ui.TableColumn {
 	columns := parts.SearchFields()
 	s.actions = len(columns)
 	columns = append(columns, ui.TableColumn{
-		Title: locales.TableActions(), ID: "actions", Width: 64, Fixed: true, Align: ui.End,
+		Title: locales.TableActions(), ID: "actions", Width: 88, Fixed: true, Align: ui.End,
 	})
 	// The same trailing space the package tables have, so the last header and
 	// the row button do not touch the window edge.
@@ -316,7 +315,9 @@ func (s *View) body(c *ui.Context) {
 			// The same insets as the package tables: the table brings its own
 			// cell padding, and the trailing pad column keeps the last control
 			// off the window edge.
-			ui.Box(c).Fill().MinHeight(0).Children(func() {
+			// The same leading padding as the package tables, for the header's
+			// first cell and the rows together.
+			ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
 				components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
 					pkg := s.results[row]
 					switch {

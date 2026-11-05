@@ -551,9 +551,9 @@ func TestSelectAllAlignsWithTheRowCheckboxes(t *testing.T) {
 	if header.X != row.X {
 		t.Errorf("select-all starts at %.0f, a row checkbox at %.0f", header.X, row.X)
 	}
-	// The table's inset plus its cell padding, which the header's absolute
-	// control has to add for itself.
-	if want := theme.Palette(false).Space(2.5) + theme.Palette(false).Space(1.5); header.X != want {
+	// The table's leading padding and the column's, which the header's absolute
+	// control adds for itself.
+	if want := theme.Palette(false).Space(1.5) + theme.Palette(false).Space(2.5); header.X != want {
 		t.Errorf("the first cell starts at %.0f, want %.0f", header.X, want)
 	}
 	// And the header's own text stays to the right of it.

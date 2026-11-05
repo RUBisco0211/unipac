@@ -10,7 +10,6 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/egoist/mygo/ui"
-	"github.com/oneo-me/onevra/source/theme"
 )
 
 func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
@@ -394,9 +393,9 @@ func TestSearchUpdateCallsOnUpdate(t *testing.T) {
 	}
 }
 
-// The table keeps the padding it had; the row's first cell adds its own inset,
-// so the row starts a little past the column's padding.
-func TestSearchRowsInsetTheirFirstCell(t *testing.T) {
+// A row's first cell starts on the column's padding, where the header is, so the
+// two line up.
+func TestSearchHeaderAndRowStartTogether(t *testing.T) {
 	s := &View{Data: fixture()}
 	s.BeginQuery()
 	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
@@ -404,17 +403,16 @@ func TestSearchRowsInsetTheirFirstCell(t *testing.T) {
 	}}, nil)
 	tt := render(t, s.Build, 900, 500)
 
-	header, ok := tt.Find(locales.TablePackage())
-	if !ok {
-		t.Fatal("the package header is missing")
-	}
 	row, ok := tt.Find("typescript")
 	if !ok {
 		t.Fatal("the result row is missing")
 	}
-	// The column's padding, the cell's inset, then the icon and its gap.
-	if want := header.X + theme.Palette(false).Space(1.5) + 16 + 8; row.X != want {
-		t.Errorf("the name starts at %.0f, want %.0f (header %.0f)", row.X, want, header.X)
+	header, ok := tt.Find(locales.TablePackage())
+	if !ok {
+		t.Fatal("the package header is missing")
+	}
+	if want := header.X + 16 + 8; row.X != want {
+		t.Errorf("the name starts at %.0f, want %.0f under the header at %.0f", row.X, want, header.X)
 	}
 }
 

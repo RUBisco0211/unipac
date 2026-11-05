@@ -169,9 +169,7 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 	t := c.Theme()
 	switch field {
 	case 0:
-		// The first cell's own inset, so the row starts a little past the
-		// column's padding.
-		ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 0, t.Space(1.5)).Children(func() {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			components.Icon(c, lucide.Package).Size(16, 16).TextColor(t.TextMuted)
 			ui.Column(c).Gap(1).Children(func() {
 				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {

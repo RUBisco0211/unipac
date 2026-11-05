@@ -258,11 +258,11 @@ func (l *View) syncSelection() {
 // selectColumnWidth is the width of the checkbox column.
 const selectColumnWidth = 40
 
-// firstCellInset is where a row's first cell content starts: the column's own
-// padding, then the inset the cell adds. The header's controls are laid out
-// absolutely, so they take this rather than the cell's padding.
+// firstCellInset is where a row's first cell content starts: the table's leading
+// padding, then the column's own. The header's controls are laid out absolutely,
+// so they take this rather than the container's padding.
 func firstCellInset(t *ui.Theme) float32 {
-	return t.Space(2.5) + t.Space(1.5)
+	return t.Space(1.5) + t.Space(2.5)
 }
 
 func (l *View) columns() []ui.TableColumn {
@@ -554,7 +554,10 @@ func (l *View) body(c *ui.Context) {
 		// with that item to wherever the sort puts it.
 		l.table.List.KeepOffset = true
 		t := c.Theme()
-		ui.Column(c).Fill().Children(func() {
+		// Space(1.5) of leading padding for the first cell, header and rows
+		// alike: Onevra gives a header cell and a row cell the same padding and
+		// has no per-column inset, so it goes on the table's own edge.
+		ui.Column(c).Fill().Padding(0, 0, 0, t.Space(1.5)).Children(func() {
 			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
 				l.cell(c, row, col)
 			}).Fill()
@@ -588,9 +591,7 @@ func (l *View) cell(c *ui.Context, row, col int) {
 	switch col {
 	case 0:
 		checked := l.isChosen(pkg)
-		// The first cell's own inset, so the row starts a little past the
-		// column's padding.
-		ui.Row(c).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
+		ui.Row(c).Children(func() {
 			box := components.Checkbox(c, &checked, "").Label(pkg.Name)
 			if box.Changed() {
 				l.choose(pkg, checked)
