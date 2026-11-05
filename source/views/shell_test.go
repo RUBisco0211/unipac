@@ -475,3 +475,37 @@ func TestOutcomeLabelsFollowTheTaskKind(t *testing.T) {
 		t.Errorf("uninstall failure = %q", got)
 	}
 }
+
+// A page can put buttons in the title bar, beside its title: the shell builds
+// whatever the page showing offers, and only for that page.
+func TestPageTitleActions(t *testing.T) {
+	u := uiWithPages()
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, SplitPercent: 64}
+	u.installed.TitleActions = func(c *ui.Context) {
+		components.Text(c, "page-action")
+	}
+
+	tt := render(t, u.windowTitle, 700, 48)
+	tt.Frame()
+	if !tt.HasText("page-action") {
+		t.Errorf("the page's title action is missing: %v", tt.Texts())
+	}
+
+	// Another page has none, so the slot builds nothing for it.
+	u.page = PageTasks
+	tt.Frame()
+	if tt.HasText("page-action") {
+		t.Errorf("the previous page's action is still in the title bar: %v", tt.Texts())
+	}
+}
+
+// Without one, the title bar is the history arrows, the title and the tasks
+// button, as before.
+func TestTitleBarWithoutPageActions(t *testing.T) {
+	u := uiWithPages()
+	tt := render(t, u.windowTitle, 700, 48)
+	tt.Frame()
+	if !tt.HasText(locales.NavPackages()) || !tt.HasText(locales.NavTasks()) {
+		t.Errorf("the title bar lost its parts: %v", tt.Texts())
+	}
+}

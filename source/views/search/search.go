@@ -25,6 +25,8 @@ type View struct {
 	Submit    func(query string, managerIDs []string)
 	OnInstall func(manager.Package, flight.Origin)
 	OnUpdate  func(manager.Package, flight.Origin)
+	// TitleActions builds the buttons this page puts in the title bar.
+	TitleActions func(*ui.Context)
 
 	query       string
 	resultQuery string

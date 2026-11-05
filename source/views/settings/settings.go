@@ -29,6 +29,8 @@ type View struct {
 	OnSetAutoScan func(on bool)
 	OnSetLogLevel func(level string)
 	OnSetLanguage func(tag string)
+	// TitleActions builds the buttons this page puts in the title bar.
+	TitleActions func(*ui.Context)
 
 	// AutoScan is the saved startup behavior; the shell reads it to decide
 	// whether to scan on launch.

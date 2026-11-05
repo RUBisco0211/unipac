@@ -31,6 +31,8 @@ const terminalFont = "SF Mono, Menlo, Consolas, monospace"
 type View struct {
 	// Data supplies the task gate, so a retry waits like every other task.
 	Data *inventory.Data
+	// TitleActions builds the buttons this page puts in the title bar.
+	TitleActions func(*ui.Context)
 
 	all     []tasks.Snapshot
 	rows    []tasks.Snapshot

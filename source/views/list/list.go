@@ -34,6 +34,9 @@ type View struct {
 	OnRemove     func(manager.Package, flight.Origin)
 	OnBulkUpdate func([]manager.Package, flight.Origin)
 	OnBulkRemove func([]manager.Package, flight.Origin)
+	// TitleActions builds the buttons this page puts in the title bar, beside
+	// its title and before the tasks button.
+	TitleActions func(*ui.Context)
 
 	query    string
 	managers map[string]bool

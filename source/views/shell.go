@@ -676,7 +676,39 @@ func (u *UI) pageTitle() string {
 // title on the leading edge, and the tasks button on the trailing edge. It
 // stays visible when the sidebar is collapsed, which the sidebar header does
 // not.
+// titleActions is the buttons the page showing puts in the title bar, beside its
+// title; nil for a page with none. It is what the header's trailing slot
+// builds, and the shell keeps the history arrows and the tasks button to itself.
+func (u *UI) titleActions() func(*ui.Context) {
+	// A window builds its pages before it builds the header, but a test may
+	// build the header alone.
+	switch u.page {
+	case PagePackages:
+		if u.installed != nil {
+			return u.installed.TitleActions
+		}
+	case PageOutdated:
+		if u.outdated != nil {
+			return u.outdated.TitleActions
+		}
+	case PageSearch:
+		if u.search != nil {
+			return u.search.TitleActions
+		}
+	case PageTasks:
+		if u.tasks != nil {
+			return u.tasks.TitleActions
+		}
+	case PageSettings:
+		if u.settings != nil {
+			return u.settings.TitleActions
+		}
+	}
+	return nil
+}
+
 func (u *UI) windowTitle(c *ui.Context) {
+	t := c.Theme()
 	ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(2).Children(func() {
 		back := components.IconButton(c, lucide.ChevronLeft(), locales.NavBack(), components.IconButtonPlain)
 		back.Disabled(u.cursor <= 0)
@@ -689,6 +721,11 @@ func (u *UI) windowTitle(c *ui.Context) {
 			u.forward()
 		}
 		components.Text(c, u.pageTitle()).FontSize(13).Bold()
+		if actions := u.titleActions(); actions != nil {
+			ui.Box(c).Shrink(0).Padding(0, t.Space(1), 0, t.Space(2)).Children(func() {
+				actions(c)
+			})
+		}
 		ui.Spacer(c)
 		u.tasksButton(c)
 	})
