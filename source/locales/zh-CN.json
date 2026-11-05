@@ -124,22 +124,6 @@
   "tasksCancelledByUser": "用户已取消",
   "tasksResizePanel": "调整控制台宽度",
   "toastCancelled": "任务已取消",
-  "notificationTaskSucceeded": "{operation}成功",
-  "notificationTaskFailed": "{operation}失败",
-  "@notificationTaskSucceeded": {
-    "placeholders": {
-      "operation": {
-        "type": "String"
-      }
-    }
-  },
-  "@notificationTaskFailed": {
-    "placeholders": {
-      "operation": {
-        "type": "String"
-      }
-    }
-  },
   "tableStarted": "启动时间",
   "tableFinished": "结束时间",
   "searchManagers": "包管理器",

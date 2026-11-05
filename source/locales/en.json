@@ -169,22 +169,6 @@
   "tasksCancelledByUser": "Cancelled by user",
   "tasksResizePanel": "Resize console panel",
   "toastCancelled": "Task cancelled",
-  "notificationTaskSucceeded": "{operation} succeeded",
-  "notificationTaskFailed": "{operation} failed",
-  "@notificationTaskSucceeded": {
-    "placeholders": {
-      "operation": {
-        "type": "String"
-      }
-    }
-  },
-  "@notificationTaskFailed": {
-    "placeholders": {
-      "operation": {
-        "type": "String"
-      }
-    }
-  },
   "tableStarted": "Started",
   "tableFinished": "Finished",
   "searchManagers": "Package managers",

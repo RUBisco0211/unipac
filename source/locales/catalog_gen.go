@@ -1208,30 +1208,6 @@ func (msgs Messages) ToastCancelled() string {
 	return Catalog.Format(msgs.locale, "toastCancelled", nil)
 }
 
-// NotificationTaskSucceeded says "{operation} succeeded"
-// in the language the app shows.
-func NotificationTaskSucceeded(operation string) string {
-	return In(i18n.Locale()).NotificationTaskSucceeded(operation)
-}
-
-// NotificationTaskSucceeded says "{operation} succeeded"
-// in the language of msgs.
-func (msgs Messages) NotificationTaskSucceeded(operation string) string {
-	return Catalog.Format(msgs.locale, "notificationTaskSucceeded", map[string]any{"operation": operation})
-}
-
-// NotificationTaskFailed says "{operation} failed"
-// in the language the app shows.
-func NotificationTaskFailed(operation string) string {
-	return In(i18n.Locale()).NotificationTaskFailed(operation)
-}
-
-// NotificationTaskFailed says "{operation} failed"
-// in the language of msgs.
-func (msgs Messages) NotificationTaskFailed(operation string) string {
-	return Catalog.Format(msgs.locale, "notificationTaskFailed", map[string]any{"operation": operation})
-}
-
 // TableStarted says "Started"
 // in the language the app shows.
 func TableStarted() string { return In(i18n.Locale()).TableStarted() }

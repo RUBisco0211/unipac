@@ -434,3 +434,44 @@ func TestToastWithoutTaskHasNoAction(t *testing.T) {
 		t.Fatalf("toast = %+v, want no action", toast)
 	}
 }
+
+// A notification says what the toast says, and where the task was, never the
+// command's output: the console is the task's, and clicking opens it.
+func TestNotificationTextMatchesTheToast(t *testing.T) {
+	failed := tasks.Snapshot{
+		ID: "28", Kind: tasks.KindUpdate, State: tasks.StateFailed,
+		ManagerName: "NPM", Package: "bun", Message: "npm warn ERESOLVE\nnpm error EUNSUPPORTEDPROTOCOL",
+	}
+	title, body := notificationText(failed)
+	if want := locales.ToastUpdateFailed("bun"); title != want {
+		t.Errorf("title = %q, want the toast's %q", title, want)
+	}
+	if body != "bun · NPM" {
+		t.Errorf("body = %q, want the package and its manager only", body)
+	}
+
+	succeeded := tasks.Snapshot{ID: "29", Kind: tasks.KindInstall, State: tasks.StateSucceeded, Package: "mole"}
+	if title, body := notificationText(succeeded); title != locales.ToastInstalled() || body != "mole" {
+		t.Errorf("notification = %q / %q, want %q / mole", title, body, locales.ToastInstalled())
+	}
+}
+
+// The success toast and the notification word an outcome the same way, from the
+// task kind the operation records.
+func TestOutcomeLabelsFollowTheTaskKind(t *testing.T) {
+	for op, want := range map[string]tasks.Kind{
+		"install": tasks.KindInstall,
+		"update":  tasks.KindUpdate,
+		"remove":  tasks.KindUninstall,
+	} {
+		if got := taskKind(op); got != want {
+			t.Errorf("taskKind(%q) = %q, want %q", op, got, want)
+		}
+	}
+	if got := successLabel(tasks.KindInstall); got != locales.ToastInstalled() {
+		t.Errorf("install success = %q", got)
+	}
+	if got := failureLabel(tasks.KindUninstall, "mole"); got != locales.ToastRemoveFailed("mole") {
+		t.Errorf("uninstall failure = %q", got)
+	}
+}

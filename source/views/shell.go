@@ -23,7 +23,6 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
-	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
 	"github.com/RUBisco0211/unipac/source/views/settings"
 	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
@@ -260,38 +259,38 @@ func (u *UI) Search(query string, managerIDs []string) {
 func (u *UI) Install(pkg manager.Package, at flight.Origin) {
 	u.runTask("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.InstallPackage(pkg, manager.ActionOptions{})
-	}, locales.ToastInstalled())
+	})
 }
 
 func (u *UI) Update(pkg manager.Package, at flight.Origin) {
 	u.runTask("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.UpdatePackage(pkg, manager.ActionOptions{})
-	}, locales.ToastUpdated())
+	})
 }
 
 func (u *UI) Remove(pkg manager.Package, at flight.Origin) {
 	u.runTask("remove", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.UninstallPackage(pkg, manager.ActionOptions{})
-	}, locales.ToastRemoved())
+	})
 }
 
 func (u *UI) BulkUpdate(pkgs []manager.Package, at flight.Origin) {
 	u.runTask("update", pkgs, at, func() (manager.ActionResult, error) {
 		return u.svc.BatchUpdatePackages(pkgs, manager.ActionOptions{})
-	}, locales.ToastUpdated())
+	})
 }
 
 func (u *UI) BulkRemove(pkgs []manager.Package, at flight.Origin) {
 	u.runTask("remove", pkgs, at, func() (manager.ActionResult, error) {
 		return u.svc.BatchUninstallPackages(pkgs, manager.ActionOptions{})
-	}, locales.ToastRemoved())
+	})
 }
 
 // runTask runs one package operation off the UI thread and marks its packages as
 // busy until it finishes, so their rows wait while other packages stay usable.
 // The outcome becomes a toast, queued for the next frame because MyGo adds
 // toasts while building.
-func (u *UI) runTask(op string, pkgs []manager.Package, at flight.Origin, fn func() (manager.ActionResult, error), done string) {
+func (u *UI) runTask(op string, pkgs []manager.Package, at flight.Origin, fn func() (manager.ActionResult, error)) {
 	if u.shell == nil || !u.data.BeginTask(op, pkgs) {
 		return
 	}
@@ -315,7 +314,7 @@ func (u *UI) runTask(op string, pkgs []manager.Package, at flight.Origin, fn fun
 			case failed:
 				u.data.QueueToast(failureToast(op, pkgs, taskID))
 			default:
-				u.data.QueueToast(inventory.Toast{Title: done, Tone: components.ToastSuccess})
+				u.data.QueueToast(inventory.Toast{Title: successLabel(taskKind(op)), Tone: components.ToastSuccess})
 			}
 			if !u.quitAccepted.Load() {
 				u.Refresh()
@@ -348,16 +347,11 @@ func failureToast(op string, pkgs []manager.Package, taskID string) inventory.To
 	default:
 		subject = locales.ToastSeveralPackages(strconv.Itoa(len(pkgs)))
 	}
-	var title string
-	switch op {
-	case "install":
-		title = locales.ToastInstallFailed(subject)
-	case "remove":
-		title = locales.ToastRemoveFailed(subject)
-	default:
-		title = locales.ToastUpdateFailed(subject)
+	return inventory.Toast{
+		Title:  failureLabel(taskKind(op), subject),
+		Tone:   components.ToastError,
+		TaskID: taskID,
 	}
-	return inventory.Toast{Title: title, Tone: components.ToastError, TaskID: taskID}
 }
 
 // newestTask is the task an action just created, found among the tasks of the
@@ -507,18 +501,7 @@ func finishedTasks(previous map[string]tasks.State, list []tasks.Snapshot) []tas
 }
 
 func (u *UI) notifyTask(task tasks.Snapshot) {
-	operation := parts.Operation(task.Kind)
-	title := locales.NotificationTaskSucceeded(operation)
-	body := task.Package
-	if task.ManagerName != "" {
-		body += " · " + task.ManagerName
-	}
-	if task.State == tasks.StateFailed {
-		title = locales.NotificationTaskFailed(operation)
-		if message := parts.TaskMessage(task); message != "" {
-			body += " — " + truncateMessage(message, 140)
-		}
-	}
+	title, body := notificationText(task)
 	notification := mygo.NewNotification(mygo.NotificationOptions{
 		ID:    "unipac-task-" + task.ID,
 		Title: title,
@@ -543,12 +526,56 @@ func taskStates(list []tasks.Snapshot) map[string]tasks.State {
 	return states
 }
 
-func truncateMessage(message string, limit int) string {
-	runes := []rune(message)
-	if len(runes) <= limit {
-		return message
+// notificationText says what the toast says, then what the task was about. The
+// command's output stays in the task: a notification shows a line, not a
+// console, and clicking it opens that task.
+func notificationText(task tasks.Snapshot) (title, body string) {
+	title = successLabel(task.Kind)
+	if task.State == tasks.StateFailed {
+		title = failureLabel(task.Kind, task.Package)
 	}
-	return string(runes[:limit]) + "…"
+	body = task.Package
+	if task.ManagerName != "" {
+		body += " · " + task.ManagerName
+	}
+	return title, body
+}
+
+// taskKind is the task an action records. The op strings are what the pages use
+// to mark a row busy.
+func taskKind(op string) tasks.Kind {
+	switch op {
+	case "install":
+		return tasks.KindInstall
+	case "remove":
+		return tasks.KindUninstall
+	default:
+		return tasks.KindUpdate
+	}
+}
+
+// successLabel and failureLabel word an outcome once, for the toast and the
+// notification, so the two never disagree.
+func successLabel(kind tasks.Kind) string {
+	switch kind {
+	case tasks.KindInstall:
+		return locales.ToastInstalled()
+	case tasks.KindUninstall:
+		return locales.ToastRemoved()
+	default:
+		return locales.ToastUpdated()
+	}
+}
+
+func failureLabel(kind tasks.Kind, name string) string {
+	switch kind {
+	case tasks.KindInstall:
+		return locales.ToastInstallFailed(name)
+	case tasks.KindUninstall:
+		return locales.ToastRemoveFailed(name)
+	default:
+		return locales.ToastUpdateFailed(name)
+	}
 }
 
 // RetryTask runs a failed task's operation again. The new attempt is a new
@@ -573,15 +600,15 @@ func (u *UI) RetryTask(task tasks.Snapshot, at flight.Origin) {
 	case tasks.KindInstall:
 		u.runTask("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 			return u.svc.InstallPackage(pkg, opt)
-		}, locales.ToastInstalled())
+		})
 	case tasks.KindUpdate:
 		u.runTask("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 			return u.svc.UpdatePackage(pkg, opt)
-		}, locales.ToastUpdated())
+		})
 	case tasks.KindUninstall:
 		u.runTask("remove", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 			return u.svc.UninstallPackage(pkg, opt)
-		}, locales.ToastRemoved())
+		})
 	}
 }
 
