@@ -27,8 +27,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 			Capabilities: *manager.
 				DefaultCapabilities().
 				WithSearch(true).
-				WithListOutdated(true).
-				WithListVersions(true),
+				WithListOutdated(true),
 		},
 	}
 }
@@ -408,26 +407,15 @@ func (a *Adapter) Update(pkgs []manager.Package, opt manager.ActionOptions) (man
 	return manager.SuccessResult("Updated Homebrew package(s)"), nil
 }
 
-// ListVersions returns Homebrew's currently available stable version for a package.
+// ListVersions is not offered, and the capability says so.
+//
+// `brew info --json=v2` reports one stable version and a head, never the
+// versions a formula has published before: those live in the tap's git history,
+// and installing one means fetching a tarball by URL or finding a versioned
+// formula that is a package of its own (`python@3.12`). A choice of one is not a
+// choice, so the interface has no version picker for Homebrew.
 func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
-	output, err := a.GetPackageInfo(pkg)
-	if err != nil {
-		return nil, err
-	}
-
-	var cask brewCaskInfo
-	if err := json.Unmarshal([]byte(output), &cask); err == nil && cask.Version != "" {
-		return []string{cask.Version}, nil
-	}
-
-	var formula brewFormulaInfo
-	if err := json.Unmarshal([]byte(output), &formula); err != nil {
-		return nil, fmt.Errorf("failed to parse brew formula info output: %w", err)
-	}
-	if formula.Versions.Stable == "" {
-		return []string{}, nil
-	}
-	return []string{formula.Versions.Stable}, nil
+	return nil, fmt.Errorf("list versions not available for brew")
 }
 
 func (a *Adapter) runAction(args []string, successMsg string) (manager.ActionResult, error) {

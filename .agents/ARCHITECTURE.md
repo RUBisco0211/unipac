@@ -695,8 +695,9 @@ Task UI:
 
 ## Suggested Near-Term Cleanup
 
-- Version selection is not implemented: no page offers `ListVersions` yet, even
-  for managers that advertise it.
+- Version selection is not implemented: the backend route exists and npm
+  advertises `ListVersions`, but the port does not carry it and no page offers it.
+  `.agents/HANDOFF_VERSION_SELECTION.md` has the design.
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.
@@ -728,3 +729,6 @@ Kept so nobody re-opens them:
   PATH the login shell has.
 - A config file that does not parse is kept as `unipac.json.bad-<time>` instead
   of being replaced without a word.
+- Homebrew does not advertise `ListVersions`: `brew info --json=v2` reports one
+  stable version and a head, never the versions a formula published before, so a
+  picker would offer a choice of one.

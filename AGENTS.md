@@ -11,6 +11,8 @@ webview, no JavaScript.
 Read [.agents/ARCHITECTURE.md](.agents/ARCHITECTURE.md) before changing code.
 [.agents/PACKAGE_MANAGER_ADAPTERS.md](.agents/PACKAGE_MANAGER_ADAPTERS.md) holds
 adapter capability boundaries and per-manager CLI details.
+[.agents/HANDOFF_VERSION_SELECTION.md](.agents/HANDOFF_VERSION_SELECTION.md) is
+the plan for letting a user install a version other than the newest.
 
 The app was rebuilt from Wails + Vue into MyGo native UI; the architecture
 document records what that settled. Open questions live in the "Suggested

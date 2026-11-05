@@ -86,3 +86,15 @@ func TestSplitBrewPackageNamesRoutesCasks(t *testing.T) {
 		t.Errorf("casks = %v, want %v", casks, want)
 	}
 }
+
+// Homebrew publishes one version per formula, so it does not advertise version
+// lookup: a choice of one is not a choice, and the interface shows no picker.
+func TestVersionLookupIsNotOffered(t *testing.T) {
+	a := &Adapter{ctx: context.Background(), info: &manager.Info{ID: "brew"}}
+	if a.Info().Capabilities.ListVersions {
+		t.Fatal("brew advertises version lookup")
+	}
+	if _, err := a.ListVersions(manager.Package{Name: "mole"}); err == nil {
+		t.Error("ListVersions answered for a manager that does not offer it")
+	}
+}

@@ -100,11 +100,16 @@ Use conservative capabilities. Only advertise a capability when the implementati
 
 | Manager | ListInstalled | ListOutdated | GetPackageInfo | Search | Install | Uninstall | Update | ListVersions |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| brew | yes | yes | yes | yes | yes | yes | yes | no |
 | npm | yes | yes | yes | yes | yes | yes | yes | yes |
 | pip | yes | yes | yes | limited | yes | yes | yes | limited |
 | pipx | yes | limited | yes | no | yes | yes | yes | no |
 | cargo | yes | no | limited | yes | yes | yes | no | no |
 | uv-tool | yes | yes | yes | no | yes | yes | yes | no |
+
+Homebrew's `ListVersions` is `no` and stays there: `brew info --json=v2` reports
+one stable version and a head, and the versions a formula published before live
+only in the tap's git history, so there is no list to offer.
 
 `limited` means the operation can be implemented later if the CLI behavior is verified and parsing is stable. First implementations should usually set limited capabilities to `false`.
 
