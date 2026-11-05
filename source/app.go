@@ -72,6 +72,10 @@ func (a *App) Startup(ctx context.Context) error {
 	if err := util.InitAppRoot(util.AppDirName); err != nil {
 		return a.fail("init app root dir", err)
 	}
+	// Opened from Finder, the Dock or Spotlight, the app is launched with a
+	// minimal PATH and every manager would look missing; the tools' own
+	// directories are added before anything probes for them.
+	util.EnsureToolPath()
 	mygo.App.SetPath(mygo.PathUserData, util.AppRoot)
 
 	if err := config.Init(); err != nil {
