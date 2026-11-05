@@ -451,13 +451,14 @@ built with, the toolkit versions from the build's own module info, and the data 
 log folders with a button that opens each and one that copies the lot — with every
 manager's name, version, state, package count and gaps — into a bug report.
 
-The package managers are tabs, one per manager, with the first chosen. A tab holds
-a panel of key-value rows, because the page is read as a list of answers: Status
-(available, or the red "executable not found"), Version, Executable with its path
-field and Apply, Packages (counted from `Data.Rows` and rebuilt only when
-`Data.Version` changes), Capabilities, and Enabled. The tabs follow the manager's
-ID rather than its position, so a rescan that reorders or adds managers keeps the
-tab the user was on.
+The package managers are segmented tabs, one per manager, with the first chosen.
+A tab holds a panel of key-value rows, because the page is read as a list of
+answers: Status (available, or the red "executable not found"), the Enabled
+switch, Version, Executable with its path field and Apply, Packages (counted from
+`Data.Rows` and rebuilt only when `Data.Version` changes), and Capabilities. The
+switch sits second, under the state it explains, so turning a manager off is where
+the eye lands first. The tabs follow the manager's ID rather than its position, so
+a rescan that reorders or adds managers keeps the tab the user was on.
 
 Capabilities are badges, one per capability in the adapter guide's order: a check
 in green for what the manager offers and a cross in red for what it does not. That

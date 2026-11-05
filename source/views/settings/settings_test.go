@@ -302,11 +302,11 @@ func TestManagerPanelListsItsFactsInOrder(t *testing.T) {
 
 	labels := []string{
 		locales.SettingsManagerStatus(),
+		locales.SettingsManagerEnabled(),
 		locales.SettingsManagerVersion(),
 		locales.SettingsManagerExecutable(),
 		locales.SettingsManagerPackages(),
 		locales.SettingsCapabilities(),
-		locales.SettingsManagerEnabled(),
 	}
 	previous := float32(-1)
 	for _, label := range labels {

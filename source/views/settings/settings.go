@@ -267,7 +267,7 @@ func (s *View) managerTabs(c *ui.Context) {
 	for i := range s.rows {
 		labels[i] = s.rows[i].info.Name
 	}
-	components.Tabs(c, &s.tab, components.TabsUnderline, labels...)
+	components.Tabs(c, &s.tab, components.TabsSegmented, labels...)
 	if s.tab >= 0 && s.tab < len(s.rows) {
 		s.tabID = s.rows[s.tab].info.ID
 	}
@@ -276,10 +276,11 @@ func (s *View) managerTabs(c *ui.Context) {
 	})
 }
 
-// managerPanel is one manager's settings as a list of answers: what it is, what
-// it can do, and the two controls that change it. A label and a value rather than
-// a form, because most of the page is information and the parts that are not are
-// obvious as controls.
+// managerPanel is one manager's settings as a list of answers: whether it runs,
+// what it is, what it can do, and the two controls that change it. A label and a
+// value rather than a form, because most of the page is information and the parts
+// that are not are obvious as controls. The switch sits second, under the state it
+// explains, so turning a manager off is where the eye lands first.
 func (s *View) managerPanel(c *ui.Context, row *managerRow) {
 	t := c.Theme()
 	ui.Column(c).FillWidth().Children(func() {
@@ -289,6 +290,16 @@ func (s *View) managerPanel(c *ui.Context, row *managerRow) {
 				status, color = locales.SettingsNotFound(), t.Danger
 			}
 			components.Text(c, status).FontSize(12).TextColor(color)
+		})
+		parts.Divider(c)
+		parts.Divider(c)
+		s.field(c, locales.SettingsManagerEnabled(), func() {
+			before := row.enabled
+			sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
+			sw.Disabled(s.busy)
+			if row.enabled != before && s.OnSetEnabled != nil {
+				s.OnSetEnabled(row.info.ID, row.enabled)
+			}
 		})
 		parts.Divider(c)
 		s.field(c, locales.SettingsManagerVersion(), func() {
@@ -320,15 +331,6 @@ func (s *View) managerPanel(c *ui.Context, row *managerRow) {
 		parts.Divider(c)
 		s.field(c, locales.SettingsCapabilities(), func() {
 			s.capabilityBadges(c, row.info.Capabilities)
-		})
-		parts.Divider(c)
-		s.field(c, locales.SettingsManagerEnabled(), func() {
-			before := row.enabled
-			sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
-			sw.Disabled(s.busy)
-			if row.enabled != before && s.OnSetEnabled != nil {
-				s.OnSetEnabled(row.info.ID, row.enabled)
-			}
 		})
 	})
 }
