@@ -29,6 +29,7 @@ type View struct {
 	OnSetAutoScan func(on bool)
 	OnSetLogLevel func(level string)
 	OnSetLanguage func(tag string)
+	OnSetTheme    func(value string)
 	OnSetHold     func(on bool)
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
@@ -42,6 +43,7 @@ type View struct {
 	logLevel      string
 	levels        []string
 	language      string
+	theme         string
 	// languages are the tags UniPac is written in, in the app's own order.
 	languages []string
 
@@ -79,6 +81,7 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		levels:        service.LogLevels(),
 		language:      service.Language(),
 		languages:     service.Languages(),
+		theme:         service.Theme(),
 	}
 }
 
@@ -88,6 +91,7 @@ type Snapshot struct {
 	AutoScan      bool
 	LogLevel      string
 	Language      string
+	Theme         string
 	HoldToConfirm bool
 }
 
@@ -111,6 +115,7 @@ func (s *View) EndSave(err error, saved Snapshot) {
 	s.AutoScan = saved.AutoScan
 	s.logLevel = saved.LogLevel
 	s.language = saved.Language
+	s.theme = saved.Theme
 	s.HoldToConfirm = saved.HoldToConfirm
 	if err != nil {
 		s.err = err.Error()
@@ -173,6 +178,8 @@ func (s *View) Invalidate() {
 
 func (s *View) general(c *ui.Context) {
 	s.section(c, locales.SettingsGeneral(), "", nil, func() {
+		s.themeRow(c)
+		parts.Divider(c)
 		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.AutoScan, func(on bool) {
 			if s.OnSetAutoScan != nil {
 				s.OnSetAutoScan(on)
@@ -253,6 +260,35 @@ func (s *View) switchRow(c *ui.Context, title, description string, value *bool, 
 		sw.Disabled(s.busy)
 		if *value != before {
 			changed(*value)
+		}
+	})
+}
+
+// themeRow is the appearance: the system's, or one the user pinned. Onevra's
+// palette follows the frame's dark state, so nothing else has to change with it.
+func (s *View) themeRow(c *ui.Context) {
+	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
+			components.Text(c, locales.SettingsAppearance())
+			components.Text(c, locales.SettingsAppearanceDesc()).
+				FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
+		})
+		before := s.theme
+		sel := components.Select(c, &s.theme)
+		sel.Trigger.Label(locales.SettingsAppearance()).Width(150).Children(func() {
+			components.Text(c, appearanceLabel(s.theme)).SingleLine()
+		})
+		sel.Trigger.Disabled(s.busy)
+		sel.Popup(func(panel ui.Element) {
+			for _, value := range []string{"", "light", "dark"} {
+				option := sel.Item(value)
+				option.Label(appearanceLabel(value)).Children(func() {
+					components.Text(c, appearanceLabel(value)).SingleLine()
+				})
+			}
+		})
+		if s.theme != before && s.OnSetTheme != nil {
+			s.OnSetTheme(s.theme)
 		}
 	})
 }
@@ -441,6 +477,18 @@ func (s *View) applyPath(row *managerRow) {
 		return
 	}
 	s.OnSetPath(row.info.ID, path)
+}
+
+// appearanceLabel names one appearance choice. The empty value is the system's.
+func appearanceLabel(value string) string {
+	switch value {
+	case "light":
+		return locales.AppearanceLight()
+	case "dark":
+		return locales.AppearanceDark()
+	default:
+		return locales.AppearanceSystem()
+	}
 }
 
 // logLevelLabels names the levels the backend offers. A level this build does

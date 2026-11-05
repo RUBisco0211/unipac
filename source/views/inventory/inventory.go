@@ -32,6 +32,8 @@ type Service interface {
 	ReloadManagers() error
 	Language() string
 	Languages() []string
+	Theme() string
+	SetTheme(value string) error
 	SetLanguage(tag string) error
 	AutoScanOnLaunch() bool
 	SetAutoScanOnLaunch(on bool) error

@@ -85,6 +85,9 @@ func (a *App) Startup(ctx context.Context) error {
 		language = ""
 	}
 	mygo.App.SetLocale(language)
+	// The appearance is settled before the window exists, so it does not open in
+	// the system's and change under the user.
+	applyTheme(config.Instance.Theme)
 
 	if err := logging.Init(config.Instance.Log); err != nil {
 		return a.fail("init logging", err)
@@ -208,6 +211,39 @@ func (a *App) Languages() []string {
 
 // SetLanguage saves the chosen language and applies it at once. An empty tag
 // follows the system again.
+// Theme is the saved appearance: "light", "dark", or "" to follow the system.
+func (a *App) Theme() string {
+	return config.Instance.Theme
+}
+
+// SetTheme saves the appearance and applies it to the running window and to the
+// next launch.
+func (a *App) SetTheme(value string) error {
+	if !config.ThemeChosen(value) {
+		return fmt.Errorf("unknown appearance: %q", value)
+	}
+	slog.InfoContext(a.ctx, "changing appearance", "theme", value)
+	if err := config.SetTheme(value); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save the appearance", "error", err)
+		return err
+	}
+	applyTheme(value)
+	return nil
+}
+
+// applyTheme makes the system appearance, and with it the palette every frame
+// draws in, follow the saved choice.
+func applyTheme(value string) {
+	switch value {
+	case config.ThemeLight:
+		mygo.Theme.SetSource(mygo.ThemeLight)
+	case config.ThemeDark:
+		mygo.Theme.SetSource(mygo.ThemeDark)
+	default:
+		mygo.Theme.SetSource(mygo.ThemeSystem)
+	}
+}
+
 func (a *App) SetLanguage(tag string) error {
 	tag = strings.TrimSpace(tag)
 	if tag != "" && !slices.Contains(mygo.App.Languages(), tag) {

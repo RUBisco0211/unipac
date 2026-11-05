@@ -281,16 +281,17 @@ broke the JSON can be recovered instead of lost. It
 holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
 file keeps scanning), `hold_to_confirm` (nil means on: a destructive
 confirmation holds rather than clicks), `language` (the tag chosen in Settings,
-absent or empty to follow the system), and `managers`, a map of
-`manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
+absent or empty to follow the system), `theme` (`light`, `dark`, or absent to
+follow the system), and `managers`, a map of `manager.Settings` keyed by manager
+ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
 paths in it were auto-detected rather than chosen.
 
 `SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan`, `SetHoldToConfirm`,
-`SetLogLevel` and `SetLanguage` write a copy and only replace `Instance` after
-the file write succeeds, so a failed save leaves the running app on the values it
-started with.
+`SetLogLevel`, `SetTheme` and `SetLanguage` write a copy and only replace
+`Instance` after the file write succeeds, so a failed save leaves the running app
+on the values it started with.
 
 Upgrading from the snapshot format is one-way and lossy on purpose: the old
 `exec_path` values were auto-detected, not chosen, so they are not imported. On
@@ -432,10 +433,12 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 
 The settings page is one scrollable column of sections separated by rules, not cards.
 A section has a title with an optional trailing action, a sentence saying what
-its settings do, and a rule above the rows. The sections are startup behavior —
-scanning on launch, and whether a destructive confirmation is a hold or a click —
-the log level, the language (the app's languages plus System, named in their own
-language), and one row per package manager.
+its settings do, and a rule above the rows. The general section is the appearance
+(the system's, or a pinned light or dark one, applied with
+`mygo.Theme.SetSource` before the window opens and again when it changes),
+startup behavior — scanning on launch, and whether a destructive confirmation is
+a hold or a click — the log level, and the language (the app's languages plus
+System, named in their own language). Then one row per package manager.
 
 A manager row is three lines. The first holds the name with what the manager
 contributes and a switch: `Homebrew · 12 packages`, counted from `Data.Rows` and

@@ -162,6 +162,7 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetAutoScan = u.SetAutoScanOnLaunch
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
+	u.settings.OnSetTheme = u.SetTheme
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
@@ -1010,6 +1011,14 @@ func (u *UI) SetHoldToConfirm(on bool) {
 	})
 }
 
+// SetTheme saves the appearance; the backend applies it to the window and to the
+// next launch.
+func (u *UI) SetTheme(value string) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetTheme(value)
+	})
+}
+
 func (u *UI) SetLanguage(tag string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetLanguage(tag)
@@ -1036,6 +1045,7 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			AutoScan:      u.svc.AutoScanOnLaunch(),
 			LogLevel:      u.svc.LogLevel(),
 			Language:      u.svc.Language(),
+			Theme:         u.svc.Theme(),
 			HoldToConfirm: u.svc.HoldToConfirm(),
 		}
 		win.Update(func() {

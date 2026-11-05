@@ -32,7 +32,7 @@ Branch: `feature/settings`.
       (`Homebrew 7.0.12-105-g3cea970`, `11.17.0`, `uv 0.12.17 (…)`,
       `pip 26.2.1 from …`). Shown on the row's stats line; a reused preflight
       copies it too.
-- [ ] **Appearance.** A new `theme` config value (`system`, `light`, `dark`),
+- [x] **Appearance.** A new `theme` config value (`system`, `light`, `dark`),
       applied with `mygo.Theme.SetSource` before the window opens and on change.
       Onevra's palette already follows the frame's dark state, so the page needs
       no other work.

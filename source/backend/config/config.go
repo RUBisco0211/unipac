@@ -23,6 +23,9 @@ type Config struct {
 	Managers map[string]manager.Settings `json:"managers"`
 	// Language is the tag chosen in Settings, "" to follow the system.
 	Language string `json:"language,omitempty"`
+	// Theme is the appearance chosen in Settings: ThemeLight, ThemeDark, or ""
+	// to follow the system.
+	Theme string `json:"theme,omitempty"`
 	// HoldToConfirm is nil in a config written before the setting existed, which
 	// behaves like true: the destructive confirmations hold rather than click.
 	HoldToConfirm *bool `json:"hold_to_confirm,omitempty"`
@@ -179,6 +182,34 @@ func SetAutoScan(on bool) error {
 func SetHoldToConfirm(on bool) error {
 	cfg := Instance
 	cfg.HoldToConfirm = &on
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// The appearances Settings offers, the empty one following the system.
+const (
+	ThemeLight = "light"
+	ThemeDark  = "dark"
+)
+
+// ThemeChosen reports whether value is one of the appearances this build knows.
+func ThemeChosen(value string) bool {
+	switch value {
+	case "", ThemeLight, ThemeDark:
+		return true
+	default:
+		return false
+	}
+}
+
+// SetTheme saves the appearance, "" to follow the system. Applying it to the
+// running window is the caller's job.
+func SetTheme(value string) error {
+	cfg := Instance
+	cfg.Theme = value
 	if err := Save(cfg); err != nil {
 		return err
 	}

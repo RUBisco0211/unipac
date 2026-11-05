@@ -213,6 +213,11 @@
   "commonClickConfirm": "Confirm",
   "tasksConsoleShow": "Show console",
   "tasksConsoleHide": "Hide console",
+  "settingsAppearance": "Appearance",
+  "settingsAppearanceDesc": "Light, dark, or whatever your computer uses.",
+  "appearanceSystem": "Match system",
+  "appearanceLight": "Light",
+  "appearanceDark": "Dark",
   "settingsPackageCount": "{count, plural, =0 {no packages} one {# package} other {# packages}}",
   "@settingsPackageCount": {
     "placeholders": {

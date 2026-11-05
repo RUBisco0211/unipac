@@ -1438,6 +1438,56 @@ func (msgs Messages) TasksConsoleHide() string {
 	return Catalog.Format(msgs.locale, "tasksConsoleHide", nil)
 }
 
+// SettingsAppearance says "Appearance"
+// in the language the app shows.
+func SettingsAppearance() string { return In(i18n.Locale()).SettingsAppearance() }
+
+// SettingsAppearance says "Appearance"
+// in the language of msgs.
+func (msgs Messages) SettingsAppearance() string {
+	return Catalog.Format(msgs.locale, "settingsAppearance", nil)
+}
+
+// SettingsAppearanceDesc says "Light, dark, or whatever your computer uses."
+// in the language the app shows.
+func SettingsAppearanceDesc() string { return In(i18n.Locale()).SettingsAppearanceDesc() }
+
+// SettingsAppearanceDesc says "Light, dark, or whatever your computer uses."
+// in the language of msgs.
+func (msgs Messages) SettingsAppearanceDesc() string {
+	return Catalog.Format(msgs.locale, "settingsAppearanceDesc", nil)
+}
+
+// AppearanceSystem says "Match system"
+// in the language the app shows.
+func AppearanceSystem() string { return In(i18n.Locale()).AppearanceSystem() }
+
+// AppearanceSystem says "Match system"
+// in the language of msgs.
+func (msgs Messages) AppearanceSystem() string {
+	return Catalog.Format(msgs.locale, "appearanceSystem", nil)
+}
+
+// AppearanceLight says "Light"
+// in the language the app shows.
+func AppearanceLight() string { return In(i18n.Locale()).AppearanceLight() }
+
+// AppearanceLight says "Light"
+// in the language of msgs.
+func (msgs Messages) AppearanceLight() string {
+	return Catalog.Format(msgs.locale, "appearanceLight", nil)
+}
+
+// AppearanceDark says "Dark"
+// in the language the app shows.
+func AppearanceDark() string { return In(i18n.Locale()).AppearanceDark() }
+
+// AppearanceDark says "Dark"
+// in the language of msgs.
+func (msgs Messages) AppearanceDark() string {
+	return Catalog.Format(msgs.locale, "appearanceDark", nil)
+}
+
 // SettingsPackageCount says "{count, plural, =0 {no packages} one {# package} other {# packages}}"
 // in the language the app shows.
 func SettingsPackageCount(count int) string { return In(i18n.Locale()).SettingsPackageCount(count) }

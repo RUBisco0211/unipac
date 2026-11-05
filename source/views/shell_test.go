@@ -638,6 +638,7 @@ func (wiredService) LogLevel() string                              { return "" }
 func (wiredService) LogLevels() []string                           { return nil }
 func (wiredService) Language() string                              { return "" }
 func (wiredService) Languages() []string                           { return nil }
+func (wiredService) Theme() string                                 { return "" }
 
 // The search page's version picker is the shell's to answer. A page that lost
 // the wiring would quietly install the newest version instead of asking, which

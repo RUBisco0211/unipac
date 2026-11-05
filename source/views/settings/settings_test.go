@@ -24,6 +24,7 @@ func settingsFixture() *View {
 		levels:    []string{"debug", "info", "warn", "error"},
 		language:  "",
 		languages: []string{"en", "zh-CN"},
+		theme:     "",
 	}
 }
 
@@ -285,5 +286,54 @@ func TestManagerRowShowsTheVersion(t *testing.T) {
 	tt = render(t, s.Build, 900, 700)
 	if tt.HasText("4.6.1") {
 		t.Errorf("a version survived a rebuild without one: %v", tt.Texts())
+	}
+}
+
+// The appearance choice reaches the backend, and the trigger names what is in
+// use rather than the row's own title.
+func TestSettingsAppearanceReachesBackend(t *testing.T) {
+	s := settingsFixture()
+	s.theme = "light"
+	var got string
+	s.OnSetTheme = func(value string) { got = value }
+
+	tt := render(t, s.Build, 900, 700)
+	if !tt.HasText(locales.AppearanceLight()) {
+		t.Errorf("the current appearance is not shown: %v", tt.Texts())
+	}
+	if err := tt.Click(locales.AppearanceLight()); err != nil {
+		t.Fatalf("open the appearance select: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click(locales.AppearanceDark()); err != nil {
+		t.Fatalf("choose dark: %v", err)
+	}
+	tt.Frame()
+	if got != "dark" {
+		t.Fatalf("appearance sent %q, want dark", got)
+	}
+}
+
+// The system choice is the empty value, which is what a config without the
+// setting holds.
+func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
+	s := settingsFixture()
+	var got string
+	s.OnSetTheme = func(value string) { got = value }
+
+	tt := render(t, s.Build, 900, 700)
+	if err := tt.Click(locales.AppearanceSystem()); err != nil {
+		t.Fatalf("open the appearance select: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click(locales.AppearanceDark()); err != nil {
+		t.Fatalf("choose dark: %v", err)
+	}
+	tt.Frame()
+	if got != "dark" {
+		t.Fatalf("appearance sent %q, want dark", got)
+	}
+	if s.theme != "dark" {
+		t.Fatalf("the page did not keep the choice: %q", s.theme)
 	}
 }
