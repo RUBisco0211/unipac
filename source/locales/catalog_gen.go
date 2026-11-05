@@ -1437,3 +1437,95 @@ func TasksConsoleHide() string { return In(i18n.Locale()).TasksConsoleHide() }
 func (msgs Messages) TasksConsoleHide() string {
 	return Catalog.Format(msgs.locale, "tasksConsoleHide", nil)
 }
+
+// VersionsTitle says "Install a version"
+// in the language the app shows.
+func VersionsTitle() string { return In(i18n.Locale()).VersionsTitle() }
+
+// VersionsTitle says "Install a version"
+// in the language of msgs.
+func (msgs Messages) VersionsTitle() string {
+	return Catalog.Format(msgs.locale, "versionsTitle", nil)
+}
+
+// VersionsFor says "Choose a version of {name} from {manager}"
+// in the language the app shows.
+func VersionsFor(name string, manager string) string {
+	return In(i18n.Locale()).VersionsFor(name, manager)
+}
+
+// VersionsFor says "Choose a version of {name} from {manager}"
+// in the language of msgs.
+func (msgs Messages) VersionsFor(name string, manager string) string {
+	return Catalog.Format(msgs.locale, "versionsFor", map[string]any{"name": name, "manager": manager})
+}
+
+// VersionsSearch says "Search versions"
+// in the language the app shows.
+func VersionsSearch() string { return In(i18n.Locale()).VersionsSearch() }
+
+// VersionsSearch says "Search versions"
+// in the language of msgs.
+func (msgs Messages) VersionsSearch() string {
+	return Catalog.Format(msgs.locale, "versionsSearch", nil)
+}
+
+// VersionsLoading says "Loading versions…"
+// in the language the app shows.
+func VersionsLoading() string { return In(i18n.Locale()).VersionsLoading() }
+
+// VersionsLoading says "Loading versions…"
+// in the language of msgs.
+func (msgs Messages) VersionsLoading() string {
+	return Catalog.Format(msgs.locale, "versionsLoading", nil)
+}
+
+// VersionsFailed says "Could not list versions"
+// in the language the app shows.
+func VersionsFailed() string { return In(i18n.Locale()).VersionsFailed() }
+
+// VersionsFailed says "Could not list versions"
+// in the language of msgs.
+func (msgs Messages) VersionsFailed() string {
+	return Catalog.Format(msgs.locale, "versionsFailed", nil)
+}
+
+// VersionsEmpty says "No versions to choose"
+// in the language the app shows.
+func VersionsEmpty() string { return In(i18n.Locale()).VersionsEmpty() }
+
+// VersionsEmpty says "No versions to choose"
+// in the language of msgs.
+func (msgs Messages) VersionsEmpty() string {
+	return Catalog.Format(msgs.locale, "versionsEmpty", nil)
+}
+
+// VersionsTruncated says "Showing the newest {count}"
+// in the language the app shows.
+func VersionsTruncated(count string) string { return In(i18n.Locale()).VersionsTruncated(count) }
+
+// VersionsTruncated says "Showing the newest {count}"
+// in the language of msgs.
+func (msgs Messages) VersionsTruncated(count string) string {
+	return Catalog.Format(msgs.locale, "versionsTruncated", map[string]any{"count": count})
+}
+
+// VersionsInstallLatest says "Install latest"
+// in the language the app shows.
+func VersionsInstallLatest() string { return In(i18n.Locale()).VersionsInstallLatest() }
+
+// VersionsInstallLatest says "Install latest"
+// in the language of msgs.
+func (msgs Messages) VersionsInstallLatest() string {
+	return Catalog.Format(msgs.locale, "versionsInstallLatest", nil)
+}
+
+// VersionsConfirm says "Install this version"
+// in the language the app shows.
+func VersionsConfirm() string { return In(i18n.Locale()).VersionsConfirm() }
+
+// VersionsConfirm says "Install this version"
+// in the language of msgs.
+func (msgs Messages) VersionsConfirm() string {
+	return Catalog.Format(msgs.locale, "versionsConfirm", nil)
+}

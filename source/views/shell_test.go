@@ -622,3 +622,32 @@ func TestToastsSitBottomRight(t *testing.T) {
 		t.Errorf("the toast is at y=%.0f, on the top half of a 500 high window", toast.Y)
 	}
 }
+
+// wiredService answers the calls building the window makes.
+type wiredService struct {
+	inventory.Service
+}
+
+func (wiredService) ListManagers() []manager.Info                  { return nil }
+func (wiredService) ManagerOverrides() map[string]manager.Settings { return nil }
+func (wiredService) GetCachedPackages() ([]manager.Package, error) { return nil, nil }
+func (wiredService) ListTasks() []tasks.Snapshot                   { return nil }
+func (wiredService) AutoScanOnLaunch() bool                        { return false }
+func (wiredService) HoldToConfirm() bool                           { return true }
+func (wiredService) LogLevel() string                              { return "" }
+func (wiredService) LogLevels() []string                           { return nil }
+func (wiredService) Language() string                              { return "" }
+func (wiredService) Languages() []string                           { return nil }
+
+// The search page's version picker is the shell's to answer. A page that lost
+// the wiring would quietly install the newest version instead of asking, which
+// looks like a working button.
+func TestSearchPageAsksTheShellForVersions(t *testing.T) {
+	u := New(wiredService{})
+	if u.search.OnVersions == nil {
+		t.Error("the search page cannot ask for a package's versions")
+	}
+	if u.search.OnInstallVersion == nil {
+		t.Error("the search page cannot install a chosen version")
+	}
+}

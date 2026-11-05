@@ -167,5 +167,14 @@
   "tasksQuitCancel": "继续运行",
   "commonClickConfirm": "确认",
   "tasksConsoleShow": "显示控制台",
-  "tasksConsoleHide": "隐藏控制台"
+  "tasksConsoleHide": "隐藏控制台",
+  "versionsTitle": "选择安装版本",
+  "versionsFor": "选择 {name} 的版本（来自 {manager}）",
+  "versionsSearch": "搜索版本",
+  "versionsLoading": "正在加载版本…",
+  "versionsFailed": "无法列出版本",
+  "versionsEmpty": "没有可选择的版本",
+  "versionsTruncated": "仅显示最新的 {count} 个版本",
+  "versionsInstallLatest": "安装最新版本",
+  "versionsConfirm": "安装此版本"
 }

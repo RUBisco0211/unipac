@@ -212,5 +212,31 @@
   "tasksQuitCancel": "Keep running",
   "commonClickConfirm": "Confirm",
   "tasksConsoleShow": "Show console",
-  "tasksConsoleHide": "Hide console"
+  "tasksConsoleHide": "Hide console",
+  "versionsTitle": "Install a version",
+  "versionsFor": "Choose a version of {name} from {manager}",
+  "@versionsFor": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "manager": {
+        "type": "String"
+      }
+    }
+  },
+  "versionsSearch": "Search versions",
+  "versionsLoading": "Loading versions…",
+  "versionsFailed": "Could not list versions",
+  "versionsEmpty": "No versions to choose",
+  "versionsTruncated": "Showing the newest {count}",
+  "@versionsTruncated": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "versionsInstallLatest": "Install latest",
+  "versionsConfirm": "Install this version"
 }

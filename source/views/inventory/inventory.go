@@ -18,6 +18,9 @@ type Service interface {
 	GetCachedPackages() ([]manager.Package, error)
 	UpdateCache() error
 	SearchPackages(keyword string, managerIDs []string) (manager.SearchResult, error)
+	// ListPackageVersions is every version a manager published for a package,
+	// oldest first, for the managers that advertise ListVersions.
+	ListPackageVersions(managerID string, name string) ([]string, error)
 	InstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UpdatePackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)

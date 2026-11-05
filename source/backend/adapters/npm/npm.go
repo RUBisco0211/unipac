@@ -199,11 +199,18 @@ func (a *Adapter) ListVersions(pkg manager.Package) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseVersions([]byte(res.Stdout))
+}
 
+// parseVersions reads what `npm view <name> versions --json` prints: the array of
+// every published version, or the single version of a package published once. It
+// keeps npm's order, which is oldest first; the picker that shows the list sorts
+// it the way it shows it.
+func parseVersions(output []byte) ([]string, error) {
 	var versions []string
-	if err := json.Unmarshal([]byte(res.Stdout), &versions); err != nil {
+	if err := json.Unmarshal(output, &versions); err != nil {
 		var single string
-		if singleErr := json.Unmarshal([]byte(res.Stdout), &single); singleErr != nil {
+		if singleErr := json.Unmarshal(output, &single); singleErr != nil {
 			return nil, fmt.Errorf("failed to parse npm versions output: %w", err)
 		}
 		versions = []string{single}

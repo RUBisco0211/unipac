@@ -25,6 +25,12 @@ type View struct {
 	Submit    func(query string, managerIDs []string)
 	OnInstall func(manager.Package, flight.Origin)
 	OnUpdate  func(manager.Package, flight.Origin)
+	// OnInstallVersion installs one version of a package, the one chosen in the
+	// version dialog.
+	OnInstallVersion func(manager.Package, string, flight.Origin)
+	// OnVersions asks the shell for a package's versions. The page passes the
+	// sequence number it registered, and the answer comes back to SetVersions.
+	OnVersions func(manager.Package, int)
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
 
@@ -59,6 +65,11 @@ type View struct {
 
 	// seenManagers is the manager list the results were last checked against.
 	seenManagers int
+
+	// versions caches each package's version lookup for the page's life, and
+	// picker is the dialog that chooses one of them.
+	versions map[string]*versionState
+	picker   picker
 }
 
 func (s *View) Build(c *ui.Context) {
@@ -78,6 +89,7 @@ func (s *View) Build(c *ui.Context) {
 			parts.LoadingBar(c, body)
 		}
 	})
+	s.versionDialog(c)
 }
 
 // syncManagers drops results from managers that were turned off since the
@@ -347,7 +359,7 @@ func (s *View) rowAction(c *ui.Context, pkg manager.Package) {
 		button := s.actionButton(c, updating, working)
 		button.Disabled(!canAct)
 		if button.Clicked() && canAct {
-			s.run(pkg, updating, flight.OriginOf(button))
+			s.install(pkg, updating, flight.OriginOf(button), caps)
 		}
 	})
 	switch {
@@ -389,6 +401,7 @@ func spinning(c *ui.Context, button ui.Element) ui.Element {
 	return button.Rotate(button.Loop("busy", 900*time.Millisecond, ui.Linear) * 360)
 }
 
+// run runs what the row's action does.
 func (s *View) run(pkg manager.Package, updating bool, at flight.Origin) {
 	if updating {
 		if s.OnUpdate != nil {
@@ -399,6 +412,16 @@ func (s *View) run(pkg manager.Package, updating bool, at flight.Origin) {
 	if s.OnInstall != nil {
 		s.OnInstall(pkg, at)
 	}
+}
+
+// install runs the row's install, which is a choice of version for a manager
+// that can list them and a plain install for one that cannot.
+func (s *View) install(pkg manager.Package, updating bool, at flight.Origin, caps manager.Capabilities) {
+	if !updating && s.pickable(caps) {
+		s.openVersions(pkg)
+		return
+	}
+	s.run(pkg, updating, at)
 }
 
 // actionName is the operation the inventory marks a package busy with.

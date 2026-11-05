@@ -137,10 +137,12 @@ func New(service inventory.Service) *UI {
 		OnBulkUpdate: u.BulkUpdate,
 	}
 	u.search = &search.View{
-		Data:      u.data,
-		Submit:    u.Search,
-		OnInstall: u.Install,
-		OnUpdate:  u.Update,
+		Data:             u.data,
+		Submit:           u.Search,
+		OnInstall:        u.Install,
+		OnUpdate:         u.Update,
+		OnVersions:       u.Versions,
+		OnInstallVersion: u.InstallVersion,
 	}
 	u.tasks = &taskspage.View{
 		Data:          u.data,
@@ -287,6 +289,34 @@ func (u *UI) Update(pkg manager.Package, at flight.Origin) {
 	u.runTask("update", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.UpdatePackage(pkg, manager.ActionOptions{})
 	})
+}
+
+// InstallVersion installs the version chosen in the search page's dialog; an
+// empty version asks for the newest, the way a plain install does.
+func (u *UI) InstallVersion(pkg manager.Package, version string, at flight.Origin) {
+	u.runTask("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
+		return u.svc.InstallPackage(pkg, manager.ActionOptions{Version: version})
+	})
+}
+
+// Versions looks up the versions a package can be installed at, off the UI
+// thread, and hands the answer back to the search page with the sequence number
+// it asked under. A failure is logged: the page shows a line, not the tool's
+// output.
+func (u *UI) Versions(pkg manager.Package, seq int) {
+	if u.shell == nil || u.svc == nil {
+		return
+	}
+	win := u.shell.Window()
+	go func() {
+		versions, err := u.svc.ListPackageVersions(pkg.Manager, pkg.Name)
+		if err != nil {
+			slog.Warn("views: listing versions failed", "manager", pkg.Manager, "package", pkg.Name, "error", err)
+		}
+		win.Update(func() {
+			u.search.SetVersions(pkg, seq, versions, err)
+		})
+	}()
 }
 
 func (u *UI) Remove(pkg manager.Package, at flight.Origin) {
