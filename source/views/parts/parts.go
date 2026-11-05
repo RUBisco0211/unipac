@@ -86,6 +86,18 @@ func markNote(c *ui.Context, mark inventory.Mark) {
 	})
 }
 
+// TitleButton builds an icon button in the title bar. Every one of them sits in
+// the same box, so the tasks button and a page's own line up: the button is
+// square around its glyph, and the box keeps its height off the row's.
+func TitleButton(c *ui.Context, icon *ui.SVG, label string) ui.Element {
+	t := c.Theme()
+	var button ui.Element
+	ui.Box(c).Shrink(0).Width(t.Space(8)).Height(t.Space(7)).Center().Children(func() {
+		button = components.IconButton(c, icon, label, components.IconButtonPlain)
+	})
+	return button
+}
+
 // ManagerBadge renders the manager label in a badge tinted by the manager ID.
 // It reuses components.Badge so both badges in a row share their geometry, and
 // only overrides the colors: Onevra's Badge offers status tones, not a

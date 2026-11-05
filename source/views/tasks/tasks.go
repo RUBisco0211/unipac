@@ -525,7 +525,7 @@ func (s *View) Build(c *ui.Context) {
 		// A box of no size owns the panel's animation, so its share slides
 		// between open and closed instead of jumping.
 		grip := ui.Box(c).Key("console-grip").Width(0).Height(0)
-		shown := grip.AnimateTo("console", s.consoleShare(), ui.Snappy)
+		shown := grip.AnimateTo("console", s.consoleShare(), consoleAnimation)
 		if s.consoleClosed && shown <= 0.001 {
 			// Closed: the table takes the page, with no divider left behind.
 			s.tablePane(c, top)
@@ -559,6 +559,10 @@ func (s *View) consoleShare() float32 {
 // secondMin is the console's narrowest, before closing takes it to nothing.
 const secondMin = 280
 
+// consoleAnimation moves the panel at the pace the sidebar collapses, a touch
+// quicker: the two are the same gesture, putting a panel away.
+var consoleAnimation = ui.Animation{Duration: 180 * time.Millisecond, Ease: ui.EaseOut}
+
 // ToggleConsole opens or closes the console panel.
 func (s *View) ToggleConsole() {
 	s.consoleClosed = !s.consoleClosed
@@ -577,7 +581,7 @@ func (s *View) TitleAction(c *ui.Context) {
 	if s.consoleClosed {
 		label, icon = locales.TasksConsoleShow(), lucide.PanelRightOpen()
 	}
-	button := components.IconButton(c, icon, label, components.IconButtonPlain)
+	button := parts.TitleButton(c, icon, label)
 	components.Tooltip(c, button, label)
 	if button.Clicked() {
 		s.ToggleConsole()

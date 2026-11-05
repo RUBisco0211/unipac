@@ -23,6 +23,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
+	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
 	"github.com/RUBisco0211/unipac/source/views/settings"
 	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
@@ -786,16 +787,12 @@ func (u *UI) windowTitle(c *ui.Context) {
 // tasksButton is the title bar's shortcut to the tasks page, with a badge while
 // tasks run. Its rectangle is the destination of the flight from a task.
 func (u *UI) tasksButton(c *ui.Context) {
-	t := c.Theme()
-	box := ui.Box(c).Shrink(0).Width(t.Space(8)).Height(t.Space(7)).Center()
-	box.Children(func() {
-		button := components.IconButton(c, lucide.ListTodo(), locales.NavTasks(), components.IconButtonPlain)
-		if button.Clicked() {
-			u.navigate(PageTasks)
-		}
-		u.jobTarget = button.Bounds()
-		countBadge(c, u.runningTasks())
-	})
+	button := parts.TitleButton(c, lucide.ListTodo(), locales.NavTasks())
+	if button.Clicked() {
+		u.navigate(PageTasks)
+	}
+	u.jobTarget = button.Bounds()
+	countBadge(c, u.runningTasks())
 }
 
 // leftHeader is the trailing part of the sidebar header, kept empty so the
