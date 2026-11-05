@@ -670,7 +670,7 @@ func (s *View) body(c *ui.Context) {
 		s.table.List.KeepOffset = true
 		s.table.List.OnChange = s.choose
 		// The table's inset from the page, as the package tables have.
-		ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
+		ui.Box(c).Fill().MinHeight(0).Children(func() {
 			components.TableVirtualized(c, &s.table, s.columns(), len(s.rows), func(row, col int) {
 				s.cell(c, row, col)
 			}).Fill()
@@ -707,7 +707,10 @@ func (s *View) cell(c *ui.Context, row, col int) {
 	task := s.rows[row]
 	switch col {
 	case 0:
-		s.operationCell(c, task)
+		// The first cell's own inset, as the package tables have.
+		ui.Row(c).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
+			s.operationCell(c, task)
+		})
 	case 1:
 		// Two lines, like the package tables' name and description, so both
 		// tables have the same row height.

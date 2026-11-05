@@ -315,7 +315,7 @@ func (s *View) body(c *ui.Context) {
 			// The same insets as the package tables: the table brings its own
 			// cell padding, and the trailing pad column keeps the last control
 			// off the window edge.
-			ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1.5)).Children(func() {
+			ui.Box(c).Fill().MinHeight(0).Children(func() {
 				components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
 					pkg := s.results[row]
 					switch {

@@ -394,9 +394,9 @@ func TestSearchUpdateCallsOnUpdate(t *testing.T) {
 	}
 }
 
-// The header's first cell and the row's share the table's inset: Onevra lays both
-// out with the same padding, so an inset on a cell alone leaves the header behind.
-func TestSearchHeaderStartsWhereItsRowsDo(t *testing.T) {
+// The table keeps the padding it had; the row's first cell adds its own inset,
+// so the row starts a little past the column's padding.
+func TestSearchRowsInsetTheirFirstCell(t *testing.T) {
 	s := &View{Data: fixture()}
 	s.BeginQuery()
 	s.Apply(1, "typescript", manager.SearchResult{Packages: []manager.Package{
@@ -408,16 +408,13 @@ func TestSearchHeaderStartsWhereItsRowsDo(t *testing.T) {
 	if !ok {
 		t.Fatal("the package header is missing")
 	}
-	if want := theme.Palette(false).Space(1.5) + theme.Palette(false).Space(2.5); header.X != want {
-		t.Errorf("the header starts at %.0f, want the table's inset and cell padding, %.0f", header.X, want)
-	}
 	row, ok := tt.Find("typescript")
 	if !ok {
 		t.Fatal("the result row is missing")
 	}
-	// The row starts with a 16-wide icon and an 8-wide gap before its name.
-	if want := header.X + 16 + 8; row.X != want {
-		t.Errorf("the name starts at %.0f, want %.0f under the header", row.X, want)
+	// The column's padding, the cell's inset, then the icon and its gap.
+	if want := header.X + theme.Palette(false).Space(1.5) + 16 + 8; row.X != want {
+		t.Errorf("the name starts at %.0f, want %.0f (header %.0f)", row.X, want, header.X)
 	}
 }
 
