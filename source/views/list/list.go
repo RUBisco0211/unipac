@@ -590,7 +590,7 @@ func (l *View) cell(c *ui.Context, row, col int) {
 	case l.actions:
 		l.rowActions(c, pkg)
 	default:
-		parts.Cell(c, pkg, col-1, l.Data.Name)
+		parts.Cell(c, pkg, col-1, l.Data.Name, false)
 	}
 }
 

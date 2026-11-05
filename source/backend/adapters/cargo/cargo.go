@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -70,7 +71,7 @@ func (a Adapter) ListOutdated() ([]manager.Package, error) {
 }
 
 func (a Adapter) Search(keyword string) ([]manager.Package, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"search", keyword, "--limit", "20"}, nil)
+	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"search", keyword, "--limit", strconv.Itoa(manager.MaxSearchResults)}, nil)
 	if err != nil {
 		return nil, err
 	}

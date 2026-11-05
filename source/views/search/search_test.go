@@ -1,6 +1,7 @@
 package search
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -28,10 +29,10 @@ func TestSearchResultsArrivingAfterManagerOffAreFiltered(t *testing.T) {
 	}, map[string]manager.Settings{})
 	s.syncManagers() // the page rebuilt while the search was in flight
 
-	s.apply("typescript", []manager.Package{
+	s.apply("typescript", manager.SearchResult{Packages: []manager.Package{
 		{Name: "typescript", Manager: "npm"},
 		{Name: "ripgrep", Manager: "brew"},
-	}, nil)
+	}}, nil)
 
 	if len(s.results) != 1 || s.results[0].Manager != "brew" {
 		t.Fatalf("results from the turned-off manager survived: %+v", s.results)
@@ -193,7 +194,7 @@ func TestSearchApplyLeavesManagerReconciliation(t *testing.T) {
 	d.Managers[2].Enabled = true
 	d.Managers[2].Capabilities.Search = true
 	d.ManagersVersion++
-	s.apply("query", nil, nil)
+	s.apply("query", manager.SearchResult{}, nil)
 	s.syncManagers()
 
 	if !s.managerFilter["cargo"] {
@@ -238,5 +239,58 @@ func TestSearchNoManagersIsAnEmptySelection(t *testing.T) {
 	ids := s.selectedManagerIDs()
 	if ids == nil || len(ids) != 0 {
 		t.Fatalf("empty selection = %v, want a non-nil empty slice", ids)
+	}
+}
+
+// A search a manager filled to its limit says so, rather than looking like the
+// whole answer.
+func TestSearchSaysWhenTheListWasCut(t *testing.T) {
+	s := &View{
+		Data: fixture(), ran: true, resultQuery: "a", truncated: true,
+		results: []manager.Package{{Name: "ripgrep", Manager: "brew"}},
+	}
+	tt := render(t, s.Build, 900, 500)
+	note := locales.SearchTruncated(strconv.Itoa(manager.MaxSearchResults))
+	if !tt.HasText(note) {
+		t.Errorf("the cut is not mentioned: %v", tt.Texts())
+	}
+
+	s.truncated = false
+	tt.Frame()
+	if tt.HasText(note) {
+		t.Errorf("the cut is mentioned after a full answer: %v", tt.Texts())
+	}
+}
+
+// A result the inventory already holds says so; the next one does not.
+func TestSearchMarksInstalledResults(t *testing.T) {
+	s := &View{
+		Data: fixture(), ran: true, resultQuery: "type",
+		results: []manager.Package{
+			{Name: "vite", Manager: "npm"},
+			{Name: "typescript", Manager: "npm"},
+		},
+	}
+	tt := render(t, s.Build, 900, 500)
+
+	badge, ok := tt.Find(locales.SearchInstalled())
+	if !ok {
+		t.Fatalf("the installed result is not marked: %v", tt.Texts())
+	}
+	row, ok := tt.Find("typescript")
+	if !ok {
+		t.Fatal("the installed row is missing")
+	}
+	if badge.Y < row.Y-2 || badge.Y > row.Y+row.H {
+		t.Errorf("the badge at %v is not on the installed row %v", badge, row)
+	}
+	seen := 0
+	for _, text := range tt.Texts() {
+		if text == locales.SearchInstalled() {
+			seen++
+		}
+	}
+	if seen != 1 {
+		t.Errorf("%d results are marked installed, want 1", seen)
 	}
 }

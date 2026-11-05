@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -235,22 +236,43 @@ func (a *Adapter) Search(keyword string) ([]manager.Package, error) {
 	for _, e := range entries {
 		names = append(names, e.Name)
 	}
-	infoRes, err := util.Run(a.ctx, a.info.ExecPath,
+	// `brew search` has no limit, so a one-letter keyword can match thousands of
+	// names. Asking for all their details in one command makes brew load every
+	// one of them before printing anything; ask in batches instead, and keep what
+	// came back, so a batch that fails costs its own names and not the search.
+	info := make(pkgLookup, len(names))
+	for start := 0; start < len(names); start += searchDetailsBatch {
+		end := min(start+searchDetailsBatch, len(names))
+		details, err := a.searchDetails(names[start:end])
+		if err != nil {
+			slog.WarnContext(a.ctx,
+				"brew info failed, returning those search results without details",
+				"keyword", keyword,
+				"names", end-start,
+				"error", err,
+			)
+			continue
+		}
+		maps.Copy(info, details)
+	}
+	return buildSearchResults(entries, info), nil
+}
+
+// searchDetailsBatch is how many names one `brew info` is asked about. Brew
+// answers in a single JSON document, and a document of a few thousand entries is
+// where its startup starts to dominate the search.
+const searchDetailsBatch = 100
+
+// searchDetails reads the version and description of names from one `brew info`.
+func (a *Adapter) searchDetails(names []string) (pkgLookup, error) {
+	res, err := util.Run(a.ctx, a.info.ExecPath,
 		append([]string{"info", "--json=v2"}, names...),
 		[]string{"HOMEBREW_NO_AUTO_UPDATE=1"},
 	)
 	if err != nil {
-		// info 失败时降级，返回无版本/描述的结果
-		slog.WarnContext(a.ctx,
-			"brew info failed, returning search results without details",
-			"keyword", keyword,
-			"error", err,
-		)
-		return buildSearchResults(entries, nil), nil
+		return nil, err
 	}
-
-	info := parseBrewInfo(infoRes.Stdout)
-	return buildSearchResults(entries, info), nil
+	return parseBrewInfo(res.Stdout), nil
 }
 
 // searchEntry is an intermediate result from parsing brew search output

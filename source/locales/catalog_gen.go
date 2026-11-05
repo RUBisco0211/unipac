@@ -1327,3 +1327,23 @@ func StatusCount(count string) string { return In(i18n.Locale()).StatusCount(cou
 func (msgs Messages) StatusCount(count string) string {
 	return Catalog.Format(msgs.locale, "statusCount", map[string]any{"count": count})
 }
+
+// SearchTruncated says "Showing the first {count} matches"
+// in the language the app shows.
+func SearchTruncated(count string) string { return In(i18n.Locale()).SearchTruncated(count) }
+
+// SearchTruncated says "Showing the first {count} matches"
+// in the language of msgs.
+func (msgs Messages) SearchTruncated(count string) string {
+	return Catalog.Format(msgs.locale, "searchTruncated", map[string]any{"count": count})
+}
+
+// SearchInstalled says "Installed"
+// in the language the app shows.
+func SearchInstalled() string { return In(i18n.Locale()).SearchInstalled() }
+
+// SearchInstalled says "Installed"
+// in the language of msgs.
+func (msgs Messages) SearchInstalled() string {
+	return Catalog.Format(msgs.locale, "searchInstalled", nil)
+}

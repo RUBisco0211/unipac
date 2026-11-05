@@ -296,15 +296,16 @@ func (a *App) UpdateCache() error {
 	return nil
 }
 
-func (a *App) SearchPackages(keyword string, managerIDs []string) ([]manager.Package, error) {
+func (a *App) SearchPackages(keyword string, managerIDs []string) (manager.SearchResult, error) {
 	slog.InfoContext(a.ctx, "searching packages", "keyword", keyword, "managers", managerIDs)
-	pkgs, err := registry.Instance.SearchPackages(keyword, managerIDs)
+	result, err := registry.Instance.SearchPackages(keyword, managerIDs)
 	if err != nil {
 		slog.ErrorContext(a.ctx, "package search failed", "keyword", keyword, "error", err)
-		return nil, err
+		return manager.SearchResult{}, err
 	}
-	slog.InfoContext(a.ctx, "package search completed", "keyword", keyword, "count", len(pkgs))
-	return pkgs, nil
+	slog.InfoContext(a.ctx, "package search completed", "keyword", keyword,
+		"count", len(result.Packages), "truncated", result.Truncated)
+	return result, nil
 }
 
 func (a *App) GetPackageInfo(managerID string, name string) (string, error) {

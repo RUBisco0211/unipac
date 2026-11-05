@@ -3,6 +3,7 @@ package registry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -284,7 +285,7 @@ func TestSearchPackagesFiltersManagersInTheBackend(t *testing.T) {
 	if a.searches != 1 || b.searches != 0 {
 		t.Fatalf("searches a=%d b=%d, want only a", a.searches, b.searches)
 	}
-	if len(result) != 1 || result[0].Name != "from-a" {
+	if len(result.Packages) != 1 || result.Packages[0].Name != "from-a" {
 		t.Fatalf("result = %+v", result)
 	}
 
@@ -296,7 +297,44 @@ func TestSearchPackagesFiltersManagersInTheBackend(t *testing.T) {
 
 	a.searches, b.searches = 0, 0
 	result, _ = reg.SearchPackages("query", []string{})
-	if len(result) != 0 || a.searches != 0 || b.searches != 0 {
+	if len(result.Packages) != 0 || a.searches != 0 || b.searches != 0 {
 		t.Fatalf("empty set searched a=%d b=%d, result %+v", a.searches, b.searches, result)
+	}
+}
+
+// A manager with more matches than the limit gives the first of them, and the
+// result says it was cut, so the page can say so instead of looking complete.
+func TestSearchPackagesCutsAManagerAtTheLimit(t *testing.T) {
+	many := make([]manager.Package, manager.MaxSearchResults+5)
+	for i := range many {
+		many[i] = manager.Package{Name: fmt.Sprintf("pkg-%03d", i), Manager: "a"}
+	}
+	a := fake(true)
+	a.info.ID, a.info.Name = "a", "A"
+	a.info.Available, a.info.Enabled = true, true
+	a.info.Capabilities.Search = true
+	a.searchHits = many
+	reg := newTestRegistry(a)
+	reg.rebuild(map[string]manager.Settings{"a": {}}, true)
+
+	result, err := reg.SearchPackages("pkg", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Packages) != manager.MaxSearchResults {
+		t.Errorf("packages = %d, want the limit of %d", len(result.Packages), manager.MaxSearchResults)
+	}
+	if !result.Truncated {
+		t.Error("the result does not say it was cut")
+	}
+
+	a.searchHits = many[:3]
+	result, err = reg.SearchPackages("pkg", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Packages) != 3 || result.Truncated {
+		t.Errorf("result = %d packages, truncated %v; want 3 and not truncated",
+			len(result.Packages), result.Truncated)
 	}
 }

@@ -273,10 +273,10 @@ func (reg *Registry) mergeOutdatedPackages(pkgs []manager.Package, list []manage
 // restricts it to those managers: nil means every enabled manager, while an
 // empty non-nil slice means none. The managers that are not asked never run a
 // command.
-func (reg *Registry) SearchPackages(keyword string, managerIDs []string) ([]manager.Package, error) {
+func (reg *Registry) SearchPackages(keyword string, managerIDs []string) (manager.SearchResult, error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
-		return []manager.Package{}, nil
+		return manager.SearchResult{}, nil
 	}
 	restricted := managerIDs != nil
 	allowed := make(map[string]bool, len(managerIDs))
@@ -284,10 +284,11 @@ func (reg *Registry) SearchPackages(keyword string, managerIDs []string) ([]mana
 		allowed[id] = true
 	}
 	if restricted && len(managerIDs) == 0 {
-		return []manager.Package{}, nil
+		return manager.SearchResult{}, nil
 	}
 
 	list := reg.snapshot()
+	var truncated atomic.Bool
 	collectTasks := make([]util.Collector[manager.Package], 0, len(list))
 	for _, adp := range list {
 		info := adp.Info()
@@ -304,10 +305,20 @@ func (reg *Registry) SearchPackages(keyword string, managerIDs []string) ([]mana
 				slog.ErrorContext(reg.ctx, "Failed to search packages", "manager", adp.Info().Name, "error", err)
 				return nil, nil
 			}
+			if len(pkgs) > manager.MaxSearchResults {
+				// Cut here, so one manager's thousands of matches cannot take the
+				// table and the memory behind it, and say so.
+				truncated.Store(true)
+				pkgs = pkgs[:manager.MaxSearchResults]
+			}
 			return pkgs, nil
 		})
 	}
-	return util.CollectParallel(reg.ctx, collectTasks...)
+	pkgs, err := util.CollectParallel(reg.ctx, collectTasks...)
+	if err != nil {
+		return manager.SearchResult{}, err
+	}
+	return manager.SearchResult{Packages: pkgs, Truncated: truncated.Load()}, nil
 }
 
 func (reg *Registry) GetPackageInfo(managerID string, pkg manager.Package) (string, error) {

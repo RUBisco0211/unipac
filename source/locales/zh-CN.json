@@ -156,5 +156,7 @@
   "toastShowTask": "查看任务",
   "tasksStatuses": "状态",
   "tasksAllStatuses": "全部状态",
-  "statusCount": "{count} 个状态"
+  "statusCount": "{count} 个状态",
+  "searchTruncated": "仅显示前 {count} 条结果",
+  "searchInstalled": "已安装"
 }

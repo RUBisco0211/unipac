@@ -4,6 +4,7 @@ package search
 
 import (
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -34,6 +35,8 @@ type View struct {
 	searching   bool
 	err         error
 	ran         bool
+	// truncated says a manager had more matches than it could give.
+	truncated bool
 
 	// managerFilter is the set of enabled, searchable managers to ask. The
 	// backend receives the selection; results are never narrowed here.
@@ -293,17 +296,25 @@ func (s *View) body(c *ui.Context) {
 	default:
 		s.table.Sort = &s.sortOrder
 		s.table.OnSort = func() { s.applySort() }
-		// Match the search field's left inset; the table's own first-cell
-		// padding is one spacing unit tighter.
-		ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1)).Children(func() {
-			components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
-				pkg := s.results[row]
-				if col < len(parts.SearchFieldIndex) {
-					parts.Cell(c, pkg, parts.SearchFieldIndex[col], s.Data.Name)
-					return
-				}
-				s.rowAction(c, pkg)
-			}).Fill()
+		ui.Column(c).Fill().MinHeight(0).Children(func() {
+			if s.truncated {
+				// The list is what a manager had to give within its limit, so say
+				// so rather than looking like the whole answer.
+				components.Text(c, locales.SearchTruncated(strconv.Itoa(manager.MaxSearchResults))).
+					FontSize(12).TextColor(c.Theme().TextMuted).Shrink(0).Padding(0, 16, 6, 16)
+			}
+			// Match the search field's left inset; the table's own first-cell
+			// padding is one spacing unit tighter.
+			ui.Box(c).Fill().MinHeight(0).Padding(0, 0, 0, c.Theme().Space(1)).Children(func() {
+				components.TableVirtualized(c, &s.table, s.columns(), len(s.results), func(row, col int) {
+					pkg := s.results[row]
+					if col < len(parts.SearchFieldIndex) {
+						parts.Cell(c, pkg, parts.SearchFieldIndex[col], s.Data.Name, s.Data.Installed(pkg.Manager, pkg.Name))
+						return
+					}
+					s.rowAction(c, pkg)
+				}).Fill()
+			})
 		})
 	}
 }
@@ -349,21 +360,22 @@ func (s *View) BeginQuery() int {
 
 // Apply installs the outcome of the search started by BeginQuery, unless a newer
 // query has started since.
-func (s *View) Apply(seq int, query string, results []manager.Package, err error) {
+func (s *View) Apply(seq int, query string, result manager.SearchResult, err error) {
 	if seq != s.seq {
 		return
 	}
-	s.apply(query, results, err)
+	s.apply(query, result, err)
 }
 
 // apply installs the outcome of a background search.
-func (s *View) apply(query string, results []manager.Package, err error) {
+func (s *View) apply(query string, result manager.SearchResult, err error) {
 	s.activeQuery = query
 	s.searching = false
 	s.err = err
 	s.ran = true
 	s.resultQuery = query
-	s.results = s.enabledResults(results)
+	s.truncated = result.Truncated
+	s.results = s.enabledResults(result.Packages)
 	// Do not mark the manager list as seen here: a manager change may have
 	// happened while the search was in flight, and the next view pass must
 	// reconcile the filter against the new list.

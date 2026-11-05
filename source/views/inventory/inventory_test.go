@@ -96,3 +96,22 @@ func TestRefreshQueuesOneFollowUp(t *testing.T) {
 		t.Fatal("the queued scan did not start")
 	}
 }
+
+// The inventory answers whether it holds a package, which is how a search
+// result can say it is already installed.
+func TestInstalledReportsWhatTheInventoryHolds(t *testing.T) {
+	d := inventoryFixture()
+	if !d.Installed("npm", "typescript") {
+		t.Error("an installed package is reported as missing")
+	}
+	if d.Installed("npm", "vite") {
+		t.Error("a package that is not in the inventory is reported as installed")
+	}
+
+	// A scan that drops the package is answered from the new rows.
+	d.Rows = nil
+	d.Version++
+	if d.Installed("npm", "typescript") {
+		t.Error("the answer survived the rows it came from")
+	}
+}

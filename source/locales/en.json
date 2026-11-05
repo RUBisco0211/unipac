@@ -201,5 +201,7 @@
   "toastShowTask": "Show task",
   "tasksStatuses": "Status",
   "tasksAllStatuses": "All statuses",
-  "statusCount": "{count} statuses"
+  "statusCount": "{count} statuses",
+  "searchTruncated": "Showing the first {count} matches",
+  "searchInstalled": "Installed"
 }

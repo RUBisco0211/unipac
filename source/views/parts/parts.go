@@ -140,15 +140,24 @@ func SearchFields() []ui.TableColumn {
 // SearchFieldIndex maps a search column back to its Fields index.
 var SearchFieldIndex = []int{0, 2, 3}
 
-// Cell renders field, indexing Fields.
-func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string) {
+// Cell renders field, indexing Fields. installed marks a package the inventory
+// already holds, which only a search result can be.
+func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string) string, installed bool) {
 	t := c.Theme()
 	switch field {
 	case 0:
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			components.Icon(c, lucide.Package).Size(16, 16).TextColor(t.TextMuted)
 			ui.Column(c).Gap(1).Children(func() {
-				components.Tooltip(c, components.Text(c, pkg.Name).SingleLine(), pkg.Name)
+				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+					components.Tooltip(c, components.Text(c, pkg.Name).SingleLine(), pkg.Name)
+					if installed {
+						components.Badge(c, locales.SearchInstalled(), components.BadgeOptions{
+							Tone: components.BadgeSuccess,
+							Icon: lucide.Check(),
+						})
+					}
+				})
 				description := pkg.Description
 				if description == "" {
 					description = locales.TableNoDescription()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/util"
@@ -121,7 +122,9 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 }
 
 func (a *Adapter) Search(keyword string) ([]manager.Package, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"search", keyword, "--json"}, nil)
+	res, err := util.Run(a.ctx, a.info.ExecPath,
+		[]string{"search", keyword, "--json", "--searchlimit", strconv.Itoa(manager.MaxSearchResults)},
+		nil)
 	if err != nil {
 		return nil, err
 	}

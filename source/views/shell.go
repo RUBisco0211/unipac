@@ -246,9 +246,9 @@ func (u *UI) Search(query string, managerIDs []string) {
 	seq := u.search.BeginQuery()
 	win := u.shell.Window()
 	go func() {
-		results, err := u.svc.SearchPackages(query, managerIDs)
+		result, err := u.svc.SearchPackages(query, managerIDs)
 		win.Update(func() {
-			u.search.Apply(seq, query, results, err)
+			u.search.Apply(seq, query, result, err)
 		})
 	}()
 }

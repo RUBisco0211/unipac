@@ -17,7 +17,7 @@ type Service interface {
 	ListManagers() []manager.Info
 	GetCachedPackages() ([]manager.Package, error)
 	UpdateCache() error
-	SearchPackages(keyword string, managerIDs []string) ([]manager.Package, error)
+	SearchPackages(keyword string, managerIDs []string) (manager.SearchResult, error)
 	InstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UpdatePackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
@@ -66,6 +66,11 @@ type Data struct {
 	// packages run independently; the backend limiter serializes one manager.
 	Active  map[string]string
 	Version int
+	// installedKeys and installedVersion cache Installed's answer, rebuilt when
+	// the inventory changes.
+	installedKeys    map[string]struct{}
+	installedVersion int
+
 	// managersVersion changes when the manager list itself changes, so the
 	// settings page rebuilds its rows only then and keeps the path being typed.
 	ManagersVersion int
@@ -153,6 +158,20 @@ func (d *Data) applyRefresh(rows []manager.Package, refreshErr, loadErr error) {
 	d.LoadErr = nil
 	d.Rows = rows
 	d.Version++
+}
+
+// Installed reports whether the inventory holds a package. A search result is
+// not installed by definition, so the search page asks this instead.
+func (d *Data) Installed(managerID, name string) bool {
+	if d.installedVersion != d.Version {
+		d.installedKeys = make(map[string]struct{}, len(d.Rows))
+		for _, pkg := range d.Rows {
+			d.installedKeys[Key(pkg)] = struct{}{}
+		}
+		d.installedVersion = d.Version
+	}
+	_, ok := d.installedKeys[managerID+":"+name]
+	return ok
 }
 
 // Key identifies a package across managers.

@@ -134,6 +134,13 @@ Current behavior:
 - `Reprobe()` preflights every manager again, for a tool installed while the app
   was open.
 
+A search returns at most `manager.MaxSearchResults` (200) from each manager, and
+says when a manager had more: Homebrew matches thousands of names for one letter,
+and the table shows a few dozen. Each adapter asks its own tool for that many
+(npm `--searchlimit`, cargo `--limit`) so the cap means the same everywhere.
+Homebrew, which has no such flag, is asked for the details of a large result in
+batches of 100 rather than in one command.
+
 The registry should be the only backend component that knows about all adapters as a group. UI-level operations like search/install/update/uninstall should be added as registry methods that route by `manager.ID` and check `Capabilities`.
 
 ### Adapters
@@ -317,7 +324,7 @@ together, and nothing has to be found across a 900-line file:
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
-| `views/search` | the search page: the query field, the manager selection, results, install | `inventory`, `parts`, `flight` |
+| `views/search` | the search page: the query field, the manager selection, results marked with what is already installed, install | `inventory`, `parts`, `flight` |
 | `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the selected task's console | `inventory`, `parts`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
