@@ -172,7 +172,9 @@ func (u *UI) Run() {
 		if u.quitAccepted.Load() {
 			return
 		}
-		if pending := u.svc.UnfinishedTasks(); pending > 0 {
+		pending := u.svc.UnfinishedTasks()
+		slog.Info("views: window close requested", "pending", pending)
+		if pending > 0 {
 			e.PreventDefault()
 			u.askToQuit(pending)
 		}
@@ -182,7 +184,9 @@ func (u *UI) Run() {
 		if u.quitAccepted.Load() {
 			return
 		}
-		if pending := u.svc.UnfinishedTasks(); pending > 0 {
+		pending := u.svc.UnfinishedTasks()
+		slog.Info("views: quit requested", "pending", pending)
+		if pending > 0 {
 			e.PreventDefault()
 			u.askToQuit(pending)
 		}
@@ -721,12 +725,14 @@ func (u *UI) windowTitle(c *ui.Context) {
 			u.forward()
 		}
 		components.Text(c, u.pageTitle()).FontSize(13).Bold()
+		ui.Spacer(c)
 		if actions := u.titleActions(); actions != nil {
-			ui.Box(c).Shrink(0).Padding(0, t.Space(1), 0, t.Space(2)).Children(func() {
+			// The page's buttons sit at the trailing end, beside the tasks
+			// button, so the bar reads as one group of actions.
+			ui.Box(c).Shrink(0).Padding(0, t.Space(2), 0, t.Space(1)).Children(func() {
 				actions(c)
 			})
 		}
-		ui.Spacer(c)
 		u.tasksButton(c)
 	})
 }
