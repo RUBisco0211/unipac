@@ -216,7 +216,9 @@ func (a *App) Languages() []string {
 // About reports what this build is and where it keeps its files.
 func (a *App) About() inventory.About {
 	about := inventory.About{
-		Version: appVersion,
+		// The build links the manifest's version in: `mygo dev` and `mygo build`
+		// pass it, so there is no second copy to keep in step.
+		Version: mygo.App.Version(),
 		Go:      runtime.Version(),
 		DataDir: util.AppRoot,
 		LogDir:  logging.AppLogDir,

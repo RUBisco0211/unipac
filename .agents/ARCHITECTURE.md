@@ -441,9 +441,11 @@ startup behavior — scanning on launch, and whether a destructive confirmation 
 a hold or a click — the log level, and the language (the app's languages plus
 System, named in their own language). Then one row per package manager, a Tasks section whose
 only job is the hold that clears the finished task history, and an About section:
-the app's version, the Go it was built with, the toolkit versions, and the data
-and log folders with a button that opens each and one that copies the lot — with
-every manager's name, version, state, package count and gaps — into a bug report.
+the app's version (from `mygo.App.Version`, which the build links in from
+`mygo.json`), the Go it was built with, the toolkit versions from the build's own
+module info, and the data and log folders with a button that opens each and one
+that copies the lot — with every manager's name, version, state, package count and
+gaps — into a bug report.
 
 A manager row is three lines. The first holds the name with what the manager
 contributes and a switch: `Homebrew · 12 packages`, counted from `Data.Rows` and

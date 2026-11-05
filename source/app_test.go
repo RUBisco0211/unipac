@@ -53,21 +53,3 @@ func TestAppDirNameIsTheBundleIdentifier(t *testing.T) {
 		t.Errorf("app dir = %q, bundle identifier = %q", util.AppDirName, manifest.Identifier)
 	}
 }
-
-// The About section shows the manifest's version; the constant the binary reads
-// must not drift from it.
-func TestAppVersionMatchesTheManifest(t *testing.T) {
-	raw, err := os.ReadFile("../mygo.json")
-	if err != nil {
-		t.Skipf("mygo.json is not beside the package: %v", err)
-	}
-	var manifest struct {
-		Version string `json:"version"`
-	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
-		t.Fatalf("mygo.json: %v", err)
-	}
-	if manifest.Version != appVersion {
-		t.Errorf("appVersion = %q, manifest = %q", appVersion, manifest.Version)
-	}
-}

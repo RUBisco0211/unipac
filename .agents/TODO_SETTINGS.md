@@ -38,10 +38,9 @@ Branch: `feature/settings`.
       no other work.
 - [x] **Notifications.** A `notifications` config value (nil = on) read before
       announcing a finished task, with a switch in General.
-- [x] **About.** App version (a constant in package main, pinned by a test against
-      `mygo.json` the way `TestAppDirNameIsTheBundleIdentifier` pins the
-      identifier), the MyGo and Onevra versions from the build's module info, and
-      the data and log directories.
+- [x] **About.** The app version from `mygo.App.Version()` — the build links
+      `mygo.json`'s version in, so there is no second copy — the MyGo and Onevra
+      versions from the build's module info, and the data and log directories.
 - [x] **Open the log and the data directory.** `mygo.Shell.OpenPath` on paths the
       backend hands the page: `logging.AppLogDir` and `util.AppRoot`, through `App`
       methods since a page may not import backend packages.
