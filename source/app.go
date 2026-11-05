@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -211,6 +213,38 @@ func (a *App) Languages() []string {
 
 // SetLanguage saves the chosen language and applies it at once. An empty tag
 // follows the system again.
+// About reports what this build is and where it keeps its files.
+func (a *App) About() inventory.About {
+	about := inventory.About{
+		Version: appVersion,
+		Go:      runtime.Version(),
+		DataDir: util.AppRoot,
+		LogDir:  logging.AppLogDir,
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range info.Deps {
+			switch dep.Path {
+			case "github.com/egoist/mygo":
+				about.Modules = append(about.Modules, "MyGo "+dep.Version)
+			case "github.com/oneo-me/onevra/source":
+				about.Modules = append(about.Modules, "Onevra "+dep.Version)
+			}
+		}
+	}
+	return about
+}
+
+// ClearTaskHistory drops the tasks that have an outcome and their consoles. A
+// running task keeps its record, so nothing in flight loses its console.
+func (a *App) ClearTaskHistory() error {
+	slog.InfoContext(a.ctx, "clearing task history")
+	if err := tasks.Default.ClearHistory(); err != nil {
+		slog.ErrorContext(a.ctx, "failed to clear the task history", "error", err)
+		return err
+	}
+	return nil
+}
+
 // Notifications reports whether a finished task is announced.
 func (a *App) Notifications() bool {
 	return config.Instance.NotifiesOnFinish()

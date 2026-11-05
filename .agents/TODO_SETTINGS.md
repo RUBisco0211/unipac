@@ -38,14 +38,14 @@ Branch: `feature/settings`.
       no other work.
 - [x] **Notifications.** A `notifications` config value (nil = on) read before
       announcing a finished task, with a switch in General.
-- [ ] **About.** App version (a constant in package main, pinned by a test against
+- [x] **About.** App version (a constant in package main, pinned by a test against
       `mygo.json` the way `TestAppDirNameIsTheBundleIdentifier` pins the
       identifier), the MyGo and Onevra versions from the build's module info, and
       the data and log directories.
-- [ ] **Open the log and the data directory.** `mygo.Shell.OpenPath` on paths the
+- [x] **Open the log and the data directory.** `mygo.Shell.OpenPath` on paths the
       backend hands the page: `logging.AppLogDir` and `util.AppRoot`, through `App`
       methods since a page may not import backend packages.
-- [ ] **Clear the task history.** The store keeps the newest 500 tasks and every
+- [x] **Clear the task history.** The store keeps the newest 500 tasks and every
       console line with them; a maintenance action deletes them behind the same
       hold-to-confirm gesture as uninstalling, and the tasks page reloads.
 

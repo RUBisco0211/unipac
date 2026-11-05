@@ -33,6 +33,10 @@ type View struct {
 	OnSetHold     func(on bool)
 	// OnSetNotifications saves whether a finished task is announced.
 	OnSetNotifications func(on bool)
+	// OnOpenPath opens a file or folder in the desktop's own application.
+	OnOpenPath func(path string)
+	// OnClearHistory drops the tasks that have an outcome.
+	OnClearHistory func()
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
 
@@ -54,6 +58,9 @@ type View struct {
 
 	rows []managerRow
 	seen int
+	// about is what the build is and where it keeps its files, loaded once when
+	// the page is built.
+	about inventory.About
 	// counts is how many installed packages each manager contributes, built from
 	// the inventory version it was counted at.
 	counts     map[string]int
@@ -88,6 +95,7 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		language:      service.Language(),
 		languages:     service.Languages(),
 		theme:         service.Theme(),
+		about:         service.About(),
 	}
 }
 
@@ -142,6 +150,8 @@ func (s *View) Build(c *ui.Context) {
 				}
 				s.general(c)
 				s.managers(c)
+				s.tasks(c)
+				s.aboutSection(c)
 			})
 		})
 	})
@@ -362,6 +372,116 @@ func (s *View) languageRow(c *ui.Context) {
 			s.OnSetLanguage(s.language)
 		}
 	})
+}
+
+// tasks is the maintenance section: the store keeps history, and this is where it
+// is thrown away. Clearing is destructive, so it answers to the same setting as
+// uninstalling — a hold, or a click when the user turned holding off.
+func (s *View) tasks(c *ui.Context) {
+	s.section(c, locales.SettingsTasks(), locales.SettingsTasksDesc(), func() {
+		if s.HoldToConfirm {
+			var held bool
+			hold := components.HoldToConfirm(c, &held, locales.SettingsClearHistoryHold(),
+				components.HoldToConfirmOptions{Tone: components.HoldDanger})
+			hold.Disabled(s.busy)
+			if hold.Changed() && s.OnClearHistory != nil {
+				s.OnClearHistory()
+			}
+			return
+		}
+		clear := components.Button(c, locales.SettingsClearHistory(), components.ButtonOutline)
+		clear.TextColor(c.Theme().Danger)
+		clear.Disabled(s.busy)
+		if clear.Clicked() && s.OnClearHistory != nil {
+			s.OnClearHistory()
+		}
+	}, nil)
+}
+
+// aboutSection is what this build is and where it keeps its files, with a way to
+// open either folder and to copy the lot into a bug report.
+func (s *View) aboutSection(c *ui.Context) {
+	s.section(c, locales.SettingsAbout(), locales.SettingsAboutDesc(), func() {
+		copy := components.Button(c, locales.AboutCopy(), components.ButtonGhost)
+		if copy.Clicked() {
+			c.WriteClipboard(s.diagnostics())
+			c.Toast(locales.ToastDiagnosticsCopied())
+		}
+	}, func() {
+		s.aboutRow(c, locales.AboutVersion(), s.about.Version, "")
+		parts.Divider(c)
+		s.aboutRow(c, locales.AboutRuntime(), s.about.Go, "")
+		for _, module := range s.about.Modules {
+			parts.Divider(c)
+			name, version, _ := strings.Cut(module, " ")
+			s.aboutRow(c, name, version, "")
+		}
+		parts.Divider(c)
+		s.aboutRow(c, locales.AboutDataDir(), s.about.DataDir, locales.AboutDataDir())
+		parts.Divider(c)
+		s.aboutRow(c, locales.AboutLogDir(), s.about.LogDir, locales.AboutLogDir())
+	})
+}
+
+// aboutRow is one line of the About section: what it is, what it is, and a way to
+// open it when it is a folder. A path is one line and clips, so it carries a
+// tooltip with the whole value.
+func (s *View) aboutRow(c *ui.Context, label, value, folder string) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		components.Text(c, label).FontSize(12).TextColor(t.TextMuted).Width(110).Shrink(0)
+		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
+			if value == "" {
+				components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+				return
+			}
+			components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
+		})
+		if folder == "" || s.OnOpenPath == nil {
+			return
+		}
+		path := value
+		open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
+		open.Label(locales.AboutOpen(folder))
+		open.Disabled(path == "")
+		if open.Clicked() {
+			s.OnOpenPath(path)
+		}
+	})
+}
+
+// diagnostics is what a user pastes into a bug report: the build, where it keeps
+// its files, and what each manager claims.
+func (s *View) diagnostics() string {
+	var b strings.Builder
+	line := func(label, value string) {
+		b.WriteString(label + ": " + value + "\n")
+	}
+	line("UniPac", s.about.Version)
+	line(locales.AboutRuntime(), s.about.Go)
+	for _, module := range s.about.Modules {
+		name, version, _ := strings.Cut(module, " ")
+		line(name, version)
+	}
+	line(locales.AboutDataDir(), s.about.DataDir)
+	line(locales.AboutLogDir(), s.about.LogDir)
+	counts := s.managerCounts()
+	for _, row := range s.rows {
+		state := "off"
+		switch {
+		case !row.info.Available:
+			state = "missing"
+		case row.info.Enabled:
+			state = "on"
+		}
+		parts := []string{row.info.Name, row.info.Version, state,
+			locales.SettingsPackageCount(counts[row.info.ID])}
+		if missing := unsupportedCapabilities(row.info.Capabilities); missing != "" {
+			parts = append(parts, missing)
+		}
+		b.WriteString(strings.Join(parts, " · ") + "\n")
+	}
+	return b.String()
 }
 
 // managerControl is one manager: what it is and what it holds, the executable

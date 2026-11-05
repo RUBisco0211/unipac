@@ -1508,6 +1508,156 @@ func (msgs Messages) SettingsNotificationsDesc() string {
 	return Catalog.Format(msgs.locale, "settingsNotificationsDesc", nil)
 }
 
+// SettingsTasks says "Tasks"
+// in the language the app shows.
+func SettingsTasks() string { return In(i18n.Locale()).SettingsTasks() }
+
+// SettingsTasks says "Tasks"
+// in the language of msgs.
+func (msgs Messages) SettingsTasks() string {
+	return Catalog.Format(msgs.locale, "settingsTasks", nil)
+}
+
+// SettingsTasksDesc says "UniPac keeps the last 500 tasks and their console output. Clearing removes the ones that finished; a task still runni…"
+// in the language the app shows.
+func SettingsTasksDesc() string { return In(i18n.Locale()).SettingsTasksDesc() }
+
+// SettingsTasksDesc says "UniPac keeps the last 500 tasks and their console output. Clearing removes the ones that finished; a task still runni…"
+// in the language of msgs.
+func (msgs Messages) SettingsTasksDesc() string {
+	return Catalog.Format(msgs.locale, "settingsTasksDesc", nil)
+}
+
+// SettingsClearHistory says "Clear task history"
+// in the language the app shows.
+func SettingsClearHistory() string { return In(i18n.Locale()).SettingsClearHistory() }
+
+// SettingsClearHistory says "Clear task history"
+// in the language of msgs.
+func (msgs Messages) SettingsClearHistory() string {
+	return Catalog.Format(msgs.locale, "settingsClearHistory", nil)
+}
+
+// SettingsClearHistoryHold says "Hold to clear history"
+// in the language the app shows.
+func SettingsClearHistoryHold() string { return In(i18n.Locale()).SettingsClearHistoryHold() }
+
+// SettingsClearHistoryHold says "Hold to clear history"
+// in the language of msgs.
+func (msgs Messages) SettingsClearHistoryHold() string {
+	return Catalog.Format(msgs.locale, "settingsClearHistoryHold", nil)
+}
+
+// ToastHistoryCleared says "Task history cleared"
+// in the language the app shows.
+func ToastHistoryCleared() string { return In(i18n.Locale()).ToastHistoryCleared() }
+
+// ToastHistoryCleared says "Task history cleared"
+// in the language of msgs.
+func (msgs Messages) ToastHistoryCleared() string {
+	return Catalog.Format(msgs.locale, "toastHistoryCleared", nil)
+}
+
+// SettingsAbout says "About"
+// in the language the app shows.
+func SettingsAbout() string { return In(i18n.Locale()).SettingsAbout() }
+
+// SettingsAbout says "About"
+// in the language of msgs.
+func (msgs Messages) SettingsAbout() string {
+	return Catalog.Format(msgs.locale, "settingsAbout", nil)
+}
+
+// SettingsAboutDesc says "What this build is, and where UniPac keeps its files."
+// in the language the app shows.
+func SettingsAboutDesc() string { return In(i18n.Locale()).SettingsAboutDesc() }
+
+// SettingsAboutDesc says "What this build is, and where UniPac keeps its files."
+// in the language of msgs.
+func (msgs Messages) SettingsAboutDesc() string {
+	return Catalog.Format(msgs.locale, "settingsAboutDesc", nil)
+}
+
+// AboutVersion says "Version"
+// in the language the app shows.
+func AboutVersion() string { return In(i18n.Locale()).AboutVersion() }
+
+// AboutVersion says "Version"
+// in the language of msgs.
+func (msgs Messages) AboutVersion() string {
+	return Catalog.Format(msgs.locale, "aboutVersion", nil)
+}
+
+// AboutRuntime says "Built with"
+// in the language the app shows.
+func AboutRuntime() string { return In(i18n.Locale()).AboutRuntime() }
+
+// AboutRuntime says "Built with"
+// in the language of msgs.
+func (msgs Messages) AboutRuntime() string {
+	return Catalog.Format(msgs.locale, "aboutRuntime", nil)
+}
+
+// AboutDataDir says "Data folder"
+// in the language the app shows.
+func AboutDataDir() string { return In(i18n.Locale()).AboutDataDir() }
+
+// AboutDataDir says "Data folder"
+// in the language of msgs.
+func (msgs Messages) AboutDataDir() string {
+	return Catalog.Format(msgs.locale, "aboutDataDir", nil)
+}
+
+// AboutLogDir says "Log folder"
+// in the language the app shows.
+func AboutLogDir() string { return In(i18n.Locale()).AboutLogDir() }
+
+// AboutLogDir says "Log folder"
+// in the language of msgs.
+func (msgs Messages) AboutLogDir() string {
+	return Catalog.Format(msgs.locale, "aboutLogDir", nil)
+}
+
+// AboutOpen says "Open {folder}"
+// in the language the app shows.
+func AboutOpen(folder string) string { return In(i18n.Locale()).AboutOpen(folder) }
+
+// AboutOpen says "Open {folder}"
+// in the language of msgs.
+func (msgs Messages) AboutOpen(folder string) string {
+	return Catalog.Format(msgs.locale, "aboutOpen", map[string]any{"folder": folder})
+}
+
+// AboutOpenAction says "Open"
+// in the language the app shows.
+func AboutOpenAction() string { return In(i18n.Locale()).AboutOpenAction() }
+
+// AboutOpenAction says "Open"
+// in the language of msgs.
+func (msgs Messages) AboutOpenAction() string {
+	return Catalog.Format(msgs.locale, "aboutOpenAction", nil)
+}
+
+// AboutCopy says "Copy diagnostics"
+// in the language the app shows.
+func AboutCopy() string { return In(i18n.Locale()).AboutCopy() }
+
+// AboutCopy says "Copy diagnostics"
+// in the language of msgs.
+func (msgs Messages) AboutCopy() string {
+	return Catalog.Format(msgs.locale, "aboutCopy", nil)
+}
+
+// ToastDiagnosticsCopied says "Diagnostics copied"
+// in the language the app shows.
+func ToastDiagnosticsCopied() string { return In(i18n.Locale()).ToastDiagnosticsCopied() }
+
+// ToastDiagnosticsCopied says "Diagnostics copied"
+// in the language of msgs.
+func (msgs Messages) ToastDiagnosticsCopied() string {
+	return Catalog.Format(msgs.locale, "toastDiagnosticsCopied", nil)
+}
+
 // SettingsPackageCount says "{count, plural, =0 {no packages} one {# package} other {# packages}}"
 // in the language the app shows.
 func SettingsPackageCount(count int) string { return In(i18n.Locale()).SettingsPackageCount(count) }

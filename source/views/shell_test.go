@@ -640,6 +640,7 @@ func (wiredService) Language() string                              { return "" }
 func (wiredService) Languages() []string                           { return nil }
 func (wiredService) Theme() string                                 { return "" }
 func (wiredService) Notifications() bool                           { return true }
+func (wiredService) About() inventory.About                        { return inventory.About{} }
 
 // The search page's version picker is the shell's to answer. A page that lost
 // the wiring would quietly install the newest version instead of asking, which
@@ -668,5 +669,16 @@ func TestNotificationsFollowTheSetting(t *testing.T) {
 	u.settings.Notifications = true
 	if !u.notificationsOn() {
 		t.Error("turning the switch back on did not resume them")
+	}
+}
+
+// Clearing the history is the backend's job, and the page reloads from what it
+// left behind. A window without one does nothing rather than panicking.
+func TestClearTaskHistoryWithoutAWindowIsInert(t *testing.T) {
+	u := &UI{data: testui.Data(), tasks: &taskspage.View{Data: testui.Data(), SelectedIndex: -1}}
+	u.ClearTaskHistory()
+	u.OpenPath("")
+	if len(u.tasks.All()) != 0 {
+		t.Errorf("a window with no service changed the tasks")
 	}
 }

@@ -3,6 +3,7 @@ package settings
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
@@ -26,6 +27,13 @@ func settingsFixture() *View {
 		languages:     []string{"en", "zh-CN"},
 		theme:         "",
 		Notifications: true,
+		about: inventory.About{
+			Version: "0.2.0",
+			Go:      "go1.27.3",
+			Modules: []string{"MyGo 0.7.4", "Onevra 2026.16"},
+			DataDir: "/Users/me/Library/Application Support/com.rubisco.unipac",
+			LogDir:  "/Users/me/Library/Application Support/com.rubisco.unipac/logs",
+		},
 	}
 }
 
@@ -362,5 +370,124 @@ func TestSettingsNotificationsReachBackend(t *testing.T) {
 	s.EndSave(nil, Snapshot{Notifications: true})
 	if !s.Notifications {
 		t.Error("the backend's answer did not restore the switch")
+	}
+}
+
+// About is what a bug report needs: the build, and where the app keeps what it
+// writes.
+func TestAboutShowsTheBuild(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 900, 1600)
+
+	for _, want := range []string{
+		locales.SettingsAbout(),
+		"0.2.0",
+		"go1.27.3",
+		"MyGo", "0.7.4",
+		"Onevra", "2026.16",
+		s.about.DataDir,
+		s.about.LogDir,
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("missing %q in the About section", want)
+		}
+	}
+}
+
+// The two folders open in the desktop's own application, and the page asks for
+// them by the path the backend reported.
+func TestAboutOpensItsFolders(t *testing.T) {
+	s := settingsFixture()
+	var opened []string
+	s.OnOpenPath = func(path string) { opened = append(opened, path) }
+
+	tt := render(t, s.Build, 900, 1600)
+	if err := tt.Click(locales.AboutOpen(locales.AboutDataDir())); err != nil {
+		t.Fatalf("open the data folder: %v", err)
+	}
+	if len(opened) != 1 || opened[0] != s.about.DataDir {
+		t.Fatalf("opened %v, want the data folder", opened)
+	}
+	if err := tt.Click(locales.AboutOpen(locales.AboutLogDir())); err != nil {
+		t.Fatalf("open the log folder: %v", err)
+	}
+	if len(opened) != 2 || opened[1] != s.about.LogDir {
+		t.Fatalf("opened %v, want the log folder second", opened)
+	}
+}
+
+// Copy places the same facts on the clipboard, with what each manager is, and
+// says it did.
+func TestAboutCopiesDiagnostics(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 900, 1600)
+	if err := tt.Click(locales.AboutCopy()); err != nil {
+		t.Fatalf("click copy: %v", err)
+	}
+
+	diagnostics := tt.Clipboard()
+	for _, want := range []string{
+		"0.2.0",
+		s.about.DataDir,
+		s.about.LogDir,
+		"Homebrew", "4.6.1",
+		"Bun", // the fixture has no bun, so this must not be there
+	} {
+		contains := strings.Contains(diagnostics, want)
+		if want == "Bun" {
+			if contains {
+				t.Errorf("diagnostics name a manager the inventory does not have:\n%s", diagnostics)
+			}
+			continue
+		}
+		if !contains {
+			t.Errorf("diagnostics are missing %q:\n%s", want, diagnostics)
+		}
+	}
+	if !strings.Contains(diagnostics, locales.SettingsPackageCount(1)) {
+		t.Errorf("diagnostics do not say what a manager holds:\n%s", diagnostics)
+	}
+}
+
+// Clearing the history is destructive, so it answers to the same setting as
+// uninstalling: a hold, or a click when the user turned holding off.
+func TestClearHistoryAnswersToTheHoldingSetting(t *testing.T) {
+	cleared := 0
+	hold := settingsFixture()
+	hold.HoldToConfirm = true
+	hold.OnClearHistory = func() { cleared++ }
+	tt := render(t, hold.Build, 900, 1600)
+
+	if tt.HasText(locales.SettingsClearHistory()) {
+		t.Errorf("the click action is offered while holding is on")
+	}
+	control, ok := tt.Find(locales.SettingsClearHistoryHold())
+	if !ok {
+		t.Fatalf("the hold control is missing: %v", tt.Texts())
+	}
+	tt.ClickAt(control.X+control.W/2, control.Y+control.H/2)
+	tt.Frame()
+	if cleared != 0 {
+		t.Fatal("a click confirmed a hold")
+	}
+	tt.Press(control.X+control.W/2, control.Y+control.H/2)
+	tt.Advance(2 * time.Second)
+	tt.Release(control.X+control.W/2, control.Y+control.H/2)
+	tt.Frame()
+	if cleared != 1 {
+		t.Fatalf("the hold cleared %d times, want 1", cleared)
+	}
+
+	// With holding off it is a danger button and one click answers it.
+	click := settingsFixture()
+	click.HoldToConfirm = false
+	click.OnClearHistory = func() { cleared++ }
+	tt = render(t, click.Build, 900, 1600)
+	if err := tt.Click(locales.SettingsClearHistory()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if cleared != 2 {
+		t.Fatalf("the click cleared %d times, want one more", cleared)
 	}
 }

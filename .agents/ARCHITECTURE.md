@@ -71,8 +71,9 @@ Exported methods:
 - `UninstallPackage(pkg, opt)`
 - `BatchUninstallPackages(pkgs, opt)`, `BatchUpdatePackages(pkgs, opt)`
 - `ListTasks() []tasks.Snapshot`, `TaskOutput(id) tasks.Output`
-- `SetTaskListener(fn)`, `CancelTask(id) error`
+- `SetTaskListener(fn)`, `CancelTask(id) error`, `ClearTaskHistory() error`
 - `UnfinishedTasks() int`, `StopTasks()`
+- `About() About`, which is the build and where it keeps its files
 - settings: `ManagerOverrides`, `SetManagerEnabled`, `SetManagerExecPath`,
   `ReloadManagers`, `Language`/`Languages`/`SetLanguage`, `AutoScanOnLaunch`/
   `SetAutoScanOnLaunch`, `LogLevel`/`LogLevels`/`SetLogLevel`, and
@@ -438,7 +439,11 @@ its settings do, and a rule above the rows. The general section is the appearanc
 `mygo.Theme.SetSource` before the window opens and again when it changes),
 startup behavior — scanning on launch, and whether a destructive confirmation is
 a hold or a click — the log level, and the language (the app's languages plus
-System, named in their own language). Then one row per package manager.
+System, named in their own language). Then one row per package manager, a Tasks section whose
+only job is the hold that clears the finished task history, and an About section:
+the app's version, the Go it was built with, the toolkit versions, and the data
+and log folders with a button that opens each and one that copies the lot — with
+every manager's name, version, state, package count and gaps — into a bug report.
 
 A manager row is three lines. The first holds the name with what the manager
 contributes and a switch: `Homebrew · 12 packages`, counted from `Data.Rows` and
@@ -465,7 +470,11 @@ path asks for a rescan, so its rows leave the lists.
 ### Tasks Page
 
 The tasks page shows one row per package operation in a `TableVirtualized` with the
-same look as the package tables. Its columns are operation, package, version,
+same look as the package tables. Clearing the history keeps the queued and running tasks and drops the rest with
+their consoles; the clear is queued like any other store write, so it cannot
+overtake an insert that would put a row back.
+
+Its columns are operation, package, version,
 manager, status, started and finished; an update's version cell joins the old and
 new versions with `→`, and the time cells show the clock today or the date for an
 older task, with the full timestamp in a tooltip. A search field matches package,

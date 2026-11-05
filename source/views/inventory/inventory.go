@@ -18,6 +18,12 @@ type Service interface {
 	GetCachedPackages() ([]manager.Package, error)
 	UpdateCache() error
 	SearchPackages(keyword string, managerIDs []string) (manager.SearchResult, error)
+	// About is what the settings page says about the build and where the app
+	// keeps its files.
+	About() About
+	// ClearTaskHistory drops the tasks that have an outcome, in memory and in
+	// the store, and leaves the queued and running ones.
+	ClearTaskHistory() error
 	// ListPackageVersions is every version a manager published for a package,
 	// oldest first, for the managers that advertise ListVersions.
 	ListPackageVersions(managerID string, name string) ([]string, error)
@@ -50,6 +56,21 @@ type Service interface {
 	UnfinishedTasks() int
 	CancelTask(id string) error
 	StopTasks()
+}
+
+// About is what the build is and where it keeps its files, for the page that
+// answers "which version is this, and where did it put things".
+type About struct {
+	// Version is the app's own version, as the manifest names it.
+	Version string
+	// Go is the Go the binary was built with.
+	Go string
+	// Modules are the toolkit versions it bundles, as "MyGo 0.7.4".
+	Modules []string
+	// DataDir holds the cache, the config and the task store.
+	DataDir string
+	// LogDir holds app.log.
+	LogDir string
 }
 
 // Data is the package inventory shared by the pages, plus the state of the

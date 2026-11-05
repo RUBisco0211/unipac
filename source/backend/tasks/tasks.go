@@ -275,6 +275,24 @@ func (m *Manager) submit(fn func(*store)) {
 	m.queue <- fn
 }
 
+// submitWait queues a store write and waits for it, unlike submit. It reports
+// whether there was a store to write to at all, and holds the queue while it
+// waits so nothing can slip in between.
+func (m *Manager) submitWait(fn func(*store) error) (bool, error) {
+	m.queueMu.Lock()
+	defer m.queueMu.Unlock()
+	m.mu.Lock()
+	if m.store == nil || m.closing {
+		m.mu.Unlock()
+		return false, nil
+	}
+	m.mu.Unlock()
+
+	done := make(chan error, 1)
+	m.queue <- func(s *store) { done <- fn(s) }
+	return true, <-done
+}
+
 func (m *Manager) writeLoop() {
 	defer close(m.writerDone)
 	for fn := range m.queue {
@@ -352,6 +370,30 @@ func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
 
 	m.changed()
 	return task
+}
+
+// ClearHistory drops the tasks that have an outcome, in memory and in the store,
+// and leaves the queued and running ones alone. The listener runs, so a page
+// showing the history reloads it.
+func (m *Manager) ClearHistory() error {
+	// Queued like every other store write and waited for, so the clear cannot
+	// overtake the inserts and outcomes still waiting for the writer: a row it
+	// deleted would come back from an insert that ran after it.
+	if _, err := m.submitWait(func(s *store) error { return s.clearFinished() }); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	kept := m.tasks[:0]
+	for _, task := range m.tasks {
+		if task.pending() {
+			kept = append(kept, task)
+		}
+	}
+	m.tasks = kept
+	m.mu.Unlock()
+	m.changed()
+	return nil
 }
 
 // List returns every task, running ones first, then queued ones, then finished

@@ -164,6 +164,8 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetLanguage = u.SetLanguage
 	u.settings.OnSetTheme = u.SetTheme
 	u.settings.OnSetNotifications = u.SetNotifications
+	u.settings.OnOpenPath = u.OpenPath
+	u.settings.OnClearHistory = u.ClearTaskHistory
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
@@ -1020,6 +1022,46 @@ func (u *UI) SetHoldToConfirm(on bool) {
 
 // SetTheme saves the appearance; the backend applies it to the window and to the
 // next launch.
+// OpenPath opens a file or folder in the desktop's own application, which is how
+// the settings page shows the log and the data the app keeps.
+func (u *UI) OpenPath(path string) {
+	if path == "" {
+		return
+	}
+	go func() {
+		if err := mygo.Shell.OpenPath(path); err != nil {
+			slog.Warn("views: could not open a path", "path", path, "error", err)
+			if u.shell == nil {
+				return
+			}
+			u.shell.Window().Update(func() {
+				u.data.QueueToast(inventory.Toast{Title: err.Error(), Tone: components.ToastError})
+			})
+		}
+	}()
+}
+
+// ClearTaskHistory drops the tasks that have an outcome, off the UI thread, and
+// reloads the page so the rows leave with them.
+func (u *UI) ClearTaskHistory() {
+	if u.shell == nil || u.svc == nil {
+		return
+	}
+	win := u.shell.Window()
+	go func() {
+		err := u.svc.ClearTaskHistory()
+		list := u.svc.ListTasks()
+		win.Update(func() {
+			if err != nil {
+				u.data.QueueToast(inventory.Toast{Title: err.Error(), Tone: components.ToastError})
+				return
+			}
+			u.tasks.Apply(list)
+			u.data.QueueToast(inventory.Toast{Title: locales.ToastHistoryCleared(), Tone: components.ToastInfo})
+		})
+	}()
+}
+
 // SetNotifications saves whether a finished task is announced.
 func (u *UI) SetNotifications(on bool) {
 	u.saveSettings(false, func() error {
