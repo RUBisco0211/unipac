@@ -25,7 +25,7 @@ jobs:
     name: macOS arm64
     # macos-14 is an Apple Silicon runner. Signing, notarization and the disk
     # image all need macOS, so this job cannot move to Linux.
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
         with:
