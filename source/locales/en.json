@@ -289,5 +289,5 @@
   "settingsManagerPackages": "Packages",
   "settingsManagerEnabled": "Enabled",
   "settingsCapabilities": "Capabilities",
-  "navManagers": "Managers"
+  "navManagers": "Package managers"
 }

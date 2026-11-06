@@ -1890,11 +1890,11 @@ func (msgs Messages) SettingsCapabilities() string {
 	return Catalog.Format(msgs.locale, "settingsCapabilities", nil)
 }
 
-// NavManagers says "Managers"
+// NavManagers says "Package managers"
 // in the language the app shows.
 func NavManagers() string { return In(i18n.Locale()).NavManagers() }
 
-// NavManagers says "Managers"
+// NavManagers says "Package managers"
 // in the language of msgs.
 func (msgs Messages) NavManagers() string {
 	return Catalog.Format(msgs.locale, "navManagers", nil)

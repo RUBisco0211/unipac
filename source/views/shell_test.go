@@ -149,7 +149,9 @@ func TestFlightMovesToTasksButton(t *testing.T) {
 }
 
 // The badges are derived state: a refresh or a task change shows on the next
-// frame without reopening the window.
+// frame without reopening the window. The Managers item's plain-text total is
+// part of the frame too, and it does not move when tasks do — the two counts
+// are told apart by where they sit, so this test counts badge and total.
 func TestSidebarBadgesFollowState(t *testing.T) {
 	u := uiWithRunningTasks()
 	tt := render(t, u.left, 260, 520)
@@ -170,11 +172,27 @@ func TestSidebarBadgesFollowState(t *testing.T) {
 		t.Errorf("running task badge disappeared: %v", tt.Texts())
 	}
 
-	// All but one task finished.
+	// All but one task finished. The Managers total is a "3" of its own, so
+	// the running badge is counted, not found: two before, one after.
+	before := 0
+	for _, text := range tt.Texts() {
+		if text == "3" {
+			before++
+		}
+	}
+	if before != 2 {
+		t.Fatalf("found %d texts saying 3, want the running badge and the manager total", before)
+	}
 	u.tasks.Apply(testui.Tasks())
 	tt.Frame()
-	if exactText(tt, "3") {
-		t.Errorf("running task badge did not decrease: %v", tt.Texts())
+	after := 0
+	for _, text := range tt.Texts() {
+		if text == "3" {
+			after++
+		}
+	}
+	if after != before-1 {
+		t.Errorf("running badge did not decrease: %d texts saying 3 after, want %d", after, before-1)
 	}
 	if !exactText(tt, "1") {
 		t.Errorf("running task badge missing: %v", tt.Texts())
@@ -680,5 +698,25 @@ func TestClearTaskHistoryWithoutAWindowIsInert(t *testing.T) {
 	u.OpenPath("")
 	if len(u.tasks.All()) != 0 {
 		t.Errorf("a window with no service changed the tasks")
+	}
+}
+
+// The Managers item names the page and says how many managers the backend
+// registered, as plain text on the item's trailing edge — not a badge, which
+// would read as work waiting on it.
+func TestManagersItemShowsTheTotal(t *testing.T) {
+	u := &UI{data: testui.Data()}
+	tt := render(t, u.left, 260, 520)
+
+	item, ok := tt.Find(locales.NavManagers())
+	if !ok {
+		t.Fatalf("the managers item is missing: %v", tt.Texts())
+	}
+	total, ok := tt.Find("3")
+	if !ok {
+		t.Fatalf("the total is missing: %v", tt.Texts())
+	}
+	if total.X+total.W/2 < item.X+item.W*0.75 {
+		t.Errorf("the total at %+v is not on the item's trailing edge %+v", total, item)
 	}
 }

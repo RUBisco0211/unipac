@@ -873,30 +873,43 @@ func (u *UI) left(c *ui.Context) {
 	ui.Column(c).Fill().Padding(sidebar.HeaderHeight(c), 0, 6, 0).Children(func() {
 		components.Sidebar(c).Children(func() {
 			components.SidebarSection(c, locales.SidebarPackages(), func() {
-				u.nav(c, PagePackages, locales.NavPackages(), lucide.Package(), 0)
-				u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp(), u.outdatedCount())
-				u.nav(c, PageSearch, locales.NavSearch(), lucide.Search(), 0)
-				u.nav(c, PageTasks, locales.NavTasks(), lucide.ListTodo(), u.runningTasks())
+				counted := func(n int) func(*ui.Context, float32) {
+					return func(c *ui.Context, size float32) { trailingCount(c, n) }
+				}
+				u.nav(c, PagePackages, locales.NavPackages(), lucide.Package(), nil)
+				u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp(), counted(u.outdatedCount()))
+				u.nav(c, PageSearch, locales.NavSearch(), lucide.Search(), nil)
+				u.nav(c, PageTasks, locales.NavTasks(), lucide.ListTodo(), counted(u.runningTasks()))
 			})
 			components.SidebarSection(c, locales.SidebarApp(), func() {
-				u.nav(c, PageManagers, locales.NavManagers(), lucide.Blocks(), 0)
-				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings(), 0)
+				u.nav(c, PageManagers, locales.NavManagers(), lucide.Blocks(), u.managerTotal)
+				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings(), nil)
 			})
 		})
 	})
 }
 
-func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG, count int) {
-	// The count trails the label, so it sits on the item's right edge and the
-	// label takes the room in between. The leading slot is only the icon.
+// nav builds one sidebar item: an icon, a label, and an optional trailing slot
+// after the label, which is how the counts and the manager total sit on the
+// item's right edge.
+func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG, trailing func(c *ui.Context, size float32)) {
 	item := components.SidebarItemWithSlots(c, label, u.page == page, func(c *ui.Context, size float32) {
 		components.Icon(c, icon).Size(size, size).TextColor(c.Theme().Accent)
-	}, func(c *ui.Context, _ float32) {
-		trailingCount(c, count)
-	})
+	}, trailing)
 	if item.Clicked() {
 		u.navigate(page)
 	}
+}
+
+// managerTotal is the Managers item's trailing slot: how many managers the
+// backend registered, as plain muted text rather than a badge — it is a fact
+// about the page, not a task waiting on it.
+func (u *UI) managerTotal(c *ui.Context, _ float32) {
+	if u.data == nil || len(u.data.Managers) == 0 {
+		return
+	}
+	components.Text(c, strconv.Itoa(len(u.data.Managers))).
+		FontSize(11).TextColor(c.Theme().TextMuted).AlignSelf(ui.Center)
 }
 
 // trailingCount is a sidebar item's count badge, right-aligned after its
