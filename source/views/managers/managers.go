@@ -137,7 +137,7 @@ func (m *View) Sync() {
 
 // tabs puts one tab per manager above the chosen one's panel: a page of five
 // managers is five screens of settings, and one of them is being changed at a
-// time. The tabs are centred, since the panel below them is the only content.
+// time. The tabs start at the leading edge, where the panel's own labels start.
 func (m *View) tabs(c *ui.Context) {
 	if len(m.rows) == 0 {
 		return
@@ -151,11 +151,10 @@ func (m *View) tabs(c *ui.Context) {
 	}
 	// The tab carries the manager's mark before its name, read by the manager's
 	// ID; a manager without a mark has its name alone.
-	tabs := components.TabsWithLeading(c, &m.tab, components.TabsUnderline,
+	components.TabsWithLeading(c, &m.tab, components.TabsUnderline,
 		func(c *ui.Context, i int, size float32) {
 			parts.ManagerIcon(c, m.rows[i].info.ID, size)
 		}, labels...)
-	tabs.List.FillWidth().Justify(ui.Center)
 	if m.tab >= 0 && m.tab < len(m.rows) {
 		m.tabID = m.rows[m.tab].info.ID
 	}
