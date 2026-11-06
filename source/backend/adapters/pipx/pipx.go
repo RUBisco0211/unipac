@@ -20,6 +20,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		info: &manager.Info{
 			ID:       "pipx",
 			Name:     "Pipx",
+			Website:  "https://pipx.pypa.io",
 			ExecName: "pipx",
 			Capabilities: *manager.
 				DefaultCapabilities().

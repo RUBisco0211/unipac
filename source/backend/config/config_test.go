@@ -258,6 +258,47 @@ func TestThemeAndNotificationsPersist(t *testing.T) {
 	}
 }
 
+// The theme color is saved and survives a reload; a color the build does not
+// know is rejected, so a hand edit cannot leave one the interface cannot draw.
+func TestSetAccentRoundTrip(t *testing.T) {
+	useTempRoot(t)
+
+	if err := SetAccent(AccentBlue); err != nil {
+		t.Fatalf("accent: %v", err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.Accent != AccentBlue {
+		t.Fatalf("accent = %q, want blue", loaded.Accent)
+	}
+
+	if err := SetAccent(AccentDefault); err != nil {
+		t.Fatalf("default accent: %v", err)
+	}
+	if Instance.Accent != "" {
+		t.Fatalf("accent = %q, want the empty default", Instance.Accent)
+	}
+
+	if err := SetAccent("chartreuse"); err == nil {
+		t.Fatal("an unknown accent was saved")
+	}
+	if Instance.Accent != "" {
+		t.Fatalf("the rejected color replaced the running one: %q", Instance.Accent)
+	}
+	// Every offered color is one the build knows, and the default comes first.
+	accents := Accents()
+	if len(accents) == 0 || accents[0] != AccentDefault {
+		t.Fatalf("accents = %v, want the default first", accents)
+	}
+	for _, value := range accents {
+		if !AccentChosen(value) {
+			t.Errorf("%q is offered but not known", value)
+		}
+	}
+}
+
 // An appearance the app does not know is rejected rather than saved, so a
 // hand edit or a stale client cannot write a value the window cannot show.
 func TestSetThemeRejectsAnUnknownValue(t *testing.T) {

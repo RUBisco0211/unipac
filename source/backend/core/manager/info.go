@@ -17,7 +17,11 @@ type Info struct {
 	ExecPath string `json:"exec_path,omitempty"`
 	// Version is what that executable reports for --version, read once during
 	// preflight. It is empty for a manager that could not be probed.
-	Version      string       `json:"version,omitempty"`
+	Version string `json:"version,omitempty"`
+	// Website is the manager's own documentation, declared by its adapter: the
+	// settings page shows the address and the window's way to open it. It does
+	// not depend on the executable being there.
+	Website      string       `json:"website,omitempty"`
 	Capabilities Capabilities `json:"capabilities,omitempty"`
 }
 

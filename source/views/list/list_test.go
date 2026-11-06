@@ -319,7 +319,7 @@ func TestBulkBarAppearsWithSelection(t *testing.T) {
 	if !withSelection.HasText(locales.PackagesBulkUpdate()) {
 		t.Errorf("bulk update missing: %v", withSelection.Texts())
 	}
-	if !withSelection.HasText(locales.PackagesBulkRemove()) {
+	if !withSelection.HasText(locales.PackagesBulkUninstall()) {
 		t.Errorf("bulk remove missing: %v", withSelection.Texts())
 	}
 	if !withSelection.HasText(locales.CommonSelectionCount(1, 2)) {
@@ -333,10 +333,10 @@ func TestOutdatedPageHidesUninstall(t *testing.T) {
 	l.choose(l.rows[0], true)
 	tt := render(t, l.Build, 1000, 500)
 
-	if tt.HasText(locales.ActionsRemove()) {
+	if tt.HasText(locales.ActionsUninstall()) {
 		t.Errorf("row uninstall exposed on the outdated page: %v", tt.Texts())
 	}
-	if tt.HasText(locales.PackagesBulkRemove()) {
+	if tt.HasText(locales.PackagesBulkUninstall()) {
 		t.Errorf("bulk uninstall exposed on the outdated page: %v", tt.Texts())
 	}
 	if !tt.HasText(locales.PackagesBulkUpdate()) {
@@ -518,7 +518,7 @@ func TestRowActionsStayInTheActionsColumn(t *testing.T) {
 	if _, ok := tt.Find(locales.TableActions()); !ok {
 		t.Fatal("the actions header is missing")
 	}
-	for _, want := range []string{locales.ActionsUpdate(), locales.ActionsRemove()} {
+	for _, want := range []string{locales.ActionsUpdate(), locales.ActionsUninstall()} {
 		button, ok := tt.Find(want)
 		if !ok {
 			t.Fatalf("%q is missing", want)

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -26,6 +27,9 @@ type Config struct {
 	// Theme is the appearance chosen in Settings: ThemeLight, ThemeDark, or ""
 	// to follow the system.
 	Theme string `json:"theme,omitempty"`
+	// Accent is the theme color chosen in Settings, one of Accents; "" keeps the
+	// toolkit's own accent.
+	Accent string `json:"accent,omitempty"`
 	// HoldToConfirm is nil in a config written before the setting existed, which
 	// behaves like true: the destructive confirmations hold rather than click.
 	HoldToConfirm *bool `json:"hold_to_confirm,omitempty"`
@@ -202,6 +206,46 @@ const (
 	ThemeLight = "light"
 	ThemeDark  = "dark"
 )
+
+// The theme colors Settings offers, the empty one keeping the toolkit's accent.
+const (
+	AccentDefault  = ""
+	AccentBlue     = "blue"
+	AccentPurple   = "purple"
+	AccentPink     = "pink"
+	AccentGreen    = "green"
+	AccentGraphite = "graphite"
+)
+
+// Accents is the theme colors Settings offers, in the order the choice shows
+// them. It is the source of the list: the interface draws the colors, and this
+// is what it asks for.
+func Accents() []string {
+	return []string{AccentDefault, AccentBlue, AccentPurple, AccentPink, AccentGreen, AccentGraphite}
+}
+
+// AccentChosen reports whether value is one of the theme colors this build
+// knows.
+func AccentChosen(value string) bool {
+	return slices.Contains(Accents(), value)
+}
+
+// SetAccent saves the theme color, "" for the toolkit's own. Applying it to the
+// running windows is the caller's job: the palette is rebuilt every frame. A
+// value the app does not know is rejected rather than saved, so a hand edit or a
+// stale client cannot leave a color the interface cannot draw.
+func SetAccent(value string) error {
+	if !AccentChosen(value) {
+		return fmt.Errorf("unknown accent: %q", value)
+	}
+	cfg := Instance
+	cfg.Accent = value
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
 
 // ThemeChosen reports whether value is one of the appearances this build knows.
 func ThemeChosen(value string) bool {

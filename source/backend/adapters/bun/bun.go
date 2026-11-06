@@ -41,6 +41,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		info: &manager.Info{
 			ID:       managerID,
 			Name:     "Bun",
+			Website:  "https://bun.sh",
 			ExecName: "bun",
 			Capabilities: *manager.
 				DefaultCapabilities().
@@ -150,7 +151,7 @@ func (a *Adapter) Install(pkgs []manager.Package, opt manager.ActionOptions) (ma
 
 func (a *Adapter) Uninstall(pkgs []manager.Package, _ manager.ActionOptions) (manager.ActionResult, error) {
 	args := append([]string{"remove", "-g"}, packageNames(pkgs)...)
-	return a.runAction(args, "Removed bun package(s)")
+	return a.runAction(args, "Uninstalled bun package(s)")
 }
 
 // Update moves each package to the version it should go to.

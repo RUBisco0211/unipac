@@ -284,7 +284,8 @@ holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
 file keeps scanning), `hold_to_confirm` (nil means on: a destructive
 confirmation holds rather than clicks), `language` (the tag chosen in Settings,
 absent or empty to follow the system), `theme` (`light`, `dark`, or absent to
-follow the system), `notifications` (nil means on, so a finished task is
+follow the system), `accent` (a theme color from `config.Accents()`, absent or
+empty for the toolkit's own), `notifications` (nil means on, so a finished task is
 announced), and `managers`, a map of `manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
@@ -325,14 +326,15 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 `sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts, which `ShellOptions.Toasts` places at the bottom right.
 
-- Six sidebar entries map to the six pages: Packages, Outdated, Search, Tasks, Managers, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
+- Four sidebar entries map to the four pages: Packages, Outdated, Search, Tasks. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label. Neither settings nor the package managers are pages: the App section's Settings entry opens a window of its own, and the managers are categories of the settings surface, which is how one search field reaches both the app's settings and every manager's override.
 - Give the window a 1024 × 620 minimum; `sidebar.NewShell` defaults to 820 × 740,
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
   so MyGo remembers bounds and maximized state.
-- Pass `Theme: theme.Onevra`. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme`: it repaints the root with the theme's opaque background, which covers the window material behind the sidebar and costs the blur.
+- Pass `Theme: u.theme` (`views/theme.go`), which is `theme.Onevra` with the theme color saved in Settings in place of Onevra's terracotta: the accent, its hover and pressed tints, the text drawn on it, the selection and the focus ring. Both windows take it, and it runs every frame, so a saved color shows as soon as a window draws again — nothing applies it. The color's values are `parts.AccentColor`; `config.Accents()` is the list the choice offers, and an empty or unknown value keeps Onevra's own. Choose light/dark/system with `mygo.Theme.SetSource` before `App.Run` for a saved preference. Components never call `Context.SetTheme`: it repaints the root with the theme's opaque background, which covers the window material behind the sidebar and costs the blur.
 - The app defines no native menus yet. The old `open_settings` Wails event and its
-  `useWailsEvents.ts` listener are gone; settings is a page in the sidebar.
+  `useWailsEvents.ts` listener are gone; settings is its own window, opened by the
+  sidebar entry or Cmd+comma.
 - A question about the app's own state is an Onevra `Dialog` built with the
   content, so it follows the theme and can ask for a hold; `mygo.Dialog` with the
   window as `Parent` is for the macOS-only cases, such as a sheet over the window.
@@ -345,15 +347,14 @@ together, and nothing has to be found across a 900-line file:
 
 | Package | Holds | Imports |
 | --- | --- | --- |
-| `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling, task notifications and the window's toasts (bottom right) | every view package below |
+| `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the settings window, the background jobs, quit handling, task notifications and the main window's toasts (bottom right) | every view package below |
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
-| `views/uiassets` | the views' own embedded assets: the brand marks the interface shows beside a manager's name, one file per manager ID, read by name | — |
+| `views/uiassets` | the views' own embedded assets: the colored brand marks the interface shows beside a manager's name, in the settings sidebar and in the tables, one file per manager ID, decoded once and read by name | — |
 | `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update | `inventory`, `parts`, `flight` |
-| `views/managers` | the package managers page: one tab per manager, its facts as key-value rows, the capability badges, and the save state machine | `inventory`, `parts` |
-| `views/settings` | the settings page: appearance, language, startup behavior, log level, the task history clear behind its dialog, and About | `inventory`, `parts` |
+| `views/settings` | the settings page: one `components.Settings` surface with the app's settings as categories (appearance, language, startup behavior, log level, the task history clear behind its dialog, About) and one category per registered manager, its facts, its path field, the capability badges, the re-probe section action, and the save state machine | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
 | `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |
@@ -433,39 +434,102 @@ capabilities. `Info.Available` says whether the executable answered;
 
 The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the frontend and must not be reintroduced in Go.
 
-### Settings Page
+### Settings Window
 
-The settings page is one scrollable column of sections separated by rules, not cards.
-A section has a title with an optional trailing action, a caption saying what its
-settings do when the settings need one, and a rule under them. A caption is one
-sentence without a full stop: the page is read as labels, not as prose. Appearance
-and Language carry no caption at all — their titles say what they are — and
-neither do the package-manager and About sections.
+Settings live in a second window (`views/settings_window.go`), a `plain.NewShell`
+720 × 600 with a 420 × 400 minimum, titled with the page's name and remembering
+its bounds under `StateKey: "settings"`. `components.Settings` fills it; the
+shell supplies the theme and the drag behaviour, so the page brings only its
+categories.
 
-The general section is the appearance (the system's, or a pinned light or dark
-one, applied with `mygo.Theme.SetSource` before the window opens and again when it
-changes), the language (the app's languages plus System, named in their own
-language), and then startup behavior — scanning on launch, and whether a
-destructive confirmation is a hold or a click — the notifications switch, and the
-log level. Then a Tasks section whose only job is a danger button that opens a dialog
-asking once about clearing the finished task history, and an About section: the app's version (from
-`mygo.App.Version`, which the build links in from `mygo.json`), the Go it was built
-with, the toolkit versions from the build's own module info, the data folder with a
-button that opens it, and the project's repository with one that opens it in the
-browser — plus an action that copies the lot, with every manager's name, version,
-state, package count and gaps, into a bug report.
+The surface runs behind the window's drag strip (`ContentBehindHeader`), so the
+window's controls sit on its navigation column the way the main window's sit on
+its sidebar, and the top of the window is the surface rather than a band of
+background above it. The surface's own heading row, which is where Onevra draws
+a title, is the clearance those controls need. That row's title is a zero-width
+space: the page's name is the window's, and Onevra's `SettingsOptions` has no way
+to hide the title — keep the workaround until it does. Because content runs
+behind the strip, the window tells the page the chrome it draws over it
+(`settings.View.TopInset`), which is what the error line pads itself by.
 
-The package managers have a page of their own, beside Settings in the sidebar, and
-it is tabs: one per manager with the first chosen, starting at the leading edge above the
-panel, which is a list of key-value rows, because the page is read as a list of answers — Status
-(available, or the red "executable not found"), the Enabled switch, Version,
-Executable with its path field and Apply, Packages (counted from `Data.Rows` and
-rebuilt only when `Data.Version` changes), and Capabilities. The switch sits
-second, under the state it explains, so turning a manager off is where the eye
-lands first. The tabs follow the manager's ID rather than its position, so a rescan
-that reorders or adds managers keeps the tab the user was on. Detecting every
-manager again is the page's title-bar action, which is where a re-probe belongs:
-it is about the managers, not about the rest of the settings.
+The window is created the first time the sidebar's Settings entry or Cmd+comma
+asks for it, and destroyed when it is closed, rather than created hidden and
+shown. MyGo asks every window to close when the app quits, so a window that hides
+instead of closing has to tell a quit from a click and answer both; closing for
+real leaves the quit path alone. Nothing is lost with the window: MyGo restores
+its bounds, and the surface's own state — the chosen category, the query, a
+path being typed — lives on the page, which the shell keeps for the life of the
+app. A refresh repaints both windows, because the settings window counts the same
+package rows per manager that the lists show.
+
+The settings page is one `components.Settings` surface, from
+`github.com/oneo-me/onevra/source/components`: a category sidebar with a search
+field that reaches every row of every category, one category's content at a time,
+and a narrow layout that swaps the sidebar for a selector and stacks each row.
+Onevra decides that layout; the page supplies the catalog. Do not hand-build a
+sidebar or a search field again — the reason the app has no managers page is that
+this surface searches settings and manager overrides together.
+
+The catalog is two sidebar sections. The first is the app's settings:
+
+- General — the appearance (the system's, or a pinned light or dark one, applied
+  with `mygo.Theme.SetSource` before the window opens and again when it changes),
+  the theme color (a dot of each color beside its name, from the list the backend
+  offers),
+  the language (the app's languages plus System, named in their own language),
+  startup behavior (scanning on launch, and whether a destructive confirmation is
+  a hold or a click), the notifications switch, and the log level.
+- Tasks — the sentence saying what the history holds, and the danger button that
+  opens a dialog asking once about clearing the finished task history.
+- About — the app's version (from `mygo.App.Version`, which the build links in
+  from `mygo.json`), the Go it was built with, the toolkit versions from the
+  build's own module info, the data folder with a button that opens it, and the
+  project's repository with one that opens it in the browser, plus the button
+  that copies the lot — every manager's name, version, state, package count and
+  gaps — into a bug report.
+
+The second section has one category per manager in `Data.Managers`, built by the
+loop in `managerCategories`: installing an adapter is enough to add its page, and
+no interface code names a manager. A category's `Leading` is the brand mark.
+
+A manager's page is two areas, because it is two things to read: the two controls
+that change the manager, then everything the page reports about it. Each area is a
+`SettingsGroup`, which is what gives it a heading and the rule under it. The first
+holds Enabled and Executable with its path field and Apply, and comes first
+because it is what a user opened the page to change. The second holds Status,
+Version, Packages (counted from `Data.Rows` and rebuilt only when `Data.Version`
+changes), Website and Capabilities, and changes nothing. Website is the address
+the adapter declares in its `Info`, shown as the row's caption with the window's
+way to open it in the browser; `adapters`' own test asks every registered adapter
+for one, so a new adapter cannot silently leave the row empty. Status is a badge, not a colored
+word: a check in green when the executable answered, a cross in red when it did
+not, which is how the capability badges below it are read too. Version wears the
+same tag mark a package row gives its installed version (`parts.VersionMark`), so
+a version looks like a version wherever the app shows one. The group IDs are `settings` and `info`; the headings are
+Configuration and Details, and each area's rows are named by the backend's words.
+
+Each fact is a row of its own rather than one key-value block, so the search
+field can reach it: searching "executable" finds every manager's path field,
+whatever page it is on. Every row is the surface's own row — title on the leading
+side, answer on the trailing edge — so a manager's page reads as one list rather
+than two layouts stacked on each other. A read-only answer is one line that keeps
+its own width (`factValue`), which is what makes the title beside it give way
+instead of squeezing the value into an ellipsis; a control that needs the row's
+whole width, the path field and the capability badges, is `Stacked`. A place
+rather than a word — the data folder, the repository — is the row's caption,
+where it wraps instead of pushing the row wide.
+
+Row keywords carry what the titles do not, such as a manager's ID and the words a
+user might type for a fact. The categories' IDs are `general`, `tasks`, `about`
+and `manager:<id>`, so a manager ID cannot collide with the app's own category,
+and the chosen category survives a rescan because it is an ID and not a position.
+
+Detecting every manager again is the managers section's `SectionActions` control:
+it is about the managers as a whole, so it sits beside that section's heading
+rather than on every manager's page or in the window's title bar. It is an
+`IconButtonCompact`, which Onevra sizes for a section heading without raising it.
+In the narrow layout it moves beside the category selector, where it is still
+reachable.
 
 Capabilities are badges, one per capability in the adapter guide's order: a check
 in green for what the manager offers and a cross in red for what it does not. That
@@ -473,27 +537,46 @@ is where a button disabled elsewhere in the window has its reason, and it costs 
 glance instead of reading a sentence. `parts` builds them, because the diagnostics
 text names the same gaps and both must read the same way.
 
-A tab also carries the manager's brand mark. The marks are Simple Icons files
-(CC0) embedded under `views/uiassets/marks`, one per manager ID, and
-`uiassets.ManagerMark(id)` reads them by that ID — the interface never names a
-manager, and one without a file shows without a mark. They are embedded rather
-than shipped as resources because they are small, fixed, and drawn before the
-window opens, which is what `//go:embed` is for; the marks belong to the views
-because they are presentation, not backend.
+The brand marks are the brands' own colored artwork, embedded under
+`views/uiassets/marks`, one per manager ID, and `uiassets.ManagerLogo(id)` reads
+them by that ID — the interface never names a manager, and one without a file
+shows without a mark. A table row shows the mark beside the manager's name
+(`parts.ManagerLabel`), smaller than the settings sidebar draws it: a row is
+denser than a navigation item, and 14 DIPs keeps the mark beside its name instead
+of above it. `marks/LICENSE` records where each file came from and
+under what terms; the marks stay the trademarks of their owners and are there to
+identify the software.
+
+A mark is decoded once into a `ui.ImageSource` and shown through the category's
+`Image` slot, which draws it in its own colors — `Icon` would repaint it in the
+theme's text color, which is the one thing colored artwork must not have. The
+files are embedded rather than shipped as resources because they are small,
+fixed, and drawn before the window opens, which is what `//go:embed` is for; the
+marks belong to the views because they are presentation, not backend.
+
+One mark is not a color drawing of its own: pipx publishes a large illustration
+that is unreadable at a sidebar row's size, so its mark is the CC0 Simple Icons
+glyph filled with the brand's color. The file is drawn as it is on both frames —
+the artwork is the brand's, and adapting it per frame is not the views' call.
 
 The path field shows the saved override; the detected path is its muted
 placeholder, so an empty field means "detect automatically". Apply stays visible
 and disabled until the draft differs, and the field submits on Enter. Rows are
 rebuilt only when `Data.ManagersVersion` changes, so an unapplied draft survives
-the frames in between, and the chosen tab is restored from the ID it was on.
+the frames in between.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
 subprocess and every write touches the config file. The guard is one write at a
-time, whichever page asked — the settings page and the managers page share it,
-since both write the same config — and the control moves first while the job
-publishes what the backend reports; a failed write puts the rows back and shows
-the error where the change was made. Turning a manager off or changing its path
-asks for a rescan, so its rows leave the lists.
+time — the app's settings and the managers' overrides are the same file, so they
+share it and one error line — and the control moves first while the job publishes
+what the backend reports; a failed or dropped write puts the rows back and, when
+it failed, shows the error above the surface. Turning a manager off or changing
+its path asks for a rescan, so its rows leave the lists.
+
+A write is published in the settings window and the lists it changes are then
+asked for a frame in the other one: `u.data.SetManagers` moves both, and
+`mainWin.Invalidate` is what shows it. A write only starts while the settings
+window is open, so the guard refuses one when it is not.
 
 ### Tasks Page
 
@@ -626,7 +709,8 @@ Every table puts `t.Space(2)` of padding either side of itself, and that is its
 only table-level inset: Onevra lays a header cell and a row cell out through one
 call with one padding and offers no per-column inset, so the table's own edge is
 the only place a first cell's padding reaches the header too. Columns whose cells
-are one short element — the manager badge, the status badge, the row buttons —
+are one short element — the manager's mark and name, the status badge, the row
+buttons —
 centre their headers, and their cells centre with them; a text column keeps its
 header and rows on the leading edge. Versions and descriptions carry a tooltip,
 because the cells are one line and clip.
@@ -788,8 +872,9 @@ Task UI:
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.
-- Install roots are not shown on the managers page: where each manager puts its
-  packages would be a panel row, but the answers are uneven — `brew --prefix`,
+- Install roots are not shown on a manager's settings category: where each
+  manager puts its packages would be one more fact there, but the answers are
+  uneven — `brew --prefix`,
   `npm prefix -g` and `uv tool dir` are exact, `pipx` and `cargo` only have a
   default path, `pip` writes into a site-packages directory that depends on the
   interpreter, and `bun pm bin -g` names the bin directory, not the install root.

@@ -488,7 +488,7 @@ func (l *View) toolbar(c *ui.Context) {
 		canBulkRemove := len(removable) > 0
 		removeSlot := parts.ActionSlot(c)
 		removeSlot.Children(func() {
-			bulkRemove := components.IconButton(c, lucide.Trash(), locales.PackagesBulkRemove(), components.IconButtonPlain)
+			bulkRemove := components.IconButton(c, lucide.Trash(), locales.PackagesBulkUninstall(), components.IconButtonPlain)
 			bulkRemove.TextColor(c.Theme().Danger)
 			bulkRemove.Disabled(!canBulkRemove)
 			if bulkRemove.Clicked() && canBulkRemove {
@@ -643,9 +643,9 @@ func (l *View) rowActions(c *ui.Context, pkg manager.Package) {
 		}
 		removing := running == "remove"
 		canRemove := caps.Uninstall && running == ""
-		removeLabel := locales.ActionsRemove()
+		removeLabel := locales.ActionsUninstall()
 		if removing {
-			removeLabel = locales.ActionsRemoving()
+			removeLabel = locales.ActionsUninstalling()
 		}
 		removeSlot := parts.ActionSlot(c)
 		removeSlot.Children(func() {

@@ -22,6 +22,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		info: &manager.Info{
 			ID:       "cargo",
 			Name:     "Cargo",
+			Website:  "https://doc.rust-lang.org/cargo",
 			ExecName: "cargo",
 			Capabilities: *manager.
 				DefaultCapabilities().

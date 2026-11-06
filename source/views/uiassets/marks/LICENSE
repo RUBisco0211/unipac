@@ -1,7 +1,27 @@
-The SVG files in this directory are brand marks from Simple Icons
-(https://simpleicons.org), published there under CC0 1.0 (public domain).
-Each is named by the manager that shows it, not by the brand that drew it:
-pip.svg is Python's mark, cargo.svg is Rust's, and uvtool.svg is uv's.
+The image files in this directory are the brands' own colored artwork, one
+per package manager, named by the manager that shows it rather than by the
+brand that drew it: pip.svg is Python's mark and cargo.svg is Rust's gear.
 
-The set is not complete. A manager without a file here shows without a
-mark; add one named by the manager's ID to give it its own.
+Where each file came from:
+
+  brew.svg     Homebrew's logo, from homarr-labs/dashboard-icons
+               (Apache-2.0 collection).
+  bun.svg      Bun's logo, from selfhst/icons (CC BY 4.0).
+  cargo.svg    Rust's official gear, recolored to Rust orange #F74C00: the
+               path is the black logo published by SVG Logos
+               (github.com/gilbarbara/logos, CC0), and the Cargo adapter is
+               what builds Rust packages.
+  npm.svg      npm's logo, from devicons/devicon (MIT).
+  pip.svg      Python's logo, from selfhst/icons (CC BY 4.0).
+  pipx.svg     pipx's mark from Simple Icons (https://simpleicons.org, CC0)
+               filled with pipx's brand color #2CFFAA, as served by
+               thesvg.org.
+  uv-tool.svg  uv's logo, from astral-sh/uv (docs/assets/logo-letter.svg).
+
+The icons are shown to identify the software they belong to. The marks
+themselves remain the trademarks of their owners: Homebrew, Oven (Bun), the
+Rust Foundation (Cargo), npm, Inc., the Python Software Foundation, pipx, and
+Astral (uv).
+
+The set is not complete. A manager without a file here shows without a mark;
+add one named by the manager's ID to give it its own.

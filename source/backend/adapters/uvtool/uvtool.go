@@ -24,6 +24,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		info: &manager.Info{
 			ID:       managerID,
 			Name:     "UV Tool",
+			Website:  "https://docs.astral.sh/uv",
 			ExecName: "uv",
 			Capabilities: *manager.
 				DefaultCapabilities().

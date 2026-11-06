@@ -40,6 +40,10 @@ type Service interface {
 	Languages() []string
 	Theme() string
 	SetTheme(value string) error
+	// Accent is the saved theme color, one of Accents; "" keeps the toolkit's.
+	Accent() string
+	Accents() []string
+	SetAccent(value string) error
 	Notifications() bool
 	SetNotifications(on bool) error
 	SetLanguage(tag string) error

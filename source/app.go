@@ -282,6 +282,27 @@ func (a *App) SetTheme(value string) error {
 	return nil
 }
 
+// Accent is the saved theme color, "" for the toolkit's own.
+func (a *App) Accent() string {
+	return config.Instance.Accent
+}
+
+// Accents is the theme colors Settings offers.
+func (a *App) Accents() []string {
+	return config.Accents()
+}
+
+// SetAccent saves the theme color. The windows read it as they draw, so nothing
+// is applied here: the next frame of each picks the color up.
+func (a *App) SetAccent(value string) error {
+	slog.InfoContext(a.ctx, "changing theme color", "accent", value)
+	if err := config.SetAccent(value); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save the theme color", "error", err)
+		return err
+	}
+	return nil
+}
+
 // applyTheme makes the system appearance, and with it the palette every frame
 // draws in, follow the saved choice.
 func applyTheme(value string) {

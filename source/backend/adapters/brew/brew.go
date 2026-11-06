@@ -23,6 +23,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		info: &manager.Info{
 			ID:       "brew",
 			Name:     "Homebrew",
+			Website:  "https://brew.sh",
 			ExecName: "brew",
 			Capabilities: *manager.
 				DefaultCapabilities().

@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -15,15 +16,19 @@ func render(t *testing.T, build func(*ui.Context), w, h int) *ui.Tester {
 	return testui.Render(build, w, h)
 }
 
+func fixture() *inventory.Data { return testui.Data() }
+
 func settingsFixture() *View {
 	return &View{
-		Data:          testui.Data(),
+		Data:          fixture(),
 		AutoScan:      true,
 		logLevel:      "info",
 		levels:        []string{"debug", "info", "warn", "error"},
 		language:      "",
 		languages:     []string{"en", "zh-CN"},
 		theme:         "",
+		accent:        "",
+		accents:       []string{"", "blue", "purple", "pink", "green", "graphite"},
 		Notifications: true,
 		about: inventory.About{
 			Version:    "0.2.0",
@@ -35,25 +40,95 @@ func settingsFixture() *View {
 	}
 }
 
-func fixture() *inventory.Data { return testui.Data() }
+// choose opens one category from the sidebar. The surface shows one category at
+// a time, so a test about a setting has to get there first.
+func choose(t *testing.T, tt *ui.Tester, title string) {
+	t.Helper()
+	if err := tt.Click(title); err != nil {
+		t.Fatalf("open %q: %v", title, err)
+	}
+	tt.Frame()
+}
 
-// The page is the general settings, the task history hold, and About. The
-// managers have a page of their own.
-func TestSettingsShowsItsSections(t *testing.T) {
+// The page is one surface: the app's settings under their own section, and a
+// category per manager under the next. The general category is the one showing
+// when the page opens, because it holds what a user changes most.
+func TestSettingsShowsItsCategories(t *testing.T) {
 	s := settingsFixture()
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
 
 	for _, want := range []string{
+		locales.NavSettings(), locales.NavManagers(),
 		locales.SettingsGeneral(), locales.SettingsTasks(), locales.SettingsAbout(),
-		locales.SettingsAppearance(), locales.SettingsLanguage(), locales.SettingsLanguageSystem(),
-		locales.SettingsStartupScan(), locales.SettingsNotifications(), locales.SettingsLogLevel(),
+		// The managers are categories here, not a page of their own.
+		"Homebrew", "NPM", "Cargo",
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
 	}
+	for _, want := range []string{
+		locales.SettingsAppearance(), locales.SettingsAccent(), locales.SettingsLanguage(),
+		locales.SettingsStartupScan(), locales.SettingsNotifications(), locales.SettingsLogLevel(),
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("the general category is missing %q in %v", want, tt.Texts())
+		}
+	}
 	if tt.HasText(locales.SettingsManagerStatus()) {
-		t.Errorf("the managers are still configured here: %v", tt.Texts())
+		t.Errorf("a manager's rows are showing instead of the general ones: %v", tt.Texts())
+	}
+}
+
+// Choosing a category shows that page and no other: the surface builds one
+// category at a time, which is what keeps a manager's path field off screen
+// while the user is elsewhere.
+func TestSettingsCategoryReplacesTheContent(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 1200, 900)
+
+	choose(t, tt, locales.SettingsTasks())
+	if !tt.HasText(locales.SettingsHistory()) {
+		t.Fatalf("the tasks category did not show: %v", tt.Texts())
+	}
+	if tt.HasText(locales.SettingsAppearance()) {
+		t.Errorf("the general rows stayed: %v", tt.Texts())
+	}
+
+	choose(t, tt, locales.SettingsGeneral())
+	if !tt.HasText(locales.SettingsAppearance()) {
+		t.Errorf("going back to general did not restore its rows: %v", tt.Texts())
+	}
+}
+
+// The search field reaches every category at once, which is the reason a manager
+// fact and an app setting share one surface: "executable" finds the three
+// managers' path fields without knowing which page they are on.
+func TestSearchReachesTheManagers(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 1200, 900)
+
+	s.search.Query = "executable"
+	tt.Frame()
+	if !tt.HasText(locales.SettingsManagerExecutable()) {
+		t.Fatalf("the search did not reach the manager rows: %v", tt.Texts())
+	}
+	for _, want := range []string{"Homebrew", "NPM", "Cargo"} {
+		if !tt.HasText(want) {
+			t.Errorf("the result is missing %q in %v", want, tt.Texts())
+		}
+	}
+	if tt.HasText(locales.SettingsAppearance()) {
+		t.Errorf("a row that does not match is showing: %v", tt.Texts())
+	}
+
+	// Choosing a category is how the search is left.
+	choose(t, tt, locales.SettingsGeneral())
+	if s.search.Query != "" {
+		t.Errorf("the query survived a category choice: %q", s.search.Query)
+	}
+	if !tt.HasText(locales.SettingsAppearance()) {
+		t.Errorf("the chosen category is not showing: %v", tt.Texts())
 	}
 }
 
@@ -63,7 +138,7 @@ func TestSettingsLogLevelReachesBackend(t *testing.T) {
 	var got string
 	s.OnSetLogLevel = func(level string) { got = level }
 
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
 	// The trigger shows the current level; clicking it opens the popup.
 	if err := tt.Click(locales.LogLevelInfo()); err != nil {
 		t.Fatalf("open the level select: %v", err)
@@ -84,7 +159,7 @@ func TestSettingsLanguageReachesBackend(t *testing.T) {
 	var got string
 	s.OnSetLanguage = func(tag string) { got = tag }
 
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
 	if err := tt.Click(locales.SettingsLanguageSystem()); err != nil {
 		t.Fatalf("open the language select: %v", err)
 	}
@@ -101,14 +176,15 @@ func TestSettingsLanguageReachesBackend(t *testing.T) {
 	}
 }
 
-// use rather than the row's own title.
+// The appearance is the system's, or one the user pinned, and the select carries
+// the choice to the backend.
 func TestSettingsAppearanceReachesBackend(t *testing.T) {
 	s := settingsFixture()
 	s.theme = "light"
 	var got string
 	s.OnSetTheme = func(value string) { got = value }
 
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 1200, 900)
 	if !tt.HasText(locales.AppearanceLight()) {
 		t.Errorf("the current appearance is not shown: %v", tt.Texts())
 	}
@@ -132,7 +208,7 @@ func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
 	var got string
 	s.OnSetTheme = func(value string) { got = value }
 
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 1200, 900)
 	if err := tt.Click(locales.AppearanceSystem()); err != nil {
 		t.Fatalf("open the appearance select: %v", err)
 	}
@@ -149,15 +225,49 @@ func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
 	}
 }
 
+// The theme color is a choice from the palette the backend offers, and it
+// reaches the backend like every other choice in the category.
+func TestSettingsAccentReachesBackend(t *testing.T) {
+	s := settingsFixture()
+	var got string
+	s.OnSetAccent = func(value string) { got = value }
+
+	tt := render(t, s.Build, 1200, 900)
+	if !tt.HasText(locales.SettingsAccent()) {
+		t.Fatalf("the accent row is missing: %v", tt.Texts())
+	}
+	// The trigger shows the saved color; clicking it opens the palette.
+	if err := tt.Click(locales.AccentDefault()); err != nil {
+		t.Fatalf("open the accent choice: %v", err)
+	}
+	tt.Frame()
+	for _, want := range []string{locales.AccentBlue(), locales.AccentPurple(), locales.AccentGraphite()} {
+		if !tt.HasText(want) {
+			t.Errorf("the palette is missing %q: %v", want, tt.Texts())
+		}
+	}
+	if err := tt.Click(locales.AccentBlue()); err != nil {
+		t.Fatalf("choose a color: %v", err)
+	}
+	tt.Frame()
+	if got != "blue" {
+		t.Fatalf("accent sent %q, want blue", got)
+	}
+	// The page keeps the choice, which is what both windows read as they draw.
+	if s.Accent() != "blue" {
+		t.Errorf("the page did not keep the color: %q", s.Accent())
+	}
+}
+
 // The notification switch reaches the backend and the page keeps the answer the
-// backend reports, like every other switch in the section.
+// backend reports, like every other switch in the category.
 func TestSettingsNotificationsReachBackend(t *testing.T) {
 	s := settingsFixture()
 	s.Notifications = false
 	var got bool
 	s.OnSetNotifications = func(on bool) { got = on }
 
-	tt := render(t, s.Build, 900, 700)
+	tt := render(t, s.Build, 1200, 900)
 	if !tt.HasText(locales.SettingsNotifications()) {
 		t.Fatalf("the switch is missing: %v", tt.Texts())
 	}
@@ -184,10 +294,10 @@ func TestSettingsNotificationsReachBackend(t *testing.T) {
 // writes.
 func TestAboutShowsTheBuild(t *testing.T) {
 	s := settingsFixture()
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
 
 	for _, want := range []string{
-		locales.SettingsAbout(),
 		"0.2.0",
 		"go1.27.3",
 		"MyGo", "0.7.4",
@@ -196,27 +306,29 @@ func TestAboutShowsTheBuild(t *testing.T) {
 		s.about.Repository,
 	} {
 		if !tt.HasText(want) {
-			t.Errorf("missing %q in the About section", want)
+			t.Errorf("missing %q in the About category: %v", want, tt.Texts())
 		}
 	}
 }
 
-// The two folders open in the desktop's own application, and the page asks for
-// them by the path the backend reported, and the repository by its address.
-func TestAboutOpensItsFolders(t *testing.T) {
+// The two places open in the desktop's own applications, and the page asks for
+// them by the path and the address the backend reported.
+func TestAboutOpensItsPlaces(t *testing.T) {
 	s := settingsFixture()
 	var opened []string
 	var openedURLs []string
 	s.OnOpenPath = func(path string) { opened = append(opened, path) }
 	s.OnOpenURL = func(url string) { openedURLs = append(openedURLs, url) }
 
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
 	if err := tt.Click(locales.AboutOpen(locales.AboutDataDir())); err != nil {
 		t.Fatalf("open the data folder: %v", err)
 	}
 	if len(opened) != 1 || opened[0] != s.about.DataDir {
 		t.Fatalf("opened %v, want the data folder", opened)
 	}
+	tt.Frame()
 	if err := tt.Click(locales.AboutRepositoryOpen()); err != nil {
 		t.Fatalf("open the repository: %v", err)
 	}
@@ -230,7 +342,8 @@ func TestAboutOpensItsFolders(t *testing.T) {
 // says it did.
 func TestAboutCopiesDiagnostics(t *testing.T) {
 	s := settingsFixture()
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
 	if err := tt.Click(locales.AboutCopy()); err != nil {
 		t.Fatalf("click copy: %v", err)
 	}
@@ -266,7 +379,8 @@ func TestClearHistoryAsksInADialog(t *testing.T) {
 	s := settingsFixture()
 	s.OnClearHistory = func() { cleared++ }
 
-	tt := render(t, s.Build, 900, 1600)
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsTasks())
 	if err := tt.Click(locales.SettingsClearHistory()); err != nil {
 		t.Fatalf("click: %v", err)
 	}
@@ -302,8 +416,26 @@ func TestClearHistoryAsksInADialog(t *testing.T) {
 	}
 }
 
+// A failed save says so above the surface, whichever setting it was about: the
+// app's settings and the managers' overrides are one config file.
+func TestFailedSaveSaysSo(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 1200, 900)
+
+	s.BeginSave()
+	tt.Frame()
+	s.EndSave(errors.New("permission denied"), Snapshot{})
+	tt.Frame()
+	if !tt.HasText(locales.SettingsSaveError("permission denied")) {
+		t.Errorf("the failure is not shown: %v", tt.Texts())
+	}
+	if s.busy {
+		t.Error("the page is still busy after the save failed")
+	}
+}
+
 // Revert puts the controls back on what the backend last reported without
-// ending the write: a dropped change is not an outcome, and the section stays
+// ending the write: a dropped change is not an outcome, and the category stays
 // busy until the write that beat it lands.
 func TestRevertKeepsThePageBusy(t *testing.T) {
 	s := settingsFixture()

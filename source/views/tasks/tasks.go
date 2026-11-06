@@ -713,7 +713,9 @@ func (s *View) columns() []ui.TableColumn {
 		{Title: locales.TableOperation(), ID: "operation", Width: 100, Fixed: true},
 		{Title: locales.TablePackage(), ID: "package", MinWidth: 120},
 		{Title: locales.TableVersion(), ID: "version", Width: 124, Fixed: true},
-		{Title: locales.TableManager(), ID: "manager", Width: 92, Fixed: true, Align: ui.Center},
+		// The manager cell is a mark and a name, so it needs the width a badge did
+		// not: the longest registered name must not clip beside its icon.
+		{Title: locales.TableManager(), ID: "manager", Width: 112, Fixed: true, Align: ui.Center},
 		{Title: locales.TableStatus(), ID: "status", Width: 92, Fixed: true, Align: ui.Center},
 		{Title: locales.TableStarted(), ID: "started", Width: 84, Fixed: true},
 		{Title: locales.TableFinished(), ID: "finished", Width: 84, Fixed: true},
@@ -745,7 +747,7 @@ func (s *View) cell(c *ui.Context, row, col int) {
 	case 2:
 		versionCell(c, task)
 	case 3:
-		parts.ManagerBadge(c, task.ManagerID, task.ManagerName)
+		parts.ManagerLabel(c, task.ManagerID, task.ManagerName)
 	case 4:
 		s.statusBadge(c, task).AlignSelf(ui.Center)
 	case 5:

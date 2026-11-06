@@ -149,18 +149,16 @@ func TestFlightMovesToTasksButton(t *testing.T) {
 }
 
 // The badges are derived state: a refresh or a task change shows on the next
-// frame without reopening the window. The Managers item's plain-text total is
-// part of the frame too, and it does not move when tasks do — the two counts
-// are told apart by where they sit, so this test counts badge and total.
+// frame without reopening the window.
 func TestSidebarBadgesFollowState(t *testing.T) {
 	u := uiWithRunningTasks()
 	tt := render(t, u.left, 260, 520)
 
-	if !exactText(tt, "3") || !exactText(tt, "1") {
+	if !exactText(tt, "1") || !exactText(tt, "3") {
 		t.Fatalf("initial badges missing: %v", tt.Texts())
 	}
 
-	// The outdated package became current.
+	// The outdated package became current; the running badge stays where it was.
 	for i := range u.data.Rows {
 		u.data.Rows[i].Outdated = false
 	}
@@ -172,30 +170,11 @@ func TestSidebarBadgesFollowState(t *testing.T) {
 		t.Errorf("running task badge disappeared: %v", tt.Texts())
 	}
 
-	// All but one task finished. The Managers total is a "3" of its own, so
-	// the running badge is counted, not found: two before, one after.
-	before := 0
-	for _, text := range tt.Texts() {
-		if text == "3" {
-			before++
-		}
-	}
-	if before != 2 {
-		t.Fatalf("found %d texts saying 3, want the running badge and the manager total", before)
-	}
+	// All but one task finished, and the badge counts what is left.
 	u.tasks.Apply(testui.Tasks())
 	tt.Frame()
-	after := 0
-	for _, text := range tt.Texts() {
-		if text == "3" {
-			after++
-		}
-	}
-	if after != before-1 {
-		t.Errorf("running badge did not decrease: %d texts saying 3 after, want %d", after, before-1)
-	}
 	if !exactText(tt, "1") {
-		t.Errorf("running task badge missing: %v", tt.Texts())
+		t.Errorf("running task badge did not decrease: %v", tt.Texts())
 	}
 }
 
@@ -385,7 +364,7 @@ func TestFailureToastNamesTheOperationAndItsTask(t *testing.T) {
 func TestFailureToastCountsABatch(t *testing.T) {
 	pkgs := []manager.Package{{Name: "a"}, {Name: "b"}, {Name: "c"}}
 	got := failureToast("remove", pkgs, "")
-	if want := locales.ToastRemoveFailed(locales.ToastSeveralPackages("3")); got.Title != want {
+	if want := locales.ToastUninstallFailed(locales.ToastSeveralPackages("3")); got.Title != want {
 		t.Errorf("title = %q, want %q", got.Title, want)
 	}
 	if got.TaskID != "" {
@@ -491,7 +470,7 @@ func TestOutcomeLabelsFollowTheTaskKind(t *testing.T) {
 	if got := successLabel(tasks.KindInstall); got != locales.ToastInstalled() {
 		t.Errorf("install success = %q", got)
 	}
-	if got := failureLabel(tasks.KindUninstall, "mole"); got != locales.ToastRemoveFailed("mole") {
+	if got := failureLabel(tasks.KindUninstall, "mole"); got != locales.ToastUninstallFailed("mole") {
 		t.Errorf("uninstall failure = %q", got)
 	}
 }
@@ -657,6 +636,8 @@ func (wiredService) LogLevels() []string                           { return nil 
 func (wiredService) Language() string                              { return "" }
 func (wiredService) Languages() []string                           { return nil }
 func (wiredService) Theme() string                                 { return "" }
+func (wiredService) Accent() string                                { return "" }
+func (wiredService) Accents() []string                             { return nil }
 func (wiredService) Notifications() bool                           { return true }
 func (wiredService) About() inventory.About                        { return inventory.About{} }
 
@@ -701,23 +682,46 @@ func TestClearTaskHistoryWithoutAWindowIsInert(t *testing.T) {
 	}
 }
 
-// The Managers item names the page and says how many managers the backend
-// registered, as plain text on the item's trailing edge — not a badge, which
-// would read as work waiting on it.
-func TestManagersItemShowsTheTotal(t *testing.T) {
-	u := &UI{data: testui.Data()}
+// Settings are a window of their own, not a page: the sidebar entry opens it and
+// the page the window behind is showing does not change.
+func TestSidebarSettingsOpensTheWindow(t *testing.T) {
+	u := uiWithPages()
+	opened := 0
+	u.openSettings = func() { opened++ }
 	tt := render(t, u.left, 260, 520)
 
-	item, ok := tt.Find(locales.NavManagers())
-	if !ok {
-		t.Fatalf("the managers item is missing: %v", tt.Texts())
+	if _, ok := tt.Find(locales.NavSettings()); !ok {
+		t.Fatalf("the settings entry is missing: %v", tt.Texts())
 	}
-	total, ok := tt.Find("3")
-	if !ok {
-		t.Fatalf("the total is missing: %v", tt.Texts())
+	if err := tt.Click(locales.NavSettings()); err != nil {
+		t.Fatalf("click: %v", err)
 	}
-	if total.X+total.W/2 < item.X+item.W*0.75 {
-		t.Errorf("the total at %+v is not on the item's trailing edge %+v", total, item)
+	tt.Frame()
+	if opened != 1 {
+		t.Fatalf("opened %d times, want 1", opened)
+	}
+	if u.page != PagePackages {
+		t.Errorf("the settings entry moved the window to page %v", u.page)
+	}
+}
+
+// Cmd+, opens it too, which is where a user looks for settings after the first
+// time. It works with nothing focused and from a nested content tree, which is
+// what the shell builds: a shortcut scoped to the content column would stay
+// silent until something in it took the focus.
+func TestSettingsShortcutOpensTheWindow(t *testing.T) {
+	u := uiWithPages()
+	u.tasks = &taskspage.View{SelectedIndex: -1}
+	opened := 0
+	u.openSettings = func() { opened++ }
+	tt := render(t, func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { u.content(c) })
+	}, 900, 520)
+
+	tt.Key(ui.Cmd, ui.KeyComma)
+	tt.Frame()
+	if opened != 1 {
+		t.Fatalf("the shortcut opened the window %d times, want 1", opened)
 	}
 }
 
@@ -730,7 +734,7 @@ func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
 	if u.shell != nil {
 		t.Fatal("New built a shell outside Run")
 	}
-	// The guard needs a shell; drive the state machine through the pages
+	// The guard needs a shell; drive the state machine through the page
 	// directly, which is what the shell does around saveSettings.
 	u.settings.OnSetTheme = u.SetTheme
 	if u.saving {
@@ -739,11 +743,10 @@ func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
 	// First write starts and stays in flight.
 	u.saving = true
 	u.settings.BeginSave()
-	u.managers.BeginSave()
 
 	// A second change flips the control, then is dropped: the control goes
 	// back to the snapshot the backend last reported, while the first write
-	// keeps the pages busy.
+	// keeps the page busy.
 	u.settings.Notifications = false
 	u.SetNotifications(false)
 	if !u.settings.Notifications {
@@ -754,8 +757,7 @@ func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
 	}
 
 	// The first write lands and reports the backend's answer; the shell clears
-	// the guard before handing the snapshot to the pages.
+	// the guard before handing the snapshot to the page.
 	u.saving = false
 	u.settings.EndSave(nil, settings.Snapshot{Notifications: false, Theme: ""})
-	u.managers.EndSave(nil)
 }

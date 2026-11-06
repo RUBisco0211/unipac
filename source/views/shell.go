@@ -23,7 +23,6 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
-	managerspage "github.com/RUBisco0211/unipac/source/views/managers"
 	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
@@ -33,8 +32,8 @@ import (
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
+	"github.com/oneo-me/onevra/source/shells/plain"
 	"github.com/oneo-me/onevra/source/shells/sidebar"
-	"github.com/oneo-me/onevra/source/theme"
 )
 
 // Page identifies the page shown in the content area.
@@ -45,8 +44,6 @@ const (
 	PageOutdated
 	PageSearch
 	PageTasks
-	PageManagers
-	PageSettings
 )
 
 // toastOptions places the window's messages at the bottom right, out of the way
@@ -92,8 +89,15 @@ type UI struct {
 	outdated  *list.View
 	search    *search.View
 	tasks     *taskspage.View
-	managers  *managerspage.View
 	settings  *settings.View
+	// settingsShell is the settings window, nil until it is first asked for and
+	// again once it is closed. Settings are a config file changed now and then,
+	// not a page of the package lists.
+	settingsShell *plain.Shell
+	// openSettings shows that window. It is a field rather than a method call so
+	// a test can watch the sidebar item and the shortcut without a native window
+	// behind them; Run installs it.
+	openSettings func()
 
 	// saving says a settings write is running, so a second change waits rather
 	// than racing the config file. lastSnapshot is what the backend last
@@ -164,19 +168,16 @@ func New(service inventory.Service) *UI {
 	u.tasks.TitleActions = u.tasks.TitleAction
 	u.tasks.Apply(service.ListTasks())
 	u.knownTasks = taskStates(u.tasks.All())
-	u.managers = &managerspage.View{
-		Data:         u.data,
-		OnSetEnabled: u.SetManagerEnabled,
-		OnSetPath:    u.SetManagerExecPath,
-		OnReload:     u.ReloadManagers,
-	}
-	u.managers.TitleActions = u.managers.TitleAction
 	u.settings = settings.New(service, u.data)
 	u.settings.OnSetAutoScan = u.SetAutoScanOnLaunch
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
 	u.settings.OnSetTheme = u.SetTheme
 	u.settings.OnSetNotifications = u.SetNotifications
+	u.settings.OnSetAccent = u.SetAccent
+	u.settings.OnSetManagerEnabled = u.SetManagerEnabled
+	u.settings.OnSetManagerPath = u.SetManagerExecPath
+	u.settings.OnReloadManagers = u.ReloadManagers
 	u.settings.OnOpenPath = u.OpenPath
 	u.settings.OnOpenURL = u.OpenURL
 	u.settings.OnClearHistory = u.ClearTaskHistory
@@ -191,6 +192,7 @@ func New(service inventory.Service) *UI {
 		LogLevel:      service.LogLevel(),
 		Language:      service.Language(),
 		Theme:         service.Theme(),
+		Accent:        service.Accent(),
 		HoldToConfirm: service.HoldToConfirm(),
 		Notifications: service.Notifications(),
 	}
@@ -201,7 +203,7 @@ func New(service inventory.Service) *UI {
 func (u *UI) Run() {
 	u.shell = sidebar.NewShell(sidebar.ShellOptions{
 		Title:        "UniPac",
-		Theme:        theme.Onevra,
+		Theme:        u.theme,
 		StateKey:     "main",
 		MinWidth:     1024,
 		MinHeight:    620,
@@ -214,6 +216,7 @@ func (u *UI) Run() {
 		Toasts:       toastOptions,
 	})
 	win := u.shell.Window()
+	u.openSettings = u.showSettings
 	win.OnClose(func(e *mygo.CloseEvent) {
 		if u.quitAccepted.Load() {
 			return
@@ -283,6 +286,9 @@ func (u *UI) Refresh() {
 			if u.data.FinishRefresh(rows, refreshErr, loadErr) {
 				u.Refresh()
 			}
+			// The settings window counts the same rows per manager, so a
+			// refresh moves its numbers as well as the lists'.
+			u.invalidateSettings()
 		})
 	}()
 }
@@ -646,7 +652,7 @@ func successLabel(kind tasks.Kind) string {
 	case tasks.KindInstall:
 		return locales.ToastInstalled()
 	case tasks.KindUninstall:
-		return locales.ToastRemoved()
+		return locales.ToastUninstalled()
 	default:
 		return locales.ToastUpdated()
 	}
@@ -657,7 +663,7 @@ func failureLabel(kind tasks.Kind, name string) string {
 	case tasks.KindInstall:
 		return locales.ToastInstallFailed(name)
 	case tasks.KindUninstall:
-		return locales.ToastRemoveFailed(name)
+		return locales.ToastUninstallFailed(name)
 	default:
 		return locales.ToastUpdateFailed(name)
 	}
@@ -786,10 +792,6 @@ func (u *UI) pageTitle() string {
 		return locales.NavSearch()
 	case PageTasks:
 		return locales.NavTasks()
-	case PageManagers:
-		return locales.NavManagers()
-	case PageSettings:
-		return locales.NavSettings()
 	default:
 		return locales.NavPackages()
 	}
@@ -821,14 +823,6 @@ func (u *UI) titleActions() func(*ui.Context) {
 	case PageTasks:
 		if u.tasks != nil {
 			return u.tasks.TitleActions
-		}
-	case PageManagers:
-		if u.managers != nil {
-			return u.managers.TitleActions
-		}
-	case PageSettings:
-		if u.settings != nil {
-			return u.settings.TitleActions
 		}
 	}
 	return nil
@@ -895,16 +889,19 @@ func (u *UI) left(c *ui.Context) {
 				u.nav(c, PageTasks, locales.NavTasks(), lucide.ListTodo(), counted(u.runningTasks()))
 			})
 			components.SidebarSection(c, locales.SidebarApp(), func() {
-				u.nav(c, PageManagers, locales.NavManagers(), lucide.Blocks(), u.managerTotal)
-				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings(), nil)
+				// Settings is a window of its own, so this item opens it and never
+				// shows as the current page.
+				item := components.SidebarItem(c, locales.NavSettings(), lucide.Settings(), false)
+				if item.Clicked() && u.openSettings != nil {
+					u.openSettings()
+				}
 			})
 		})
 	})
 }
 
 // nav builds one sidebar item: an icon, a label, and an optional trailing slot
-// after the label, which is how the counts and the manager total sit on the
-// item's right edge.
+// after the label, which is how the counts sit on the item's right edge.
 func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG, trailing func(c *ui.Context, size float32)) {
 	item := components.SidebarItemWithSlots(c, label, u.page == page, func(c *ui.Context, size float32) {
 		components.Icon(c, icon).Size(size, size).TextColor(c.Theme().Accent)
@@ -912,17 +909,6 @@ func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG, trailing 
 	if item.Clicked() {
 		u.navigate(page)
 	}
-}
-
-// managerTotal is the Managers item's trailing slot: how many managers the
-// backend registered, as plain muted text rather than a badge — it is a fact
-// about the page, not a task waiting on it.
-func (u *UI) managerTotal(c *ui.Context, _ float32) {
-	if u.data == nil || len(u.data.Managers) == 0 {
-		return
-	}
-	components.Text(c, strconv.Itoa(len(u.data.Managers))).
-		FontSize(11).TextColor(c.Theme().TextMuted).AlignSelf(ui.Center)
 }
 
 // trailingCount is a sidebar item's count badge, right-aligned after its
@@ -987,6 +973,14 @@ func (u *UI) runningTasks() int {
 }
 
 func (u *UI) content(c *ui.Context) {
+	// Settings are one keystroke away, which is where a user looks for them after
+	// the first time. Shortcut asks the window rather than the focused control:
+	// OnShortcut would be scoped to this content column and stay silent while the
+	// sidebar or nothing at all has the focus. ui.Cmd is Control where there is no
+	// Cmd.
+	if c.Shortcut(ui.Cmd, ui.KeyComma) && u.openSettings != nil {
+		u.openSettings()
+	}
 	for _, t := range u.data.DrainToasts() {
 		c.AddToast(u.toastFor(t))
 	}
@@ -1012,10 +1006,6 @@ func (u *UI) content(c *ui.Context) {
 					u.search.Build(c)
 				case PageTasks:
 					u.tasks.Build(c)
-				case PageManagers:
-					u.managers.Build(c)
-				case PageSettings:
-					u.settings.Build(c)
 				}
 			})
 		})
@@ -1140,6 +1130,14 @@ func (u *UI) SetTheme(value string) {
 	})
 }
 
+// SetAccent saves the theme color. Nothing is applied: both windows read the
+// saved value as they draw, so the next frame of each is already in it.
+func (u *UI) SetAccent(value string) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetAccent(value)
+	})
+}
+
 func (u *UI) SetLanguage(tag string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetLanguage(tag)
@@ -1150,24 +1148,25 @@ func (u *UI) SetLanguage(tag string) {
 // backend now reports. rescan asks for a new package scan, which is what makes
 // a turned-off manager's rows leave the lists.
 func (u *UI) saveSettings(rescan bool, fn func() error) {
-	if u.settings == nil || u.managers == nil {
+	if u.settings == nil {
 		return
 	}
-	if u.saving || u.shell == nil {
+	if u.saving || u.shell == nil || u.settingsShell == nil {
 		// A second change while one write runs would race the config file, so
 		// it is dropped and its controls go back to what the backend last
 		// reported, without an error: nothing failed, and the write that is
-		// running keeps the pages busy. No shell means the window is not open
-		// yet, and a change arriving then is dropped the same way.
+		// running keeps the page busy. No window means nothing is on screen to
+		// change, and a change arriving then is dropped the same way.
 		u.settings.Revert(u.lastSnapshot)
-		u.managers.Revert()
 		return
 	}
 	u.saving = true
 	s := u.settings
 	s.BeginSave()
-	u.managers.BeginSave()
-	win := u.shell.Window()
+	// The page is published in its own window; the lists it changes are in the
+	// other one, which is asked for a frame after the data moved.
+	settingsWin := u.settingsShell.Window()
+	mainWin := u.shell.Window()
 	go func() {
 		err := fn()
 		managers := u.svc.ListManagers()
@@ -1177,20 +1176,21 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			LogLevel:      u.svc.LogLevel(),
 			Language:      u.svc.Language(),
 			Theme:         u.svc.Theme(),
+			Accent:        u.svc.Accent(),
 			HoldToConfirm: u.svc.HoldToConfirm(),
 			Notifications: u.svc.Notifications(),
 		}
-		win.Update(func() {
+		settingsWin.Update(func() {
 			u.saving = false
 			if err == nil {
 				u.lastSnapshot = saved
 			}
 			s.EndSave(err, saved)
-			u.managers.EndSave(err)
 			if err != nil {
 				return
 			}
 			u.data.SetManagers(managers, overrides)
+			mainWin.Invalidate()
 			if rescan {
 				u.Refresh()
 			}

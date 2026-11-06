@@ -174,14 +174,14 @@ func (msgs Messages) PackagesBulkUpdate() string {
 	return Catalog.Format(msgs.locale, "packagesBulkUpdate", nil)
 }
 
-// PackagesBulkRemove says "Remove selected"
+// PackagesBulkUninstall says "Uninstall selected"
 // in the language the app shows.
-func PackagesBulkRemove() string { return In(i18n.Locale()).PackagesBulkRemove() }
+func PackagesBulkUninstall() string { return In(i18n.Locale()).PackagesBulkUninstall() }
 
-// PackagesBulkRemove says "Remove selected"
+// PackagesBulkUninstall says "Uninstall selected"
 // in the language of msgs.
-func (msgs Messages) PackagesBulkRemove() string {
-	return Catalog.Format(msgs.locale, "packagesBulkRemove", nil)
+func (msgs Messages) PackagesBulkUninstall() string {
+	return Catalog.Format(msgs.locale, "packagesBulkUninstall", nil)
 }
 
 // PackagesSelectAll says "Select all"
@@ -304,14 +304,14 @@ func (msgs Messages) ActionsUpdate() string {
 	return Catalog.Format(msgs.locale, "actionsUpdate", nil)
 }
 
-// ActionsRemove says "Remove"
+// ActionsUninstall says "Uninstall"
 // in the language the app shows.
-func ActionsRemove() string { return In(i18n.Locale()).ActionsRemove() }
+func ActionsUninstall() string { return In(i18n.Locale()).ActionsUninstall() }
 
-// ActionsRemove says "Remove"
+// ActionsUninstall says "Uninstall"
 // in the language of msgs.
-func (msgs Messages) ActionsRemove() string {
-	return Catalog.Format(msgs.locale, "actionsRemove", nil)
+func (msgs Messages) ActionsUninstall() string {
+	return Catalog.Format(msgs.locale, "actionsUninstall", nil)
 }
 
 // ActionsUpdating says "Updating…"
@@ -324,14 +324,14 @@ func (msgs Messages) ActionsUpdating() string {
 	return Catalog.Format(msgs.locale, "actionsUpdating", nil)
 }
 
-// ActionsRemoving says "Removing…"
+// ActionsUninstalling says "Uninstalling…"
 // in the language the app shows.
-func ActionsRemoving() string { return In(i18n.Locale()).ActionsRemoving() }
+func ActionsUninstalling() string { return In(i18n.Locale()).ActionsUninstalling() }
 
-// ActionsRemoving says "Removing…"
+// ActionsUninstalling says "Uninstalling…"
 // in the language of msgs.
-func (msgs Messages) ActionsRemoving() string {
-	return Catalog.Format(msgs.locale, "actionsRemoving", nil)
+func (msgs Messages) ActionsUninstalling() string {
+	return Catalog.Format(msgs.locale, "actionsUninstalling", nil)
 }
 
 // ActionSelectRow says "Select a package first"
@@ -384,13 +384,13 @@ func (msgs Messages) UninstallTitle() string {
 	return Catalog.Format(msgs.locale, "uninstallTitle", nil)
 }
 
-// UninstallMessage says "{name} will be removed with {manager}. This cannot be undone."
+// UninstallMessage says "{name} will be uninstalled with {manager}. This cannot be undone."
 // in the language the app shows.
 func UninstallMessage(name string, manager string) string {
 	return In(i18n.Locale()).UninstallMessage(name, manager)
 }
 
-// UninstallMessage says "{name} will be removed with {manager}. This cannot be undone."
+// UninstallMessage says "{name} will be uninstalled with {manager}. This cannot be undone."
 // in the language of msgs.
 func (msgs Messages) UninstallMessage(name string, manager string) string {
 	return Catalog.Format(msgs.locale, "uninstallMessage", map[string]any{"name": name, "manager": manager})
@@ -406,11 +406,11 @@ func (msgs Messages) UninstallBulkTitle() string {
 	return Catalog.Format(msgs.locale, "uninstallBulkTitle", nil)
 }
 
-// UninstallBulkMessage says "{count} packages will be removed. This cannot be undone."
+// UninstallBulkMessage says "{count} packages will be uninstalled. This cannot be undone."
 // in the language the app shows.
 func UninstallBulkMessage(count int) string { return In(i18n.Locale()).UninstallBulkMessage(count) }
 
-// UninstallBulkMessage says "{count} packages will be removed. This cannot be undone."
+// UninstallBulkMessage says "{count} packages will be uninstalled. This cannot be undone."
 // in the language of msgs.
 func (msgs Messages) UninstallBulkMessage(count int) string {
 	return Catalog.Format(msgs.locale, "uninstallBulkMessage", map[string]any{"count": count})
@@ -426,14 +426,14 @@ func (msgs Messages) UninstallConfirm() string {
 	return Catalog.Format(msgs.locale, "uninstallConfirm", nil)
 }
 
-// ToastRemoved says "Removed"
+// ToastUninstalled says "Uninstalled"
 // in the language the app shows.
-func ToastRemoved() string { return In(i18n.Locale()).ToastRemoved() }
+func ToastUninstalled() string { return In(i18n.Locale()).ToastUninstalled() }
 
-// ToastRemoved says "Removed"
+// ToastUninstalled says "Uninstalled"
 // in the language of msgs.
-func (msgs Messages) ToastRemoved() string {
-	return Catalog.Format(msgs.locale, "toastRemoved", nil)
+func (msgs Messages) ToastUninstalled() string {
+	return Catalog.Format(msgs.locale, "toastUninstalled", nil)
 }
 
 // ToastUpdated says "Updated"
@@ -808,11 +808,11 @@ func (msgs Messages) TasksEmpty() string {
 	return Catalog.Format(msgs.locale, "tasksEmpty", nil)
 }
 
-// TasksEmptyHint says "Install, update or remove a package and its console appears here."
+// TasksEmptyHint says "Install, update or uninstall a package and its console appears here."
 // in the language the app shows.
 func TasksEmptyHint() string { return In(i18n.Locale()).TasksEmptyHint() }
 
-// TasksEmptyHint says "Install, update or remove a package and its console appears here."
+// TasksEmptyHint says "Install, update or uninstall a package and its console appears here."
 // in the language of msgs.
 func (msgs Messages) TasksEmptyHint() string {
 	return Catalog.Format(msgs.locale, "tasksEmptyHint", nil)
@@ -1238,14 +1238,14 @@ func (msgs Messages) ToastUpdateFailed(name string) string {
 	return Catalog.Format(msgs.locale, "toastUpdateFailed", map[string]any{"name": name})
 }
 
-// ToastRemoveFailed says "Could not remove {name}"
+// ToastUninstallFailed says "Could not uninstall {name}"
 // in the language the app shows.
-func ToastRemoveFailed(name string) string { return In(i18n.Locale()).ToastRemoveFailed(name) }
+func ToastUninstallFailed(name string) string { return In(i18n.Locale()).ToastUninstallFailed(name) }
 
-// ToastRemoveFailed says "Could not remove {name}"
+// ToastUninstallFailed says "Could not uninstall {name}"
 // in the language of msgs.
-func (msgs Messages) ToastRemoveFailed(name string) string {
-	return Catalog.Format(msgs.locale, "toastRemoveFailed", map[string]any{"name": name})
+func (msgs Messages) ToastUninstallFailed(name string) string {
+	return Catalog.Format(msgs.locale, "toastUninstallFailed", map[string]any{"name": name})
 }
 
 // ToastSeveralPackages says "{count} packages"
@@ -1418,6 +1418,26 @@ func (msgs Messages) SettingsAppearance() string {
 	return Catalog.Format(msgs.locale, "settingsAppearance", nil)
 }
 
+// SettingsAccent says "Accent color"
+// in the language the app shows.
+func SettingsAccent() string { return In(i18n.Locale()).SettingsAccent() }
+
+// SettingsAccent says "Accent color"
+// in the language of msgs.
+func (msgs Messages) SettingsAccent() string {
+	return Catalog.Format(msgs.locale, "settingsAccent", nil)
+}
+
+// SettingsAccentDesc says "The color selections, focus and active controls are drawn in"
+// in the language the app shows.
+func SettingsAccentDesc() string { return In(i18n.Locale()).SettingsAccentDesc() }
+
+// SettingsAccentDesc says "The color selections, focus and active controls are drawn in"
+// in the language of msgs.
+func (msgs Messages) SettingsAccentDesc() string {
+	return Catalog.Format(msgs.locale, "settingsAccentDesc", nil)
+}
+
 // AppearanceSystem says "Match system"
 // in the language the app shows.
 func AppearanceSystem() string { return In(i18n.Locale()).AppearanceSystem() }
@@ -1448,6 +1468,66 @@ func (msgs Messages) AppearanceDark() string {
 	return Catalog.Format(msgs.locale, "appearanceDark", nil)
 }
 
+// AccentDefault says "Default"
+// in the language the app shows.
+func AccentDefault() string { return In(i18n.Locale()).AccentDefault() }
+
+// AccentDefault says "Default"
+// in the language of msgs.
+func (msgs Messages) AccentDefault() string {
+	return Catalog.Format(msgs.locale, "accentDefault", nil)
+}
+
+// AccentBlue says "Blue"
+// in the language the app shows.
+func AccentBlue() string { return In(i18n.Locale()).AccentBlue() }
+
+// AccentBlue says "Blue"
+// in the language of msgs.
+func (msgs Messages) AccentBlue() string {
+	return Catalog.Format(msgs.locale, "accentBlue", nil)
+}
+
+// AccentPurple says "Purple"
+// in the language the app shows.
+func AccentPurple() string { return In(i18n.Locale()).AccentPurple() }
+
+// AccentPurple says "Purple"
+// in the language of msgs.
+func (msgs Messages) AccentPurple() string {
+	return Catalog.Format(msgs.locale, "accentPurple", nil)
+}
+
+// AccentPink says "Pink"
+// in the language the app shows.
+func AccentPink() string { return In(i18n.Locale()).AccentPink() }
+
+// AccentPink says "Pink"
+// in the language of msgs.
+func (msgs Messages) AccentPink() string {
+	return Catalog.Format(msgs.locale, "accentPink", nil)
+}
+
+// AccentGreen says "Green"
+// in the language the app shows.
+func AccentGreen() string { return In(i18n.Locale()).AccentGreen() }
+
+// AccentGreen says "Green"
+// in the language of msgs.
+func (msgs Messages) AccentGreen() string {
+	return Catalog.Format(msgs.locale, "accentGreen", nil)
+}
+
+// AccentGraphite says "Graphite"
+// in the language the app shows.
+func AccentGraphite() string { return In(i18n.Locale()).AccentGraphite() }
+
+// AccentGraphite says "Graphite"
+// in the language of msgs.
+func (msgs Messages) AccentGraphite() string {
+	return Catalog.Format(msgs.locale, "accentGraphite", nil)
+}
+
 // SettingsNotifications says "Notifications"
 // in the language the app shows.
 func SettingsNotifications() string { return In(i18n.Locale()).SettingsNotifications() }
@@ -1458,11 +1538,11 @@ func (msgs Messages) SettingsNotifications() string {
 	return Catalog.Format(msgs.locale, "settingsNotifications", nil)
 }
 
-// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification"
+// SettingsNotificationsDesc says "Announce a finished install, update or uninstall with a system notification"
 // in the language the app shows.
 func SettingsNotificationsDesc() string { return In(i18n.Locale()).SettingsNotificationsDesc() }
 
-// SettingsNotificationsDesc says "Announce a finished install, update or removal with a system notification"
+// SettingsNotificationsDesc says "Announce a finished install, update or uninstall with a system notification"
 // in the language of msgs.
 func (msgs Messages) SettingsNotificationsDesc() string {
 	return Catalog.Format(msgs.locale, "settingsNotificationsDesc", nil)
@@ -1486,6 +1566,16 @@ func SettingsTasksDesc() string { return In(i18n.Locale()).SettingsTasksDesc() }
 // in the language of msgs.
 func (msgs Messages) SettingsTasksDesc() string {
 	return Catalog.Format(msgs.locale, "settingsTasksDesc", nil)
+}
+
+// SettingsHistory says "Task history"
+// in the language the app shows.
+func SettingsHistory() string { return In(i18n.Locale()).SettingsHistory() }
+
+// SettingsHistory says "Task history"
+// in the language of msgs.
+func (msgs Messages) SettingsHistory() string {
+	return Catalog.Format(msgs.locale, "settingsHistory", nil)
 }
 
 // SettingsClearHistory says "Clear task history"
@@ -1818,6 +1908,46 @@ func SettingsManagerVersion() string { return In(i18n.Locale()).SettingsManagerV
 // in the language of msgs.
 func (msgs Messages) SettingsManagerVersion() string {
 	return Catalog.Format(msgs.locale, "settingsManagerVersion", nil)
+}
+
+// SettingsManagerWebsite says "Website"
+// in the language the app shows.
+func SettingsManagerWebsite() string { return In(i18n.Locale()).SettingsManagerWebsite() }
+
+// SettingsManagerWebsite says "Website"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerWebsite() string {
+	return Catalog.Format(msgs.locale, "settingsManagerWebsite", nil)
+}
+
+// SettingsManagerWebsiteOpen says "Open website"
+// in the language the app shows.
+func SettingsManagerWebsiteOpen() string { return In(i18n.Locale()).SettingsManagerWebsiteOpen() }
+
+// SettingsManagerWebsiteOpen says "Open website"
+// in the language of msgs.
+func (msgs Messages) SettingsManagerWebsiteOpen() string {
+	return Catalog.Format(msgs.locale, "settingsManagerWebsiteOpen", nil)
+}
+
+// SettingsManagersConfigure says "Configuration"
+// in the language the app shows.
+func SettingsManagersConfigure() string { return In(i18n.Locale()).SettingsManagersConfigure() }
+
+// SettingsManagersConfigure says "Configuration"
+// in the language of msgs.
+func (msgs Messages) SettingsManagersConfigure() string {
+	return Catalog.Format(msgs.locale, "settingsManagersConfigure", nil)
+}
+
+// SettingsManagersInfo says "Details"
+// in the language the app shows.
+func SettingsManagersInfo() string { return In(i18n.Locale()).SettingsManagersInfo() }
+
+// SettingsManagersInfo says "Details"
+// in the language of msgs.
+func (msgs Messages) SettingsManagersInfo() string {
+	return Catalog.Format(msgs.locale, "settingsManagersInfo", nil)
 }
 
 // SettingsManagerExecutable says "Executable"

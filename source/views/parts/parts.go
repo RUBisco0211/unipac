@@ -18,52 +18,28 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// managerHue derives a stable hue from a manager ID, matching the hash the old
-// interface used so the same manager keeps the same color.
-func managerHue(id string) float64 {
-	hash := 0
-	for _, r := range id {
-		hash = (hash*31 + int(r)) % 360
-	}
-	return float64((hash + 360) % 360)
+// accentColors is what each theme color Settings offers draws in: the light
+// frame's accent, and the one the dark frame lifts it to, which is how Onevra
+// keeps its own accent legible on a dark surface.
+var accentColors = map[string]struct{ light, dark ui.Color }{
+	"blue":     {ui.Hex("#2f6feb"), ui.Hex("#7aa7ff")},
+	"purple":   {ui.Hex("#7a4ff2"), ui.Hex("#b39bff")},
+	"pink":     {ui.Hex("#d63384"), ui.Hex("#f58ac2")},
+	"green":    {ui.Hex("#0f7a52"), ui.Hex("#6ecf9f")},
+	"graphite": {ui.Hex("#4b5563"), ui.Hex("#9aa3ae")},
 }
 
-// hslToRGB converts HSL to RGB. Hue is in degrees, saturation and lightness in
-// 0..1.
-func hslToRGB(h, s, l float64) ui.Color {
-	h = math.Mod(h, 360) / 360
-	if s <= 0 {
-		v := uint8(math.Round(l * 255))
-		return ui.RGBA(v, v, v, 1)
+// AccentColor is the color a saved theme color draws in, and false for the
+// toolkit's own accent — what an empty or unknown choice shows.
+func AccentColor(id string, dark bool) (ui.Color, bool) {
+	pair, ok := accentColors[id]
+	if !ok {
+		return ui.Color{}, false
 	}
-	var q float64
-	if l < 0.5 {
-		q = l * (1 + s)
-	} else {
-		q = l + s - l*s
+	if dark {
+		return pair.dark, true
 	}
-	p := 2*l - q
-	channel := func(t float64) uint8 {
-		if t < 0 {
-			t++
-		}
-		if t > 1 {
-			t--
-		}
-		var v float64
-		switch {
-		case t < 1.0/6:
-			v = p + (q-p)*6*t
-		case t < 0.5:
-			v = q
-		case t < 2.0/3:
-			v = p + (q-p)*(2.0/3-t)*6
-		default:
-			v = p
-		}
-		return uint8(math.Round(v * 255))
-	}
-	return ui.RGBA(channel(h+1.0/3), channel(h), channel(h-1.0/3), 1)
+	return pair.light, true
 }
 
 // markNote annotates a package's name with what the page knows about it. A mark
@@ -100,24 +76,18 @@ func TitleButton(c *ui.Context, icon *ui.SVG, label string) ui.Element {
 	return button
 }
 
-// ManagerBadge renders the manager label in a badge tinted by the manager ID.
-// It reuses components.Badge so both badges in a row share their geometry, and
-// only overrides the colors: Onevra's Badge offers status tones, not a
-// per-manager hue.
-func ManagerBadge(c *ui.Context, id, label string) {
-	t := c.Theme()
-	saturation, lightness := 0.68, 0.42
-	backgroundAlpha, borderAlpha := float32(0.12), float32(0.22)
-	if t.Dark {
-		saturation, lightness = 0.72, 0.68
-		backgroundAlpha, borderAlpha = 0.16, 0.28
-	}
-	tint := hslToRGB(managerHue(id), saturation, lightness)
-	badge := components.Badge(c, label)
-	badge.AlignSelf(ui.Center).
-		Background(tint.Alpha(backgroundAlpha)).
-		TextColor(tint).
-		Border(1, tint.Alpha(borderAlpha))
+// ManagerLabel shows a manager as its mark and its name, which is how a table
+// row says which manager a package belongs to. The mark is the brand's colored
+// artwork at a row's size — smaller than the settings sidebar draws it, because
+// a row is denser than a navigation item — and a manager without one shows its
+// name alone.
+func ManagerLabel(c *ui.Context, id, label string) {
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		if logo := uiassets.ManagerLogo(id); logo != nil {
+			ui.Image(c, logo).Size(14, 14).Fit(ui.Contain).Radius(14 * .2).Shrink(0)
+		}
+		components.Text(c, label).SingleLine()
+	})
 }
 
 // LoadingBar draws a thin indeterminate bar along the top edge of e: a
@@ -209,11 +179,7 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 			})
 		})
 	case 1:
-		ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-			components.Icon(c, lucide.Tag).Size(14, 14).TextColor(t.TextMuted)
-			version := OrDash(pkg.Version)
-			components.Tooltip(c, components.Text(c, version).SingleLine().TextColor(t.TextMuted), version)
-		})
+		VersionMark(c, pkg.Version)
 	case 2:
 		latest := pkg.LatestVersion
 		if latest == "" {
@@ -229,8 +195,21 @@ func Cell(c *ui.Context, pkg manager.Package, field int, managerName func(string
 			components.Tooltip(c, components.Text(c, version).SingleLine().TextColor(color), version)
 		})
 	case 3:
-		ManagerBadge(c, pkg.Manager, managerName(pkg.Manager))
+		ManagerLabel(c, pkg.Manager, managerName(pkg.Manager))
 	}
+}
+
+// VersionMark is a version with the tag that says what it is: a package's
+// installed version in a row, and a manager's own version on its settings page.
+// It keeps the tooltip, because a version is read at a glance and checked only
+// when something looks wrong.
+func VersionMark(c *ui.Context, version string) ui.Element {
+	t := c.Theme()
+	return ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		components.Icon(c, lucide.Tag).Size(14, 14).TextColor(t.TextMuted)
+		value := OrDash(version)
+		components.Tooltip(c, components.Text(c, value).SingleLine().TextColor(t.TextMuted), value)
+	})
 }
 
 // OrDash keeps empty cells readable.
@@ -287,16 +266,11 @@ func Operation(kind tasks.Kind) string {
 	}
 }
 
-// ManagerIcon shows a manager's brand mark, when it has one. The marks are
-// assets the interface embeds, read by manager ID, so no manager is named here;
-// a manager without a mark builds nothing and the row reads as it did.
-func ManagerIcon(c *ui.Context, id string, size float32) {
-	mark := uiassets.ManagerMark(id)
-	if mark == nil {
-		return
-	}
-	components.Icon(c, mark).Size(size, size)
-}
+// ManagerLogo is a manager's brand mark, when it has one, ready for a slot that
+// shows images in their own colors. The marks are assets the interface embeds,
+// read by manager ID, so no manager is named here; nil leaves the slot as it
+// was, for a manager that ships no artwork.
+func ManagerLogo(id string) ui.ImageSource { return uiassets.ManagerLogo(id) }
 
 // Capability is one thing a manager may offer, named the way the pages show it
 // and the copied diagnostics spell it.

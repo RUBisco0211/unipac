@@ -1,5 +1,15 @@
-// Package settings is the settings page: startup behavior, language, log level
-// and one row per package manager.
+// Package settings is the settings page: the app's own settings and the package
+// managers' overrides, in one searchable surface built with Onevra's Settings
+// component.
+//
+// The surface is a list of categories, grouped into two sidebar sections — the
+// app's settings, then one category per manager the backend registered. The
+// manager categories come from the registry in inventory.Data, never from a list
+// the interface keeps, so installing a new adapter is enough to show it here.
+//
+// Values are bound to fields on this struct, which the shell owns across frames:
+// the page is one page for the whole config file, so one write guard and one
+// error line cover both the app's settings and the managers'.
 package settings
 
 import (
@@ -11,23 +21,33 @@ import (
 	"github.com/egoist/mygo/i18n"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// View is the settings page. Sections are stacked on one scrollable
-// page and separated by rules rather than cards: startup behavior, then one
-// row per package manager.
-//
-// Rows are rebuilt only when the manager list changes, so the path a user is
-// typing survives the frames in between.
+// surfaceMinWidth is how wide the surface needs to be for its two columns: the
+// category sidebar at Onevra's width, and a content column wide enough for a
+// label beside the control that answers it. Below it the sidebar becomes a
+// selector and every row stacks, which is what a window too narrow for both
+// columns gets instead of a squeezed one.
+const surfaceMinWidth = 620
+
+// untitled is a zero-width space. Onevra's surface always draws its title above
+// the search field, and this page's name belongs to the window that holds it, so
+// the row stays as the clearance the window's own controls need while saying
+// nothing. Drop it when SettingsOptions gains a way to hide the title.
+const untitled = "\u200b"
+
+// View is the settings page. It holds every value the surface shows and the
+// drafts being typed into a manager's path field.
 type View struct {
 	Data *inventory.Data
 
-	OnSetAutoScan func(on bool)
-	OnSetLogLevel func(level string)
-	OnSetLanguage func(tag string)
-	OnSetTheme    func(value string)
-	OnSetHold     func(on bool)
-	// OnSetNotifications saves whether a finished task is announced.
+	OnSetAutoScan      func(on bool)
+	OnSetLogLevel      func(level string)
+	OnSetLanguage      func(tag string)
+	OnSetTheme         func(value string)
+	OnSetAccent        func(value string)
+	OnSetHold          func(on bool)
 	OnSetNotifications func(on bool)
 	// OnOpenPath opens a file or folder in the desktop's own application.
 	OnOpenPath func(path string)
@@ -35,8 +55,10 @@ type View struct {
 	OnOpenURL func(url string)
 	// OnClearHistory drops the tasks that have an outcome.
 	OnClearHistory func()
-	// TitleActions builds the buttons this page puts in the title bar.
-	TitleActions func(*ui.Context)
+
+	OnSetManagerEnabled func(id string, enabled bool)
+	OnSetManagerPath    func(id, path string)
+	OnReloadManagers    func()
 
 	// AutoScan is the saved startup behavior; the shell reads it to decide
 	// whether to scan on launch.
@@ -50,13 +72,20 @@ type View struct {
 	logLevel      string
 	levels        []string
 	language      string
+	languages     []string
 	theme         string
-	// languages are the tags UniPac is written in, in the app's own order.
-	languages []string
+	// accent is the theme color, and accents the ones the backend offers, in the
+	// order the choice shows them.
+	accent  string
+	accents []string
 
 	// about is what the build is and where it keeps its files, loaded once when
 	// the page is built.
 	about inventory.About
+	// TopInset is the chrome the window draws over this page's top, which is the
+	// window's drag strip when content runs behind it. The page pads its error
+	// line by it; zero is a window that insets the page instead.
+	TopInset float32
 	// busy is true while a save runs; controls stay in place and are disabled
 	// instead of vanishing.
 	busy bool
@@ -65,6 +94,16 @@ type View struct {
 	// rather than a hold: clearing history is not irreversible like uninstalling
 	// is, and a dialog can say exactly what will be dropped.
 	clearOpen bool
+
+	// search is the surface's own navigation: the chosen category, and the query
+	// that reaches every category at once.
+	search components.SettingsState
+	// surface measures the box the settings surface fills, which is the width
+	// its layout answers to — not the window's, which the sidebar shares.
+	surface ui.Handle
+	// managers is what the manager categories keep between frames: one row per
+	// registered manager, the path being typed, and the package counts.
+	managers managerState
 }
 
 // New builds the page from the values the app started with.
@@ -79,6 +118,8 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		language:      service.Language(),
 		languages:     service.Languages(),
 		theme:         service.Theme(),
+		accent:        service.Accent(),
+		accents:       service.Accents(),
 		about:         service.About(),
 	}
 }
@@ -90,6 +131,7 @@ type Snapshot struct {
 	LogLevel      string
 	Language      string
 	Theme         string
+	Accent        string
 	HoldToConfirm bool
 	Notifications bool
 }
@@ -101,224 +143,305 @@ func (s *View) BeginSave() {
 	s.err = ""
 }
 
-// EndSave installs what the backend now reports and the write's error, if any.
 // Revert puts the controls back on what the backend last reported, without
 // ending the write: a change dropped because another write is running is not
-// an error, and the pages stay busy until that write lands.
+// an error, and the page stays busy until that write lands. The manager rows
+// are rebuilt from the backend for the same reason a dropped path edit must not
+// stay on screen.
 func (s *View) Revert(saved Snapshot) {
 	s.AutoScan = saved.AutoScan
 	s.logLevel = saved.LogLevel
 	s.language = saved.Language
 	s.theme = saved.Theme
+	s.accent = saved.Accent
 	s.HoldToConfirm = saved.HoldToConfirm
 	s.Notifications = saved.Notifications
+	s.managers.invalidate()
 }
 
+// EndSave installs what the backend now reports and the write's error, if any.
 func (s *View) EndSave(err error, saved Snapshot) {
 	s.busy = false
-	s.AutoScan = saved.AutoScan
-	s.logLevel = saved.LogLevel
-	s.language = saved.Language
-	s.theme = saved.Theme
-	s.HoldToConfirm = saved.HoldToConfirm
-	s.Notifications = saved.Notifications
+	s.managers.detecting = false
+	s.Revert(saved)
 	if err != nil {
 		s.err = err.Error()
 	}
 }
 
+// Accent is the theme color both windows draw in. The page holds it because the
+// window reads it every frame, and a reverted write has to put the old color
+// back.
+func (s *View) Accent() string { return s.accent }
+
+// Build draws the surface: one category per group of settings, and one per
+// manager, under a search field that reaches every row of both.
 func (s *View) Build(c *ui.Context) {
-	components.ScrollView(c, components.ScrollViewOptions{}).Fill().Children(func() {
-		ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
-			ui.Column(c).FillWidth().MaxWidth(760).Gap(28).Padding(0, 16, 24, 16).Children(func() {
-				if s.err != "" {
-					components.Text(c, locales.SettingsSaveError(s.err)).
-						FontSize(12).TextColor(c.Theme().Danger).Wrap()
-				}
-				s.general(c)
-				s.tasks(c)
-				s.aboutSection(c)
+	s.managers.sync(s.Data)
+	managersSection := locales.NavManagers()
+	narrow := s.narrow(c)
+	ui.Column(c).Fill().MinWidth(0).Children(func() {
+		if s.err != "" {
+			ui.Row(c).FillWidth().Shrink(0).Padding(s.TopInset+12, 16, 0, 16).Children(func() {
+				components.Text(c, locales.SettingsSaveError(s.err)).
+					FontSize(12).TextColor(c.Theme().Danger).Wrap()
+			})
+		}
+		// The surface fills its parent: it brings its own two columns, its own
+		// search field and its own scroll view.
+		surface := ui.Column(c).Fill().MinWidth(0).Bind(&s.surface)
+		surface.Children(func() {
+			components.Settings(c, &s.search, s.categories(), components.SettingsOptions{
+				Title:  untitled,
+				Narrow: narrow,
+				// The only section action is the re-probe: it is about the
+				// managers as a whole, so it belongs beside that section's
+				// heading rather than on every manager's page.
+				SectionActions: s.sectionAction(managersSection),
 			})
 		})
 	})
-}
-
-func (s *View) general(c *ui.Context) {
-	s.section(c, locales.SettingsGeneral(), "", nil, func() {
-		s.themeRow(c)
-		parts.Divider(c)
-		s.languageRow(c)
-		parts.Divider(c)
-		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), locales.SettingsStartupScanToggle(), &s.AutoScan, func(on bool) {
-			if s.OnSetAutoScan != nil {
-				s.OnSetAutoScan(on)
-			}
-		})
-		parts.Divider(c)
-		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), locales.SettingsHoldToConfirmToggle(), &s.HoldToConfirm, func(on bool) {
-			if s.OnSetHold != nil {
-				s.OnSetHold(on)
-			}
-		})
-		parts.Divider(c)
-		s.switchRow(c, locales.SettingsNotifications(), locales.SettingsNotificationsDesc(), locales.SettingsNotificationsToggle(), &s.Notifications, func(on bool) {
-			if s.OnSetNotifications != nil {
-				s.OnSetNotifications(on)
-			}
-		})
-		parts.Divider(c)
-		s.logLevelRow(c)
-	})
-}
-
-// field is one line of a key-value block: what it is on the leading side, what it
-// says across the rest of the row, so a long path has room and badges can wrap.
-func (s *View) field(c *ui.Context, label string, value func()) {
-	t := c.Theme()
-	ui.Row(c).FillWidth().Padding(10, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		components.Text(c, label).FontSize(12).TextColor(t.TextMuted).Width(100).Shrink(0)
-		ui.Box(c).Grow(1).MinWidth(0).Children(value)
-	})
-}
-
-// section builds a titled block: a heading with an optional trailing action, an
-// optional explanation, a rule under it, and the settings themselves.
-func (s *View) section(c *ui.Context, title, description string, action, body func()) {
-	t := c.Theme()
-	ui.Column(c).FillWidth().Gap(10).Children(func() {
-		ui.Row(c).FillWidth().AlignItems(ui.Center).Gap(8).Children(func() {
-			components.Text(c, title).FontSize(15).Bold()
-			ui.Spacer(c)
-			if action != nil {
-				action()
-			}
-		})
-		if description != "" {
-			components.Text(c, description).FontSize(12).TextColor(t.TextMuted).Wrap()
-		}
-		ui.Box(c).FillWidth().Height(1).Background(t.Border)
-		if body != nil {
-			ui.Column(c).FillWidth().Children(body)
-		}
-	})
-}
-
-// switchRow is a labeled switch: the setting explains itself on the leading
-// side and the control sits on the trailing edge.
-//
-// A switch reports its own change on the element it returns, not on the row
-// that wraps it, so the value is compared across the build instead.
-func (s *View) switchRow(c *ui.Context, title, description, switchLabel string, value *bool, changed func(bool)) {
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			components.Text(c, title)
-			if description != "" {
-				components.Text(c, description).FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
-			}
-		})
-		before := *value
-		// The switch's accessible name is its own phrase, not the row title:
-		// the title text beside it already says the setting, and a control
-		// named exactly like its caption reads twice to a screen reader.
-		sw := components.Switch(c, value, switchLabel, components.SwitchOptions{HideLabel: true})
-		sw.Disabled(s.busy)
-		if *value != before {
-			changed(*value)
-		}
-	})
-}
-
-// themeRow is the appearance: the system's, or one the user pinned. Onevra's
-// palette follows the frame's dark state, so nothing else has to change with it.
-func (s *View) themeRow(c *ui.Context) {
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		components.Text(c, locales.SettingsAppearance()).Grow(1).MinWidth(0)
-		before := s.theme
-		sel := components.Select(c, &s.theme)
-		sel.Trigger.Label(locales.SettingsAppearance()).Width(150).Children(func() {
-			components.Text(c, appearanceLabel(s.theme)).SingleLine()
-		})
-		sel.Trigger.Disabled(s.busy)
-		sel.Popup(func(panel ui.Element) {
-			for _, value := range []string{"", "light", "dark"} {
-				option := sel.Item(value)
-				option.Label(appearanceLabel(value)).Children(func() {
-					components.Text(c, appearanceLabel(value)).SingleLine()
-				})
-			}
-		})
-		if s.theme != before && s.OnSetTheme != nil {
-			s.OnSetTheme(s.theme)
-		}
-	})
-}
-
-func (s *View) logLevelRow(c *ui.Context) {
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			components.Text(c, locales.SettingsLogLevel())
-			components.Text(c, locales.SettingsLogLevelDesc()).
-				FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
-		})
-		before := s.logLevel
-		sel := components.Select(c, &s.logLevel)
-		sel.Trigger.Label(locales.SettingsLogLevel()).Width(130).Children(func() {
-			components.Text(c, logLevelLabel(s.logLevel)).SingleLine()
-		})
-		sel.Trigger.Disabled(s.busy)
-		sel.Popup(func(panel ui.Element) {
-			for _, level := range s.levels {
-				sel.Item(level).Label(logLevelLabel(level)).Children(func() {
-					components.Text(c, logLevelLabel(level)).SingleLine()
-				})
-			}
-		})
-		if s.logLevel != before && s.OnSetLogLevel != nil {
-			s.OnSetLogLevel(s.logLevel)
-		}
-	})
-}
-
-func (s *View) languageRow(c *ui.Context) {
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		components.Text(c, locales.SettingsLanguage()).Grow(1).MinWidth(0)
-		before := s.language
-		sel := components.Select(c, &s.language)
-		sel.Trigger.Label(locales.SettingsLanguage()).Width(150).Children(func() {
-			components.Text(c, languageLabel(s.language)).SingleLine()
-		})
-		sel.Trigger.Disabled(s.busy)
-		sel.Popup(func(panel ui.Element) {
-			item := sel.Item("")
-			item.Label(locales.SettingsLanguageSystem()).Children(func() {
-				components.Text(c, locales.SettingsLanguageSystem()).SingleLine()
-			})
-			for _, tag := range s.languages {
-				option := sel.Item(tag)
-				option.Label(languageLabel(tag)).Children(func() {
-					components.Text(c, languageLabel(tag)).SingleLine()
-				})
-			}
-		})
-		if s.language != before && s.OnSetLanguage != nil {
-			s.OnSetLanguage(s.language)
-		}
-	})
-}
-
-// tasks is the maintenance section: the store keeps history, and this is where it
-// is thrown away. Clearing is destructive, so it answers to the same setting as
-// uninstalling — a hold, or a click when the user turned holding off.
-func (s *View) tasks(c *ui.Context) {
-	s.section(c, locales.SettingsTasks(), locales.SettingsTasksDesc(), func() {
-		clear := components.Button(c, locales.SettingsClearHistory(), components.ButtonOutline)
-		clear.TextColor(c.Theme().Danger)
-		clear.Disabled(s.busy)
-		if clear.Clicked() {
-			s.clearOpen = true
-		}
-	}, nil)
 	s.clearDialog(c)
+}
+
+// narrow reports whether the surface has less width than its two columns need.
+// The measured box is the last committed frame, so a resize settles a frame
+// later; a first frame, with no box yet, is drawn as wide, which the app's
+// minimum window always allows.
+func (s *View) narrow(c *ui.Context) bool {
+	if b := s.surface.Bounds(c); b.W > 0 {
+		return b.W < surfaceMinWidth
+	}
+	return false
+}
+
+// categories is the whole catalog, in sidebar order. Sections are contiguous
+// runs, which is how the component groups them: the app's settings first, then
+// every manager the registry reported.
+func (s *View) categories() []components.SettingsCategory {
+	section := locales.NavSettings()
+	categories := []components.SettingsCategory{
+		{
+			ID:      "general",
+			Title:   locales.SettingsGeneral(),
+			Section: section,
+			Icon:    lucide.Settings(),
+			Groups:  []components.SettingsGroup{{ID: "general", Items: s.generalItems()}},
+		},
+		{
+			ID:          "tasks",
+			Title:       locales.SettingsTasks(),
+			Section:     section,
+			Description: locales.SettingsTasksDesc(),
+			Icon:        lucide.ListTodo(),
+			Groups: []components.SettingsGroup{{ID: "history", Items: []components.SettingsItem{{
+				ID:       "history",
+				Title:    locales.SettingsHistory(),
+				Keywords: []string{"tasks", "history", "console", "clear"},
+				Build:    s.clearHistoryAction,
+			}}}},
+		},
+		{
+			ID:      "about",
+			Title:   locales.SettingsAbout(),
+			Section: section,
+			Icon:    lucide.Info(),
+			Groups:  []components.SettingsGroup{{ID: "about", Items: s.aboutItems()}},
+		},
+	}
+	return append(categories, s.managerCategories()...)
+}
+
+// generalItems is the app's own behavior: appearance, language, and the switches
+// that change how it starts and how it answers a destructive question.
+func (s *View) generalItems() []components.SettingsItem {
+	return []components.SettingsItem{
+		{
+			ID:       "appearance",
+			Title:    locales.SettingsAppearance(),
+			Keywords: []string{"theme", "appearance", "light", "dark"},
+			Build:    s.appearanceAction,
+		},
+		{
+			ID:          "accent",
+			Title:       locales.SettingsAccent(),
+			Description: locales.SettingsAccentDesc(),
+			Keywords:    []string{"color", "colour", "accent", "highlight"},
+			Build:       s.accentAction,
+		},
+		{
+			ID:       "language",
+			Title:    locales.SettingsLanguage(),
+			Keywords: []string{"language", "locale"},
+			Build:    s.languageAction,
+		},
+		{
+			ID:          "scan",
+			Title:       locales.SettingsStartupScan(),
+			Description: locales.SettingsStartupScanDesc(),
+			Keywords:    []string{"scan", "startup", "launch"},
+			Build: func(c *ui.Context) {
+				s.switchAction(c, &s.AutoScan, locales.SettingsStartupScanToggle(), s.OnSetAutoScan)
+			},
+		},
+		{
+			ID:          "hold",
+			Title:       locales.SettingsHoldToConfirm(),
+			Description: locales.SettingsHoldToConfirmDesc(),
+			Keywords:    []string{"confirm", "hold", "click", "destructive"},
+			Build: func(c *ui.Context) {
+				s.switchAction(c, &s.HoldToConfirm, locales.SettingsHoldToConfirmToggle(), s.OnSetHold)
+			},
+		},
+		{
+			ID:          "notifications",
+			Title:       locales.SettingsNotifications(),
+			Description: locales.SettingsNotificationsDesc(),
+			Keywords:    []string{"notifications", "announce", "finished"},
+			Build: func(c *ui.Context) {
+				s.switchAction(c, &s.Notifications, locales.SettingsNotificationsToggle(), s.OnSetNotifications)
+			},
+		},
+		{
+			ID:          "log",
+			Title:       locales.SettingsLogLevel(),
+			Description: locales.SettingsLogLevelDesc(),
+			Keywords:    []string{"log", "level", "debug", "verbose"},
+			Build:       s.logLevelAction,
+		},
+	}
+}
+
+// switchAction is a setting that answers true or false.
+//
+// A switch reports its own change on the element it returns, not on the row that
+// wraps it, so the value is compared across the build instead.
+func (s *View) switchAction(c *ui.Context, value *bool, label string, set func(bool)) {
+	before := *value
+	// The switch's accessible name is its own phrase, not the row title: the
+	// title text beside it already says the setting, and a control named exactly
+	// like its caption reads twice to a screen reader.
+	sw := components.Switch(c, value, label, components.SwitchOptions{HideLabel: true})
+	sw.Disabled(s.busy)
+	if *value != before && set != nil {
+		set(*value)
+	}
+}
+
+// appearanceAction is the appearance: the system's, or one the user pinned.
+// Onevra's palette follows the frame's dark state, so nothing else has to change
+// with it.
+func (s *View) appearanceAction(c *ui.Context) {
+	before := s.theme
+	sel := components.Select(c, &s.theme)
+	sel.Trigger.Label(locales.SettingsAppearance()).Width(150).Children(func() {
+		components.Text(c, appearanceLabel(s.theme)).SingleLine()
+	})
+	sel.Trigger.Disabled(s.busy)
+	sel.Popup(func(panel ui.Element) {
+		for _, value := range []string{"", "light", "dark"} {
+			sel.Item(value).Label(appearanceLabel(value)).Children(func() {
+				components.Text(c, appearanceLabel(value)).SingleLine()
+			})
+		}
+	})
+	if s.theme != before && s.OnSetTheme != nil {
+		s.OnSetTheme(s.theme)
+	}
+}
+
+// accentAction is the theme color: the color selections, focus and active
+// controls are drawn in. Each choice shows the color it stands for, so the list
+// reads as a palette rather than as names.
+func (s *View) accentAction(c *ui.Context) {
+	before := s.accent
+	sel := components.Select(c, &s.accent)
+	sel.Trigger.Label(locales.SettingsAccent()).Width(150).Children(func() {
+		accentChoice(c, s.accent)
+	})
+	sel.Trigger.Disabled(s.busy)
+	sel.Popup(func(panel ui.Element) {
+		for _, value := range s.accents {
+			sel.Item(value).Label(accentLabel(value)).Children(func() {
+				accentChoice(c, value)
+			})
+		}
+	})
+	if s.accent != before && s.OnSetAccent != nil {
+		s.OnSetAccent(s.accent)
+	}
+}
+
+// accentChoice is one theme color in the list: a dot of the color it names, and
+// what Settings calls it. The default keeps the toolkit's accent, so its dot is
+// the frame's own.
+func accentChoice(c *ui.Context, value string) {
+	t := c.Theme()
+	dot := ui.Hex("#bd481b")
+	if t.Dark {
+		dot = ui.Hex("#ed986e")
+	}
+	if accent, ok := parts.AccentColor(value, t.Dark); ok {
+		dot = accent
+	}
+	ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Box(c).Width(10).Height(10).Radius(5).Shrink(0).Background(dot)
+		components.Text(c, accentLabel(value)).SingleLine()
+	})
+}
+
+func (s *View) logLevelAction(c *ui.Context) {
+	before := s.logLevel
+	sel := components.Select(c, &s.logLevel)
+	sel.Trigger.Label(locales.SettingsLogLevel()).Width(130).Children(func() {
+		components.Text(c, logLevelLabel(s.logLevel)).SingleLine()
+	})
+	sel.Trigger.Disabled(s.busy)
+	sel.Popup(func(panel ui.Element) {
+		for _, level := range s.levels {
+			sel.Item(level).Label(logLevelLabel(level)).Children(func() {
+				components.Text(c, logLevelLabel(level)).SingleLine()
+			})
+		}
+	})
+	if s.logLevel != before && s.OnSetLogLevel != nil {
+		s.OnSetLogLevel(s.logLevel)
+	}
+}
+
+func (s *View) languageAction(c *ui.Context) {
+	before := s.language
+	sel := components.Select(c, &s.language)
+	sel.Trigger.Label(locales.SettingsLanguage()).Width(150).Children(func() {
+		components.Text(c, languageLabel(s.language)).SingleLine()
+	})
+	sel.Trigger.Disabled(s.busy)
+	sel.Popup(func(panel ui.Element) {
+		item := sel.Item("")
+		item.Label(locales.SettingsLanguageSystem()).Children(func() {
+			components.Text(c, locales.SettingsLanguageSystem()).SingleLine()
+		})
+		for _, tag := range s.languages {
+			option := sel.Item(tag)
+			option.Label(languageLabel(tag)).Children(func() {
+				components.Text(c, languageLabel(tag)).SingleLine()
+			})
+		}
+	})
+	if s.language != before && s.OnSetLanguage != nil {
+		s.OnSetLanguage(s.language)
+	}
+}
+
+// clearHistoryAction opens the question. Clearing is destructive, so it answers
+// rather than acts: the dialog says what will be dropped before anything is.
+func (s *View) clearHistoryAction(c *ui.Context) {
+	clear := components.Button(c, locales.SettingsClearHistory(), components.ButtonOutline)
+	clear.TextColor(c.Theme().Danger)
+	clear.Disabled(s.busy)
+	if clear.Clicked() {
+		s.clearOpen = true
+	}
 }
 
 // clearDialog says what clearing drops and asks once. The confirm is a danger
@@ -351,68 +474,106 @@ func (s *View) clearDialog(c *ui.Context) {
 	})
 }
 
-// aboutSection is what this build is and where it keeps its files, with a way to
-// open either folder and to copy the lot into a bug report.
-func (s *View) aboutSection(c *ui.Context) {
-	s.section(c, locales.SettingsAbout(), "", func() {
-		copy := components.Button(c, locales.AboutCopy(), components.ButtonGhost)
+// aboutItems is what this build is and where it keeps its files. Each fact is a
+// row of its own so the search field can reach it; a fact that is a place rather
+// than a word carries the way to it, and the path itself is the row's caption so
+// a long one wraps instead of pushing the row wide.
+func (s *View) aboutItems() []components.SettingsItem {
+	items := []components.SettingsItem{
+		{
+			ID:       "version",
+			Title:    locales.AboutVersion(),
+			Keywords: []string{"version", "build"},
+			Build:    func(c *ui.Context) { factValue(c, parts.OrDash(s.about.Version)) },
+		},
+		{
+			ID:       "runtime",
+			Title:    locales.AboutRuntime(),
+			Keywords: []string{"go", "runtime", "built"},
+			Build:    func(c *ui.Context) { factValue(c, parts.OrDash(s.about.Go)) },
+		},
+	}
+	for _, module := range s.about.Modules {
+		name, version, _ := strings.Cut(module, " ")
+		items = append(items, components.SettingsItem{
+			ID:       "module:" + name,
+			Title:    name,
+			Keywords: []string{"module", "dependency", "toolkit"},
+			Build:    func(c *ui.Context) { factValue(c, parts.OrDash(version)) },
+		})
+	}
+	return append(items,
+		components.SettingsItem{
+			ID:          "data",
+			Title:       locales.AboutDataDir(),
+			Description: s.about.DataDir,
+			Keywords:    []string{"data", "folder", "path", "storage"},
+			Build: func(c *ui.Context) {
+				if s.about.DataDir == "" || s.OnOpenPath == nil {
+					return
+				}
+				path := s.about.DataDir
+				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost).Shrink(0)
+				open.Label(locales.AboutOpen(locales.AboutDataDir()))
+				if open.Clicked() {
+					s.OnOpenPath(path)
+				}
+			},
+		},
+		components.SettingsItem{
+			ID:          "repository",
+			Title:       locales.AboutRepository(),
+			Description: s.about.Repository,
+			Keywords:    []string{"github", "repository", "source", "browser"},
+			Build: func(c *ui.Context) {
+				if s.about.Repository == "" || s.OnOpenURL == nil {
+					return
+				}
+				url := s.about.Repository
+				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost).Shrink(0)
+				open.Label(locales.AboutRepositoryOpen())
+				if open.Clicked() {
+					s.OnOpenURL(url)
+				}
+			},
+		},
+		// The report is the one thing here that is done rather than read, so it
+		// is the last row of the category, drawn as its own button.
+		components.SettingsItem{
+			ID:       "copy",
+			Title:    locales.AboutCopy(),
+			Keywords: []string{"copy", "diagnostics", "report", "bug", "clipboard"},
+			Content:  s.copyDiagnosticsAction,
+		},
+	)
+}
+
+// factValue is a read-only answer in a row's trailing slot: one line, and its own
+// width, so the title beside it gives way instead of squeezing the answer into an
+// ellipsis.
+func factValue(c *ui.Context, value string) ui.Element {
+	return components.Text(c, value).SingleLine().Shrink(0)
+}
+
+// copyDiagnosticsAction is the row that puts the build and every manager's state
+// on the clipboard, which is what a bug report opens with. It is an outlined
+// button rather than the borderless one the places beside it use: those open
+// something, this one is the page's only action and has to look like one.
+func (s *View) copyDiagnosticsAction(c *ui.Context) {
+	ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+		// The label is the button's own, so the icon sits inside one child row:
+		// Button appends its children after the label with no gap of its own.
+		copy := components.Button(c, "", components.ButtonOutline).Label(locales.AboutCopy()).Shrink(0)
+		copy.Children(func() {
+			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+				components.Icon(c, lucide.Copy()).Size(14, 14)
+				components.Text(c, locales.AboutCopy()).SingleLine()
+			})
+		})
 		if copy.Clicked() {
 			c.WriteClipboard(s.diagnostics())
 			c.Toast(locales.ToastDiagnosticsCopied())
 		}
-	}, func() {
-		s.aboutRow(c, locales.AboutVersion(), s.about.Version, "")
-		parts.Divider(c)
-		s.aboutRow(c, locales.AboutRuntime(), s.about.Go, "")
-		for _, module := range s.about.Modules {
-			parts.Divider(c)
-			name, version, _ := strings.Cut(module, " ")
-			s.aboutRow(c, name, version, "")
-		}
-		parts.Divider(c)
-		s.aboutRow(c, locales.AboutDataDir(), s.about.DataDir, locales.AboutDataDir())
-		if s.about.Repository != "" {
-			parts.Divider(c)
-			s.aboutRow(c, locales.AboutRepository(), s.about.Repository, "")
-		}
-	})
-}
-
-// aboutRow is one line of the About section: what it is, what it is, and a way to
-// open it when it is a folder. A path is one line and clips, so it carries a
-// tooltip with the whole value.
-func (s *View) aboutRow(c *ui.Context, label, value, folder string) {
-	t := c.Theme()
-	s.field(c, label, func() {
-		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-				if value == "" {
-					components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
-					return
-				}
-				components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
-			})
-			if value == "" {
-				return
-			}
-			if folder != "" && s.OnOpenPath != nil {
-				path := value
-				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
-				open.Label(locales.AboutOpen(folder))
-				if open.Clicked() {
-					s.OnOpenPath(path)
-				}
-				return
-			}
-			if isURL(value) && s.OnOpenURL != nil {
-				repository := value
-				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
-				open.Label(locales.AboutRepositoryOpen())
-				if open.Clicked() {
-					s.OnOpenURL(repository)
-				}
-			}
-		})
 	})
 }
 
@@ -431,10 +592,7 @@ func (s *View) diagnostics() string {
 	}
 	line(locales.AboutDataDir(), s.about.DataDir)
 	line(locales.AboutRepository(), s.about.Repository)
-	counts := make(map[string]int, len(s.Data.Managers))
-	for _, pkg := range s.Data.Rows {
-		counts[pkg.Manager]++
-	}
+	counts := s.managers.countsFor(s.Data)
 	for _, info := range s.Data.Managers {
 		state := "off"
 		switch {
@@ -465,11 +623,22 @@ func appearanceLabel(value string) string {
 	}
 }
 
-// isURL reports whether a value is a web address rather than a local path,
-// which is how the About section tells a row it can open in the browser from
-// one it opens in the Finder.
-func isURL(value string) bool {
-	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "http://")
+// accentLabels name the theme colors Settings offers. A color this build does
+// not know reads as the default rather than showing the raw token.
+var accentLabels = map[string]func() string{
+	"":         locales.AccentDefault,
+	"blue":     locales.AccentBlue,
+	"purple":   locales.AccentPurple,
+	"pink":     locales.AccentPink,
+	"green":    locales.AccentGreen,
+	"graphite": locales.AccentGraphite,
+}
+
+func accentLabel(value string) string {
+	if label, ok := accentLabels[value]; ok {
+		return label()
+	}
+	return locales.AccentDefault()
 }
 
 // logLevelLabels names the levels the backend offers. A level this build does

@@ -133,6 +133,7 @@ Metadata:
 - `ID`: `bun`
 - `Name`: `Bun`
 - `ExecName`: `bun`
+- `Website`: `https://bun.sh`
 
 Capabilities:
 
@@ -213,6 +214,7 @@ Metadata:
 - `ID`: `npm`
 - `Name`: `NPM`
 - `ExecName`: `npm`
+- `Website`: `https://www.npmjs.com`
 
 Capabilities: enable all current adapter capabilities.
 
@@ -238,6 +240,7 @@ Metadata:
 - `ID`: `pip`
 - `Name`: `Pip`
 - `ExecName`: `pip3`
+- `Website`: `https://pip.pypa.io`
 
 First-pass capabilities:
 
@@ -264,6 +267,7 @@ Metadata:
 - `ID`: `pipx`
 - `Name`: `Pipx`
 - `ExecName`: `pipx`
+- `Website`: `https://pipx.pypa.io`
 
 First-pass capabilities:
 
@@ -290,6 +294,7 @@ Metadata:
 - `ID`: `cargo`
 - `Name`: `Cargo`
 - `ExecName`: `cargo`
+- `Website`: `https://doc.rust-lang.org/cargo`
 
 First-pass capabilities:
 
@@ -316,6 +321,7 @@ Metadata:
 - `ID`: `uv-tool`
 - `Name`: `UV Tool`
 - `ExecName`: `uv`
+- `Website`: `https://docs.astral.sh/uv`
 
 First-pass capabilities:
 

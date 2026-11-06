@@ -21,6 +21,7 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 		info: &manager.Info{
 			ID:       "npm",
 			Name:     "NPM",
+			Website:  "https://www.npmjs.com",
 			ExecName: "npm",
 			Capabilities: *manager.
 				DefaultCapabilities().
