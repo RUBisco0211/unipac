@@ -23,15 +23,26 @@ type Config struct {
 	Managers map[string]manager.Settings `json:"managers"`
 	// Language is the tag chosen in Settings, "" to follow the system.
 	Language string `json:"language,omitempty"`
+	// Theme is the appearance chosen in Settings: ThemeLight, ThemeDark, or ""
+	// to follow the system.
+	Theme string `json:"theme,omitempty"`
 	// HoldToConfirm is nil in a config written before the setting existed, which
 	// behaves like true: the destructive confirmations hold rather than click.
 	HoldToConfirm *bool `json:"hold_to_confirm,omitempty"`
+	// Notifications is nil in a config written before the setting existed, which
+	// behaves like true: a finished task is announced.
+	Notifications *bool `json:"notifications,omitempty"`
 }
 
 // HoldsToConfirm reports whether a destructive confirmation is a hold rather
 // than a click.
 func (c Config) HoldsToConfirm() bool {
 	return c.HoldToConfirm == nil || *c.HoldToConfirm
+}
+
+// NotifiesOnFinish reports whether a finished task is announced.
+func (c Config) NotifiesOnFinish() bool {
+	return c.Notifications == nil || *c.Notifications
 }
 
 // Startup holds what the app does when it opens.
@@ -179,6 +190,50 @@ func SetAutoScan(on bool) error {
 func SetHoldToConfirm(on bool) error {
 	cfg := Instance
 	cfg.HoldToConfirm = &on
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// The appearances Settings offers, the empty one following the system.
+const (
+	ThemeLight = "light"
+	ThemeDark  = "dark"
+)
+
+// ThemeChosen reports whether value is one of the appearances this build knows.
+func ThemeChosen(value string) bool {
+	switch value {
+	case "", ThemeLight, ThemeDark:
+		return true
+	default:
+		return false
+	}
+}
+
+// SetNotifications saves whether a finished task is announced.
+func SetNotifications(on bool) error {
+	cfg := Instance
+	cfg.Notifications = &on
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// SetTheme saves the appearance, "" to follow the system. Applying it to the
+// running window is the caller's job. A value the app does not know is
+// rejected rather than saved, so a hand edit or a stale client cannot leave a
+// config the window cannot show.
+func SetTheme(value string) error {
+	if !ThemeChosen(value) {
+		return fmt.Errorf("unknown appearance: %q", value)
+	}
+	cfg := Instance
+	cfg.Theme = value
 	if err := Save(cfg); err != nil {
 		return err
 	}

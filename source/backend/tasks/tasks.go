@@ -275,6 +275,24 @@ func (m *Manager) submit(fn func(*store)) {
 	m.queue <- fn
 }
 
+// submitWait queues a store write and waits for it, unlike submit. It reports
+// whether there was a store to write to at all, and holds the queue while it
+// waits so nothing can slip in between.
+func (m *Manager) submitWait(fn func(*store) error) (bool, error) {
+	m.queueMu.Lock()
+	defer m.queueMu.Unlock()
+	m.mu.Lock()
+	if m.store == nil || m.closing {
+		m.mu.Unlock()
+		return false, nil
+	}
+	m.mu.Unlock()
+
+	done := make(chan error, 1)
+	m.queue <- func(s *store) { done <- fn(s) }
+	return true, <-done
+}
+
 func (m *Manager) writeLoop() {
 	defer close(m.writerDone)
 	for fn := range m.queue {
@@ -352,6 +370,53 @@ func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
 
 	m.changed()
 	return task
+}
+
+// ClearHistory drops the tasks that have an outcome, in memory and in the store,
+// and leaves the queued and running ones alone. The listener runs, so a page
+// showing the history reloads it.
+//
+// The queue's lock is held from the snapshot to the store clear. finishState
+// records the outcome in memory before its store write is enqueued, so a task
+// that finishes while the clear runs looks finished in memory but still queued
+// in the store; deciding from the store's own state would keep its row and let
+// its write land after the clear, which brings it back on the next launch. The
+// snapshot is taken under the lock instead, and the store drops exactly those
+// tasks by ID — a write that lands afterwards updates nothing.
+func (m *Manager) ClearHistory() error {
+	m.queueMu.Lock()
+	defer m.queueMu.Unlock()
+
+	m.mu.Lock()
+	drop := make([]int64, 0, len(m.tasks))
+	kept := m.tasks[:0]
+	for _, task := range m.tasks {
+		if task.pending() {
+			kept = append(kept, task)
+		} else {
+			drop = append(drop, task.id)
+		}
+	}
+	m.tasks = kept
+	m.mu.Unlock()
+
+	if m.hasStore() {
+		errc := make(chan error, 1)
+		m.queue <- func(s *store) { errc <- s.clearFinished(drop) }
+		if err := <-errc; err != nil {
+			return err
+		}
+	}
+	m.changed()
+	return nil
+}
+
+// hasStore reports whether the manager writes to a store. The queue's lock
+// must be held; it answers under it.
+func (m *Manager) hasStore() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.store != nil && !m.closing
 }
 
 // List returns every task, running ones first, then queued ones, then finished

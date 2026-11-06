@@ -69,9 +69,11 @@ func Preflight(a Adapter, ctx context.Context) error {
 	// never replaced by one found on PATH, so a typo shows up as unavailable
 	// instead of silently running a different binary.
 	if info.ExecPath != "" {
-		if err := util.CheckCommandVersion(ctx, info.ExecPath, []string{"--version"}); err != nil {
+		version, err := util.CommandVersion(ctx, info.ExecPath, []string{"--version"})
+		if err != nil {
 			return fmt.Errorf("%s is not usable at %s: %w", info.ID, info.ExecPath, err)
 		}
+		info.Version = version
 		return nil
 	}
 
@@ -80,8 +82,10 @@ func Preflight(a Adapter, ctx context.Context) error {
 		return fmt.Errorf("%s not found: %w", info.ID, err)
 	}
 	info.ExecPath = path
-	if err := util.CheckCommandVersion(ctx, info.ExecPath, []string{"--version"}); err != nil {
+	version, err := util.CommandVersion(ctx, info.ExecPath, []string{"--version"})
+	if err != nil {
 		return fmt.Errorf("%s not available: %w", info.ID, err)
 	}
+	info.Version = version
 	return nil
 }

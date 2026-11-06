@@ -23,6 +23,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
+	managerspage "github.com/RUBisco0211/unipac/source/views/managers"
 	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
@@ -44,6 +45,7 @@ const (
 	PageOutdated
 	PageSearch
 	PageTasks
+	PageManagers
 	PageSettings
 )
 
@@ -90,7 +92,14 @@ type UI struct {
 	outdated  *list.View
 	search    *search.View
 	tasks     *taskspage.View
+	managers  *managerspage.View
 	settings  *settings.View
+
+	// saving says a settings write is running, so a second change waits rather
+	// than racing the config file. lastSnapshot is what the backend last
+	// reported, which is what a dropped change's controls go back to.
+	saving       bool
+	lastSnapshot settings.Snapshot
 
 	// quitOpen shows the window's own quit dialog, and quitPending says how many
 	// tasks it is about. quitAccepted is set once the user chose to leave
@@ -155,17 +164,36 @@ func New(service inventory.Service) *UI {
 	u.tasks.TitleActions = u.tasks.TitleAction
 	u.tasks.Apply(service.ListTasks())
 	u.knownTasks = taskStates(u.tasks.All())
+	u.managers = &managerspage.View{
+		Data:         u.data,
+		OnSetEnabled: u.SetManagerEnabled,
+		OnSetPath:    u.SetManagerExecPath,
+		OnReload:     u.ReloadManagers,
+	}
+	u.managers.TitleActions = u.managers.TitleAction
 	u.settings = settings.New(service, u.data)
-	u.settings.OnSetEnabled = u.SetManagerEnabled
-	u.settings.OnSetPath = u.SetManagerExecPath
-	u.settings.OnReload = u.ReloadManagers
 	u.settings.OnSetAutoScan = u.SetAutoScanOnLaunch
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
+	u.settings.OnSetTheme = u.SetTheme
+	u.settings.OnSetNotifications = u.SetNotifications
+	u.settings.OnOpenPath = u.OpenPath
+	u.settings.OnOpenURL = u.OpenURL
+	u.settings.OnClearHistory = u.ClearTaskHistory
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
 	u.settings.OnSetHold = u.SetHoldToConfirm
+	// The controls bind to what the backend last reported, so a change dropped
+	// because another write is running goes back to this.
+	u.lastSnapshot = settings.Snapshot{
+		AutoScan:      service.AutoScanOnLaunch(),
+		LogLevel:      service.LogLevel(),
+		Language:      service.Language(),
+		Theme:         service.Theme(),
+		HoldToConfirm: service.HoldToConfirm(),
+		Notifications: service.Notifications(),
+	}
 	return u
 }
 
@@ -525,12 +553,18 @@ func (u *UI) openTask(id string) {
 // since the last listener update. Cancelled tasks are quiet: the user stopped
 // them, or the app is quitting.
 func (u *UI) announceTaskResults(previous map[string]tasks.State, list []tasks.Snapshot) {
-	if u.quitAccepted.Load() {
+	if u.quitAccepted.Load() || !u.notificationsOn() {
 		return
 	}
 	for _, task := range finishedTasks(previous, list) {
 		u.notifyTask(task)
 	}
+}
+
+// notificationsOn reports whether a finished task should be announced. The
+// setting follows the switch in Settings: nothing else is announced either way.
+func (u *UI) notificationsOn() bool {
+	return u.settings == nil || u.settings.Notifications
 }
 
 // finishedTasks are the tasks that succeeded or failed since the previous
@@ -752,6 +786,8 @@ func (u *UI) pageTitle() string {
 		return locales.NavSearch()
 	case PageTasks:
 		return locales.NavTasks()
+	case PageManagers:
+		return locales.NavManagers()
 	case PageSettings:
 		return locales.NavSettings()
 	default:
@@ -785,6 +821,10 @@ func (u *UI) titleActions() func(*ui.Context) {
 	case PageTasks:
 		if u.tasks != nil {
 			return u.tasks.TitleActions
+		}
+	case PageManagers:
+		if u.managers != nil {
+			return u.managers.TitleActions
 		}
 	case PageSettings:
 		if u.settings != nil {
@@ -846,29 +886,43 @@ func (u *UI) left(c *ui.Context) {
 	ui.Column(c).Fill().Padding(sidebar.HeaderHeight(c), 0, 6, 0).Children(func() {
 		components.Sidebar(c).Children(func() {
 			components.SidebarSection(c, locales.SidebarPackages(), func() {
-				u.nav(c, PagePackages, locales.NavPackages(), lucide.Package(), 0)
-				u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp(), u.outdatedCount())
-				u.nav(c, PageSearch, locales.NavSearch(), lucide.Search(), 0)
-				u.nav(c, PageTasks, locales.NavTasks(), lucide.ListTodo(), u.runningTasks())
+				counted := func(n int) func(*ui.Context, float32) {
+					return func(c *ui.Context, size float32) { trailingCount(c, n) }
+				}
+				u.nav(c, PagePackages, locales.NavPackages(), lucide.Package(), nil)
+				u.nav(c, PageOutdated, locales.NavOutdated(), lucide.CircleFadingArrowUp(), counted(u.outdatedCount()))
+				u.nav(c, PageSearch, locales.NavSearch(), lucide.Search(), nil)
+				u.nav(c, PageTasks, locales.NavTasks(), lucide.ListTodo(), counted(u.runningTasks()))
 			})
 			components.SidebarSection(c, locales.SidebarApp(), func() {
-				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings(), 0)
+				u.nav(c, PageManagers, locales.NavManagers(), lucide.Blocks(), u.managerTotal)
+				u.nav(c, PageSettings, locales.NavSettings(), lucide.Settings(), nil)
 			})
 		})
 	})
 }
 
-func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG, count int) {
-	// The count trails the label, so it sits on the item's right edge and the
-	// label takes the room in between. The leading slot is only the icon.
+// nav builds one sidebar item: an icon, a label, and an optional trailing slot
+// after the label, which is how the counts and the manager total sit on the
+// item's right edge.
+func (u *UI) nav(c *ui.Context, page Page, label string, icon *ui.SVG, trailing func(c *ui.Context, size float32)) {
 	item := components.SidebarItemWithSlots(c, label, u.page == page, func(c *ui.Context, size float32) {
 		components.Icon(c, icon).Size(size, size).TextColor(c.Theme().Accent)
-	}, func(c *ui.Context, _ float32) {
-		trailingCount(c, count)
-	})
+	}, trailing)
 	if item.Clicked() {
 		u.navigate(page)
 	}
+}
+
+// managerTotal is the Managers item's trailing slot: how many managers the
+// backend registered, as plain muted text rather than a badge — it is a fact
+// about the page, not a task waiting on it.
+func (u *UI) managerTotal(c *ui.Context, _ float32) {
+	if u.data == nil || len(u.data.Managers) == 0 {
+		return
+	}
+	components.Text(c, strconv.Itoa(len(u.data.Managers))).
+		FontSize(11).TextColor(c.Theme().TextMuted).AlignSelf(ui.Center)
 }
 
 // trailingCount is a sidebar item's count badge, right-aligned after its
@@ -958,6 +1012,8 @@ func (u *UI) content(c *ui.Context) {
 					u.search.Build(c)
 				case PageTasks:
 					u.tasks.Build(c)
+				case PageManagers:
+					u.managers.Build(c)
 				case PageSettings:
 					u.settings.Build(c)
 				}
@@ -1010,6 +1066,80 @@ func (u *UI) SetHoldToConfirm(on bool) {
 	})
 }
 
+// OpenPath opens a file or folder in the desktop's own application, which is how
+// the About section shows the data the app keeps.
+func (u *UI) OpenPath(path string) {
+	if path == "" {
+		return
+	}
+	go func() {
+		if err := mygo.Shell.OpenPath(path); err != nil {
+			slog.Warn("views: could not open a path", "path", path, "error", err)
+			if u.shell == nil {
+				return
+			}
+			u.shell.Window().Update(func() {
+				u.data.QueueToast(inventory.Toast{Title: err.Error(), Tone: components.ToastError})
+			})
+		}
+	}()
+}
+
+// OpenURL opens a web address in the browser, which is how the About section
+// links the project's repository.
+func (u *UI) OpenURL(url string) {
+	if url == "" {
+		return
+	}
+	go func() {
+		if err := mygo.Shell.OpenExternal(url); err != nil {
+			slog.Warn("views: could not open a URL", "url", url, "error", err)
+			if u.shell == nil {
+				return
+			}
+			u.shell.Window().Update(func() {
+				u.data.QueueToast(inventory.Toast{Title: err.Error(), Tone: components.ToastError})
+			})
+		}
+	}()
+}
+
+// ClearTaskHistory drops the tasks that have an outcome, off the UI thread, and
+// reloads the page so the rows leave with them.
+func (u *UI) ClearTaskHistory() {
+	if u.shell == nil || u.svc == nil {
+		return
+	}
+	win := u.shell.Window()
+	go func() {
+		err := u.svc.ClearTaskHistory()
+		list := u.svc.ListTasks()
+		win.Update(func() {
+			if err != nil {
+				u.data.QueueToast(inventory.Toast{Title: err.Error(), Tone: components.ToastError})
+				return
+			}
+			u.tasks.Apply(list)
+			u.data.QueueToast(inventory.Toast{Title: locales.ToastHistoryCleared(), Tone: components.ToastInfo})
+		})
+	}()
+}
+
+// SetNotifications saves whether a finished task is announced.
+func (u *UI) SetNotifications(on bool) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetNotifications(on)
+	})
+}
+
+// SetTheme saves the appearance; the backend applies it to the window and to
+// the next launch.
+func (u *UI) SetTheme(value string) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetTheme(value)
+	})
+}
+
 func (u *UI) SetLanguage(tag string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetLanguage(tag)
@@ -1020,13 +1150,23 @@ func (u *UI) SetLanguage(tag string) {
 // backend now reports. rescan asks for a new package scan, which is what makes
 // a turned-off manager's rows leave the lists.
 func (u *UI) saveSettings(rescan bool, fn func() error) {
-	if u.shell == nil || u.settings == nil {
+	if u.settings == nil || u.managers == nil {
 		return
 	}
+	if u.saving || u.shell == nil {
+		// A second change while one write runs would race the config file, so
+		// it is dropped and its controls go back to what the backend last
+		// reported, without an error: nothing failed, and the write that is
+		// running keeps the pages busy. No shell means the window is not open
+		// yet, and a change arriving then is dropped the same way.
+		u.settings.Revert(u.lastSnapshot)
+		u.managers.Revert()
+		return
+	}
+	u.saving = true
 	s := u.settings
-	if !s.BeginSave() {
-		return
-	}
+	s.BeginSave()
+	u.managers.BeginSave()
 	win := u.shell.Window()
 	go func() {
 		err := fn()
@@ -1036,10 +1176,17 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			AutoScan:      u.svc.AutoScanOnLaunch(),
 			LogLevel:      u.svc.LogLevel(),
 			Language:      u.svc.Language(),
+			Theme:         u.svc.Theme(),
 			HoldToConfirm: u.svc.HoldToConfirm(),
+			Notifications: u.svc.Notifications(),
 		}
 		win.Update(func() {
+			u.saving = false
+			if err == nil {
+				u.lastSnapshot = saved
+			}
 			s.EndSave(err, saved)
+			u.managers.EndSave(err)
 			if err != nil {
 				return
 			}

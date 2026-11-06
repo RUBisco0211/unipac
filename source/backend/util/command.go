@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 )
@@ -196,14 +197,37 @@ func GetExecPath(bin string) (string, error) {
 	return path, nil
 }
 
-// CheckCommandVersion executes the command with version args and checks if it runs successfully, returns error if command is not found or returns an error
-func CheckCommandVersion(ctx context.Context, bin string, versionArgs []string) error {
+// CommandVersion runs a tool's version command and returns the version it
+// reports, so a manager's row can say which one is in use. It answers an error
+// when the command cannot run or claims not to be found, which is what tells an
+// unavailable manager apart.
+func CommandVersion(ctx context.Context, bin string, versionArgs []string) (string, error) {
 	output, err := Exec(ctx, bin, versionArgs, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if strings.Contains(output, "not found") {
-		return fmt.Errorf("%s not available", bin)
+		return "", fmt.Errorf("%s not available", bin)
 	}
-	return nil
+	return VersionToken(output), nil
+}
+
+// versionPattern is the version inside what a tool prints for --version. The
+// tools disagree about everything else:
+
+//	11.17.0                                 npm, pipx
+//	bun 1.4.2                               bun
+//	uv 0.12.17 (635500036 2026-09-18 …)     uv
+//	cargo 1.98.0 (797e8a9bc 2026-08-05)     cargo
+//	pip 26.2.1 from /opt/homebrew/…         pip
+//	Homebrew 7.0.12-105-g3cea970            brew
+//
+// but each names the version as dot-separated numbers, so the first run of them
+// is the version and the describe suffix brew adds is left out.
+var versionPattern = regexp.MustCompile(`[0-9]+\.[0-9]+(?:\.[0-9]+)*`)
+
+// VersionToken picks the version out of a tool's version output, or "" when the
+// output names none: a tool that answers something else is not a version.
+func VersionToken(output string) string {
+	return versionPattern.FindString(output)
 }

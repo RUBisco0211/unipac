@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/util"
 	"github.com/jmoiron/sqlx"
@@ -312,4 +313,166 @@ func TestMigratesOldTaskTable(t *testing.T) {
 	if list[0].NewVersion != "" || list[0].Truncated {
 		t.Fatalf("defaults after migration = %+v", list[0])
 	}
+}
+
+// Clearing the history drops the tasks that have an outcome, in memory and in the
+// store, and leaves what is still running with its record.
+func TestClearHistoryKeepsRunningTasks(t *testing.T) {
+	oldRoot := util.AppRoot
+	util.AppRoot = t.TempDir()
+	defer func() { util.AppRoot = oldRoot }()
+	if Default != nil {
+		Default.Close()
+	}
+
+	ctx := context.Background()
+	if err := Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	finished := Default.Begin(ctx, KindInstall, target("finished"))
+	finished.Start()
+	finished.Finish(true, "Installed")
+	running := Default.Begin(ctx, KindUpdate, target("running"))
+	running.Start()
+
+	if err := Default.ClearHistory(); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	list := Default.List()
+	if len(list) != 1 || list[0].Package != "running" {
+		t.Fatalf("tasks after clearing = %+v, want the running one", list)
+	}
+
+	// And the store agrees: a reload shows the same one.
+	Default.Close()
+	if err := Init(ctx); err != nil {
+		t.Fatalf("re-init: %v", err)
+	}
+	defer Default.Close()
+	reloaded := Default.List()
+	if len(reloaded) != 1 || reloaded[0].Package != "running" {
+		t.Fatalf("tasks after reloading = %+v, want the running one", reloaded)
+	}
+}
+
+// A task that finishes while the clear is running must end up consistent: kept
+// everywhere or gone everywhere. finishState records the outcome in memory
+// before its store write is enqueued, so the narrow window between the two let
+// a cleared task come back from the store on the next launch. The interleaving
+// is timing-dependent, so the test hammers it: many rounds, each finishing a
+// task around a clear and then reading the store.
+func TestClearHistoryAgainstAFinishingTask(t *testing.T) {
+	oldRoot := util.AppRoot
+	util.AppRoot = t.TempDir()
+	defer func() { util.AppRoot = oldRoot }()
+	if Default != nil {
+		Default.Close()
+	}
+	ctx := context.Background()
+	if err := Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	defer Default.Close()
+
+	for round := range 200 {
+		finishing := Default.Begin(ctx, KindInstall, target("hammer"))
+		finishing.Start()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			finishing.Finish(true, "Installed")
+		}()
+		// The clear races the finish; either order must agree.
+		err := Default.ClearHistory()
+		<-done
+
+		list := Default.List()
+		inMemory := 0
+		for _, task := range list {
+			if task.Package == "hammer" && task.State != StateQueued && task.State != StateRunning {
+				inMemory++
+			}
+		}
+		if err != nil {
+			t.Fatalf("round %d: clear: %v", round, err)
+		}
+
+		// Read the store the way a restart would.
+		Default.Close()
+		if err := Init(ctx); err != nil {
+			t.Fatalf("round %d: re-init: %v", round, err)
+		}
+		reloaded := Default.List()
+		inStore := 0
+		for _, task := range reloaded {
+			if task.Package == "hammer" {
+				inStore++
+			}
+		}
+		if inMemory != inStore {
+			t.Fatalf("round %d: %d finished hammer in memory, %d in the store", round, inMemory, inStore)
+		}
+	}
+}
+
+// The clear drops a task whose outcome write has not landed yet: its row still
+// reads queued in the store, and its later write must update nothing. This is
+// the interleaving the snapshot exists for — finishState records the outcome in
+// memory first, so a task finishing during a clear is dropped by ID from a row
+// that still says queued.
+func TestClearFinishedDropsAQueuedRowByID(t *testing.T) {
+	oldRoot := util.AppRoot
+	util.AppRoot = t.TempDir()
+	defer func() { util.AppRoot = oldRoot }()
+	if Default != nil {
+		Default.Close()
+	}
+
+	ctx := context.Background()
+	if err := Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	defer Default.Close()
+
+	task := Default.Begin(ctx, KindInstall, target("in-flight"))
+	task.Start()
+	// The store row exists and reads queued; the outcome write has not run.
+	id := taskID(task)
+
+	submitted, err := Default.submitWait(func(s *store) error {
+		// Simulate the snapshot's decision: the task is being dropped even
+		// though its store row still reads queued.
+		if err := s.clearFinished([]int64{id}); err != nil {
+			return err
+		}
+		// The outcome write lands afterwards, as finishState's would.
+		return s.finish(id, StateSucceeded, "Installed", time.Now())
+	})
+	if err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if !submitted {
+		t.Fatal("no store to clear")
+	}
+
+	// The row is gone: the update matched nothing.
+	var count int
+	store, release := Default.acquireStore()
+	defer release()
+	if store != nil {
+		if err := store.db.GetContext(ctx, &count,
+			`SELECT COUNT(*) FROM package_tasks WHERE id = ?`, id); err != nil {
+			t.Fatalf("count: %v", err)
+		}
+	}
+	if count != 0 {
+		t.Fatalf("%d rows survive a clear that dropped them by ID", count)
+	}
+}
+
+// taskID reads a task's store ID for the tests above.
+func taskID(t *Task) int64 {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.id
 }

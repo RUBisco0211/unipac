@@ -111,6 +111,38 @@ func (s *store) markInterrupted(message string, at time.Time) error {
 	return err
 }
 
+// clearFinished drops the given tasks — the ones the manager decided to forget —
+// and every task whose outcome is already stored. The IDs are the memory
+// snapshot of the tasks being dropped, which may still be queued in the store:
+// their outcome write has not run yet, and lands on a row that is no longer
+// there. A queued or running task outside ids keeps its row, and so does its
+// page's record of it.
+func (s *store) clearFinished(ids []int64) error {
+	var err error
+	if len(ids) > 0 {
+		placeholders := strings.Repeat("?, ", len(ids)-1) + "?"
+		args := make([]any, 0, len(ids)+2)
+		query := `DELETE FROM package_tasks WHERE state NOT IN (?, ?) OR id IN (` + placeholders + `)`
+		args = append(args, StateQueued, StateRunning)
+		for _, id := range ids {
+			args = append(args, id)
+		}
+		_, err = s.db.ExecContext(s.ctx, query, args...)
+		if err != nil {
+			return err
+		}
+	} else {
+		_, err = s.db.ExecContext(s.ctx,
+			`DELETE FROM package_tasks WHERE state NOT IN (?, ?)`, StateQueued, StateRunning)
+		if err != nil {
+			return err
+		}
+	}
+	_, err = s.db.ExecContext(s.ctx,
+		`DELETE FROM package_task_output WHERE task_id NOT IN (SELECT id FROM package_tasks)`)
+	return err
+}
+
 // prune keeps the newest keep tasks, plus any older unfinished row, and drops
 // the console lines of the tasks it removed.
 func (s *store) prune(keep int) error {

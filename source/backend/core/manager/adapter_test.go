@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -69,5 +70,35 @@ func TestPreflightDetectsWithoutAConfiguredPath(t *testing.T) {
 	}
 	if adp.Info().ExecPath != sh {
 		t.Fatalf("exec path = %q, want %q", adp.Info().ExecPath, sh)
+	}
+}
+
+// The version a manager reports is read where an unavailable one was already
+// being ruled out, so the row that shows it costs no command of its own.
+func TestPreflightRecordsTheVersion(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "fake-tool")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\necho 'fake-tool 1.4.2 (abc)'\n"), 0o755); err != nil {
+		t.Fatalf("write the fake tool: %v", err)
+	}
+	adp := &testAdapter{info: &Info{ID: "fake", ExecName: "fake-tool", ExecPath: script}}
+
+	if err := Preflight(adp, context.Background()); err != nil {
+		t.Fatalf("preflight: %v", err)
+	}
+	if adp.Info().Version != "1.4.2" {
+		t.Fatalf("version = %q, want 1.4.2", adp.Info().Version)
+	}
+}
+
+// A manager that could not be probed has no version, and the row says nothing
+// rather than inventing one.
+func TestPreflightLeavesTheVersionEmptyWhenItCannotProbe(t *testing.T) {
+	adp := &testAdapter{info: &Info{ID: "fake", ExecName: "fake-tool", ExecPath: filepath.Join(t.TempDir(), "missing")}}
+
+	if err := Preflight(adp, context.Background()); err == nil {
+		t.Fatal("preflight accepted a missing executable")
+	}
+	if adp.Info().Version != "" {
+		t.Fatalf("version = %q, want none", adp.Info().Version)
 	}
 }

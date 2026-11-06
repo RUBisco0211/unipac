@@ -14,7 +14,10 @@ type Info struct {
 	Available bool `json:"available,omitempty"`
 	// ExecPath is the executable in use: the saved path when there is one,
 	// otherwise the one found on PATH.
-	ExecPath     string       `json:"exec_path,omitempty"`
+	ExecPath string `json:"exec_path,omitempty"`
+	// Version is what that executable reports for --version, read once during
+	// preflight. It is empty for a manager that could not be probed.
+	Version      string       `json:"version,omitempty"`
 	Capabilities Capabilities `json:"capabilities,omitempty"`
 }
 

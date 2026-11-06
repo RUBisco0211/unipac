@@ -5,7 +5,6 @@ package settings
 import (
 	"strings"
 
-	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/parts"
@@ -23,13 +22,19 @@ import (
 type View struct {
 	Data *inventory.Data
 
-	OnSetEnabled  func(id string, enabled bool)
-	OnSetPath     func(id, path string)
-	OnReload      func()
 	OnSetAutoScan func(on bool)
 	OnSetLogLevel func(level string)
 	OnSetLanguage func(tag string)
+	OnSetTheme    func(value string)
 	OnSetHold     func(on bool)
+	// OnSetNotifications saves whether a finished task is announced.
+	OnSetNotifications func(on bool)
+	// OnOpenPath opens a file or folder in the desktop's own application.
+	OnOpenPath func(path string)
+	// OnOpenURL opens a web address in the browser.
+	OnOpenURL func(url string)
+	// OnClearHistory drops the tasks that have an outcome.
+	OnClearHistory func()
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
 
@@ -39,30 +44,27 @@ type View struct {
 	// HoldToConfirm is how a destructive confirmation is answered, a hold or a
 	// click; the shell reads it for the quit dialog.
 	HoldToConfirm bool
+	// Notifications is whether a finished task is announced; the shell reads it
+	// before showing one.
+	Notifications bool
 	logLevel      string
 	levels        []string
 	language      string
+	theme         string
 	// languages are the tags UniPac is written in, in the app's own order.
 	languages []string
 
-	rows []managerRow
-	seen int
-	// busy is true while a save or a preflight runs; controls stay in place and
-	// are disabled instead of vanishing.
+	// about is what the build is and where it keeps its files, loaded once when
+	// the page is built.
+	about inventory.About
+	// busy is true while a save runs; controls stay in place and are disabled
+	// instead of vanishing.
 	busy bool
-	// detecting says the running job is a full re-probe, so only that action
-	// reports it as detecting.
-	detecting bool
-	err       string
-}
-
-// managerRow is one manager's retained state: the switch the user sees, the
-// path they are typing, and the path last saved.
-type managerRow struct {
-	info    manager.Info
-	enabled bool
-	path    string
-	saved   string
+	err  string
+	// clearOpen asks for a confirmation of the history clear, which is a dialog
+	// rather than a hold: clearing history is not irreversible like uninstalling
+	// is, and a dialog can say exactly what will be dropped.
+	clearOpen bool
 }
 
 // New builds the page from the values the app started with.
@@ -71,10 +73,13 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		Data:          d,
 		AutoScan:      service.AutoScanOnLaunch(),
 		HoldToConfirm: service.HoldToConfirm(),
+		Notifications: service.Notifications(),
 		logLevel:      service.LogLevel(),
 		levels:        service.LogLevels(),
 		language:      service.Language(),
 		languages:     service.Languages(),
+		theme:         service.Theme(),
+		about:         service.About(),
 	}
 }
 
@@ -84,38 +89,45 @@ type Snapshot struct {
 	AutoScan      bool
 	LogLevel      string
 	Language      string
+	Theme         string
 	HoldToConfirm bool
+	Notifications bool
 }
 
-// BeginSave marks the page busy for one settings write and reports false when
-// another is still running: a second change would race the config write, so the
-// controls go back to the saved state instead of being silently dropped.
-func (s *View) BeginSave() bool {
-	if s.busy {
-		s.Invalidate()
-		return false
-	}
+// BeginSave marks the page busy for one settings write. The shell owns the guard
+// that keeps two writes from racing; this only disables the controls.
+func (s *View) BeginSave() {
 	s.busy = true
 	s.err = ""
-	return true
 }
 
 // EndSave installs what the backend now reports and the write's error, if any.
-func (s *View) EndSave(err error, saved Snapshot) {
-	s.busy = false
-	s.detecting = false
+// Revert puts the controls back on what the backend last reported, without
+// ending the write: a change dropped because another write is running is not
+// an error, and the pages stay busy until that write lands.
+func (s *View) Revert(saved Snapshot) {
 	s.AutoScan = saved.AutoScan
 	s.logLevel = saved.LogLevel
 	s.language = saved.Language
+	s.theme = saved.Theme
 	s.HoldToConfirm = saved.HoldToConfirm
+	s.Notifications = saved.Notifications
+}
+
+func (s *View) EndSave(err error, saved Snapshot) {
+	s.busy = false
+	s.AutoScan = saved.AutoScan
+	s.logLevel = saved.LogLevel
+	s.language = saved.Language
+	s.theme = saved.Theme
+	s.HoldToConfirm = saved.HoldToConfirm
+	s.Notifications = saved.Notifications
 	if err != nil {
 		s.err = err.Error()
-		s.Invalidate()
 	}
 }
 
 func (s *View) Build(c *ui.Context) {
-	s.Sync()
 	components.ScrollView(c, components.ScrollViewOptions{}).Fill().Children(func() {
 		ui.Row(c).FillWidth().Justify(ui.Center).Children(func() {
 			ui.Column(c).FillWidth().MaxWidth(760).Gap(28).Padding(0, 16, 24, 16).Children(func() {
@@ -124,88 +136,48 @@ func (s *View) Build(c *ui.Context) {
 						FontSize(12).TextColor(c.Theme().Danger).Wrap()
 				}
 				s.general(c)
-				s.managers(c)
+				s.tasks(c)
+				s.aboutSection(c)
 			})
 		})
 	})
 }
 
-// sync rebuilds the rows when the backend reported a different manager list.
-// An unapplied path edit is carried over, so a rebuild never eats typing.
-func (s *View) Sync() {
-	if s.rows != nil && s.seen == s.Data.ManagersVersion {
-		return
-	}
-	s.seen = s.Data.ManagersVersion
-
-	drafts := make(map[string]string, len(s.rows))
-	for _, row := range s.rows {
-		if row.path != row.saved {
-			drafts[row.info.ID] = row.path
-		}
-	}
-	rows := make([]managerRow, 0, len(s.Data.Managers))
-	for _, m := range s.Data.Managers {
-		saved := s.Data.Overrides[m.ID]
-		row := managerRow{
-			info:    m,
-			enabled: !saved.Disabled,
-			path:    saved.ExecPath,
-			saved:   saved.ExecPath,
-		}
-		if draft, ok := drafts[m.ID]; ok {
-			row.path = draft
-		}
-		rows = append(rows, row)
-	}
-	s.rows = rows
-}
-
-// invalidate makes the next build rebuild the rows from the backend, which is
-// how a failed save puts the switches back.
-func (s *View) Invalidate() {
-	s.seen = -1
-}
-
 func (s *View) general(c *ui.Context) {
 	s.section(c, locales.SettingsGeneral(), "", nil, func() {
-		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.AutoScan, func(on bool) {
+		s.themeRow(c)
+		parts.Divider(c)
+		s.languageRow(c)
+		parts.Divider(c)
+		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), locales.SettingsStartupScanToggle(), &s.AutoScan, func(on bool) {
 			if s.OnSetAutoScan != nil {
 				s.OnSetAutoScan(on)
 			}
 		})
 		parts.Divider(c)
-		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), &s.HoldToConfirm, func(on bool) {
+		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), locales.SettingsHoldToConfirmToggle(), &s.HoldToConfirm, func(on bool) {
 			if s.OnSetHold != nil {
 				s.OnSetHold(on)
 			}
 		})
 		parts.Divider(c)
-		s.logLevelRow(c)
+		s.switchRow(c, locales.SettingsNotifications(), locales.SettingsNotificationsDesc(), locales.SettingsNotificationsToggle(), &s.Notifications, func(on bool) {
+			if s.OnSetNotifications != nil {
+				s.OnSetNotifications(on)
+			}
+		})
 		parts.Divider(c)
-		s.languageRow(c)
+		s.logLevelRow(c)
 	})
 }
 
-func (s *View) managers(c *ui.Context) {
-	s.section(c, locales.SettingsManagers(), locales.SettingsManagersDesc(), func() {
-		label := locales.SettingsRedetect()
-		if s.detecting {
-			label = locales.SettingsDetecting()
-		}
-		button := components.Button(c, label, components.ButtonGhost)
-		button.Disabled(s.busy)
-		if button.Clicked() && s.OnReload != nil {
-			s.detecting = true
-			s.OnReload()
-		}
-	}, func() {
-		for i := range s.rows {
-			if i > 0 {
-				parts.Divider(c)
-			}
-			s.managerControl(c, &s.rows[i])
-		}
+// field is one line of a key-value block: what it is on the leading side, what it
+// says across the rest of the row, so a long path has room and badges can wrap.
+func (s *View) field(c *ui.Context, label string, value func()) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().Padding(10, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		components.Text(c, label).FontSize(12).TextColor(t.TextMuted).Width(100).Shrink(0)
+		ui.Box(c).Grow(1).MinWidth(0).Children(value)
 	})
 }
 
@@ -236,7 +208,7 @@ func (s *View) section(c *ui.Context, title, description string, action, body fu
 //
 // A switch reports its own change on the element it returns, not on the row
 // that wraps it, so the value is compared across the build instead.
-func (s *View) switchRow(c *ui.Context, title, description string, value *bool, changed func(bool)) {
+func (s *View) switchRow(c *ui.Context, title, description, switchLabel string, value *bool, changed func(bool)) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			components.Text(c, title)
@@ -245,10 +217,38 @@ func (s *View) switchRow(c *ui.Context, title, description string, value *bool, 
 			}
 		})
 		before := *value
-		sw := components.Switch(c, value, title, components.SwitchOptions{HideLabel: true})
+		// The switch's accessible name is its own phrase, not the row title:
+		// the title text beside it already says the setting, and a control
+		// named exactly like its caption reads twice to a screen reader.
+		sw := components.Switch(c, value, switchLabel, components.SwitchOptions{HideLabel: true})
 		sw.Disabled(s.busy)
 		if *value != before {
 			changed(*value)
+		}
+	})
+}
+
+// themeRow is the appearance: the system's, or one the user pinned. Onevra's
+// palette follows the frame's dark state, so nothing else has to change with it.
+func (s *View) themeRow(c *ui.Context) {
+	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
+		components.Text(c, locales.SettingsAppearance()).Grow(1).MinWidth(0)
+		before := s.theme
+		sel := components.Select(c, &s.theme)
+		sel.Trigger.Label(locales.SettingsAppearance()).Width(150).Children(func() {
+			components.Text(c, appearanceLabel(s.theme)).SingleLine()
+		})
+		sel.Trigger.Disabled(s.busy)
+		sel.Popup(func(panel ui.Element) {
+			for _, value := range []string{"", "light", "dark"} {
+				option := sel.Item(value)
+				option.Label(appearanceLabel(value)).Children(func() {
+					components.Text(c, appearanceLabel(value)).SingleLine()
+				})
+			}
+		})
+		if s.theme != before && s.OnSetTheme != nil {
+			s.OnSetTheme(s.theme)
 		}
 	})
 }
@@ -281,11 +281,7 @@ func (s *View) logLevelRow(c *ui.Context) {
 
 func (s *View) languageRow(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			components.Text(c, locales.SettingsLanguage())
-			components.Text(c, locales.SettingsLanguageDesc()).
-				FontSize(12).TextColor(c.Theme().TextMuted).Wrap()
-		})
+		components.Text(c, locales.SettingsLanguage()).Grow(1).MinWidth(0)
 		before := s.language
 		sel := components.Select(c, &s.language)
 		sel.Trigger.Label(locales.SettingsLanguage()).Width(150).Children(func() {
@@ -310,59 +306,170 @@ func (s *View) languageRow(c *ui.Context) {
 	})
 }
 
-// managerControl is one manager: its name and state, the executable path, and
-// the switch that turns it on or off.
-func (s *View) managerControl(c *ui.Context, row *managerRow) {
+// tasks is the maintenance section: the store keeps history, and this is where it
+// is thrown away. Clearing is destructive, so it answers to the same setting as
+// uninstalling — a hold, or a click when the user turned holding off.
+func (s *View) tasks(c *ui.Context) {
+	s.section(c, locales.SettingsTasks(), locales.SettingsTasksDesc(), func() {
+		clear := components.Button(c, locales.SettingsClearHistory(), components.ButtonOutline)
+		clear.TextColor(c.Theme().Danger)
+		clear.Disabled(s.busy)
+		if clear.Clicked() {
+			s.clearOpen = true
+		}
+	}, nil)
+	s.clearDialog(c)
+}
+
+// clearDialog says what clearing drops and asks once. The confirm is a danger
+// button, not a hold: the history is a record, not the package the record is
+// about, and it stops growing back the moment the app runs again.
+func (s *View) clearDialog(c *ui.Context) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Padding(12, 0).Gap(12).AlignItems(ui.Center).Children(func() {
-		ui.Column(c).Width(150).Shrink(0).Gap(2).Children(func() {
-			components.Text(c, row.info.Name).SingleLine()
-			if !row.info.Available {
-				components.Text(c, locales.SettingsNotFound()).
-					FontSize(11).TextColor(t.Danger).SingleLine()
-			}
+	components.Dialog(c, &s.clearOpen, components.DialogOptions{Label: locales.SettingsClearHistory()}, func(panel ui.Element) {
+		panel.Width(420).Padding(20).Children(func() {
+			ui.Column(c).Gap(12).Children(func() {
+				components.Text(c, locales.SettingsClearHistory()).FontSize(16).Bold()
+				components.Text(c, locales.SettingsClearHistoryMessage()).
+					TextColor(t.TextMuted).Wrap()
+				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+					if components.Button(c, locales.CommonCancel(), components.ButtonOutline).Clicked() {
+						s.clearOpen = false
+					}
+					confirm := components.Button(c, locales.SettingsClearHistoryConfirm(), components.ButtonOutline)
+					confirm.TextColor(t.Danger)
+					confirm.Disabled(s.busy)
+					if confirm.Clicked() && !s.busy {
+						s.clearOpen = false
+						if s.OnClearHistory != nil {
+							s.OnClearHistory()
+						}
+					}
+				})
+			})
 		})
+	})
+}
 
-		box := components.TextBox(c, &row.path, components.TextBoxOptions{}).
-			Label(locales.SettingsExecPathLabel(row.info.Name)).
-			Placeholder(s.pathHint(row)).
-			PlaceholderColor(t.TextMuted).
-			FillWidth().MinWidth(0)
-		if box.Submitted() {
-			s.applyPath(row)
+// aboutSection is what this build is and where it keeps its files, with a way to
+// open either folder and to copy the lot into a bug report.
+func (s *View) aboutSection(c *ui.Context) {
+	s.section(c, locales.SettingsAbout(), "", func() {
+		copy := components.Button(c, locales.AboutCopy(), components.ButtonGhost)
+		if copy.Clicked() {
+			c.WriteClipboard(s.diagnostics())
+			c.Toast(locales.ToastDiagnosticsCopied())
 		}
-
-		apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
-		apply.Label(locales.SettingsApplyPathFor(row.info.Name))
-		apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
-		if apply.Clicked() {
-			s.applyPath(row)
+	}, func() {
+		s.aboutRow(c, locales.AboutVersion(), s.about.Version, "")
+		parts.Divider(c)
+		s.aboutRow(c, locales.AboutRuntime(), s.about.Go, "")
+		for _, module := range s.about.Modules {
+			parts.Divider(c)
+			name, version, _ := strings.Cut(module, " ")
+			s.aboutRow(c, name, version, "")
 		}
-
-		before := row.enabled
-		sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(row.info.Name), components.SwitchOptions{HideLabel: true})
-		sw.Disabled(s.busy)
-		if row.enabled != before && s.OnSetEnabled != nil {
-			s.OnSetEnabled(row.info.ID, row.enabled)
+		parts.Divider(c)
+		s.aboutRow(c, locales.AboutDataDir(), s.about.DataDir, locales.AboutDataDir())
+		if s.about.Repository != "" {
+			parts.Divider(c)
+			s.aboutRow(c, locales.AboutRepository(), s.about.Repository, "")
 		}
 	})
 }
 
-// pathHint shows what automatic detection resolves to, so an empty field is not
-// an empty answer.
-func (s *View) pathHint(row *managerRow) string {
-	if row.info.ExecPath != "" {
-		return row.info.ExecPath
-	}
-	return locales.SettingsPathAuto()
+// aboutRow is one line of the About section: what it is, what it is, and a way to
+// open it when it is a folder. A path is one line and clips, so it carries a
+// tooltip with the whole value.
+func (s *View) aboutRow(c *ui.Context, label, value, folder string) {
+	t := c.Theme()
+	s.field(c, label, func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
+				if value == "" {
+					components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+					return
+				}
+				components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
+			})
+			if value == "" {
+				return
+			}
+			if folder != "" && s.OnOpenPath != nil {
+				path := value
+				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
+				open.Label(locales.AboutOpen(folder))
+				if open.Clicked() {
+					s.OnOpenPath(path)
+				}
+				return
+			}
+			if isURL(value) && s.OnOpenURL != nil {
+				repository := value
+				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
+				open.Label(locales.AboutRepositoryOpen())
+				if open.Clicked() {
+					s.OnOpenURL(repository)
+				}
+			}
+		})
+	})
 }
 
-func (s *View) applyPath(row *managerRow) {
-	path := strings.TrimSpace(row.path)
-	if path == row.saved || s.OnSetPath == nil {
-		return
+// diagnostics is what a user pastes into a bug report: the build, where it keeps
+// its files, and what each manager claims.
+func (s *View) diagnostics() string {
+	var b strings.Builder
+	line := func(label, value string) {
+		b.WriteString(label + ": " + value + "\n")
 	}
-	s.OnSetPath(row.info.ID, path)
+	line("UniPac", s.about.Version)
+	line(locales.AboutRuntime(), s.about.Go)
+	for _, module := range s.about.Modules {
+		name, version, _ := strings.Cut(module, " ")
+		line(name, version)
+	}
+	line(locales.AboutDataDir(), s.about.DataDir)
+	line(locales.AboutRepository(), s.about.Repository)
+	counts := make(map[string]int, len(s.Data.Managers))
+	for _, pkg := range s.Data.Rows {
+		counts[pkg.Manager]++
+	}
+	for _, info := range s.Data.Managers {
+		state := "off"
+		switch {
+		case !info.Available:
+			state = "missing"
+		case info.Enabled:
+			state = "on"
+		}
+		fields := []string{info.Name, info.Version, state,
+			locales.SettingsPackageCount(counts[info.ID])}
+		if missing := parts.UnsupportedCapabilities(info.Capabilities); missing != "" {
+			fields = append(fields, missing)
+		}
+		b.WriteString(strings.Join(fields, " · ") + "\n")
+	}
+	return b.String()
+}
+
+// appearanceLabel names one appearance choice. The empty value is the system's.
+func appearanceLabel(value string) string {
+	switch value {
+	case "light":
+		return locales.AppearanceLight()
+	case "dark":
+		return locales.AppearanceDark()
+	default:
+		return locales.AppearanceSystem()
+	}
+}
+
+// isURL reports whether a value is a web address rather than a local path,
+// which is how the About section tells a row it can open in the browser from
+// one it opens in the Finder.
+func isURL(value string) bool {
+	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "http://")
 }
 
 // logLevelLabels names the levels the backend offers. A level this build does

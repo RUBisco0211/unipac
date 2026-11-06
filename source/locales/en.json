@@ -58,19 +58,16 @@
   "searchHint": "Start with a package name, keyword, or tool you want to install",
   "settingsGeneral": "General",
   "settingsStartupScan": "Scan on launch",
-  "settingsStartupScanDesc": "Check installed packages as soon as UniPac opens.",
+  "settingsStartupScanDesc": "Check installed packages as soon as UniPac opens",
   "settingsLogLevel": "Log level",
-  "settingsLogLevelDesc": "How much detail UniPac writes to its log file.",
+  "settingsLogLevelDesc": "How much detail UniPac writes to its log file",
   "settingsLanguage": "Language",
-  "settingsLanguageDesc": "The language UniPac shows. System follows your computer.",
   "settingsLanguageSystem": "System",
   "logLevelDebug": "Debug",
   "logLevelInfo": "Info",
   "logLevelWarn": "Warning",
   "logLevelError": "Error",
   "logLevelUnknown": "Unknown",
-  "settingsManagers": "Package managers",
-  "settingsManagersDesc": "A manager you turn off keeps its packages out of the lists, search and updates. Leave the executable path empty to detect it automatically.",
   "settingsExecPathLabel": "Executable path for {name}",
   "@settingsExecPathLabel": {
     "placeholders": {
@@ -208,11 +205,54 @@
   "toastCommandCopied": "Command copied",
   "searchUpdateAvailable": "Update available",
   "settingsHoldToConfirm": "Hold to confirm",
-  "settingsHoldToConfirmDesc": "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it.",
+  "settingsHoldToConfirmDesc": "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it",
   "tasksQuitCancel": "Keep running",
   "commonClickConfirm": "Confirm",
   "tasksConsoleShow": "Show console",
   "tasksConsoleHide": "Hide console",
+  "settingsAppearance": "Appearance",
+  "appearanceSystem": "Match system",
+  "appearanceLight": "Light",
+  "appearanceDark": "Dark",
+  "settingsNotifications": "Notifications",
+  "settingsNotificationsDesc": "Announce a finished install, update or removal with a system notification",
+  "settingsTasks": "Tasks",
+  "settingsTasksDesc": "UniPac keeps the last 500 tasks and their console output. Clearing removes the ones that finished; a task still running keeps its record",
+  "settingsClearHistory": "Clear task history",
+  "toastHistoryCleared": "Task history cleared",
+  "settingsAbout": "About",
+  "aboutVersion": "Version",
+  "aboutRuntime": "Built with",
+  "aboutDataDir": "Data folder",
+  "aboutOpen": "Open {folder}",
+  "aboutOpenAction": "Open",
+  "aboutCopy": "Copy diagnostics",
+  "toastDiagnosticsCopied": "Diagnostics copied",
+  "settingsPackageCount": "{count, plural, =0 {no packages} one {# package} other {# packages}}",
+  "@settingsPackageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsUnsupported": "Not supported: {list}",
+  "@settingsUnsupported": {
+    "placeholders": {
+      "list": {
+        "type": "String"
+      }
+    }
+  },
+  "commonListSeparator": ", ",
+  "capabilityInstalled": "package list",
+  "capabilityOutdated": "outdated list",
+  "capabilityPackageInfo": "package info",
+  "capabilitySearch": "search",
+  "capabilityInstall": "install",
+  "capabilityUninstall": "uninstall",
+  "capabilityUpdate": "update",
+  "capabilityVersions": "version list",
   "versionsTitle": "Install a version",
   "versionsFor": "Choose a version of {name} from {manager}",
   "@versionsFor": {
@@ -238,5 +278,20 @@
     }
   },
   "versionsInstallLatest": "Install latest",
-  "versionsConfirm": "Install this version"
+  "versionsConfirm": "Install this version",
+  "settingsManagerStatus": "Status",
+  "settingsManagerAvailable": "Available",
+  "settingsManagerVersion": "Version",
+  "settingsManagerExecutable": "Executable",
+  "settingsManagerPackages": "Packages",
+  "settingsManagerEnabled": "Enabled",
+  "settingsCapabilities": "Capabilities",
+  "navManagers": "Package managers",
+  "aboutRepository": "GitHub",
+  "aboutRepositoryOpen": "Open in browser",
+  "settingsClearHistoryMessage": "The tasks that finished will be removed with their console output; a task still running keeps its record.",
+  "settingsClearHistoryConfirm": "Clear",
+  "settingsNotificationsToggle": "Toggle notifications",
+  "settingsStartupScanToggle": "Toggle scanning on launch",
+  "settingsHoldToConfirmToggle": "Toggle hold to confirm"
 }

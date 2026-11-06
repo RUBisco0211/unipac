@@ -103,6 +103,9 @@ func (reg *Registry) rebuild(settings map[string]manager.Settings, probeAll bool
 		if !probeAll {
 			if old, ok := previous[id]; ok && settings[id].ExecPath == previousSettings[id].ExecPath {
 				info.ExecPath = old.Info().ExecPath
+				// The version the probe found belongs to that path, so a
+				// reused preflight carries it.
+				info.Version = old.Info().Version
 				info.Available = old.Info().Available
 				reused = true
 			}
