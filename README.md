@@ -49,6 +49,14 @@ Support is uneven: bun, Homebrew and npm list and act reliably; the Python and
 Cargo adapters are narrower. A manager that cannot answer an action says so on
 its page rather than leaving a disabled button unexplained.
 
+## Installation Note
+
+On macOS, Gatekeeper may block this app since it's not notarized by Apple. You can bypass the first-launch check by running:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Unipac.app
+```
+
 ## Requirements
 
 Go 1.27.3 or newer. Build with `CGO_ENABLED=0`.
