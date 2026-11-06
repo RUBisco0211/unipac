@@ -35,7 +35,7 @@ func TestManagerMarkWithoutAFile(t *testing.T) {
 // must track backend/adapters/index.go — a new adapter without a file here
 // fails this test, which is the guard against a tab silently losing its mark.
 func TestEveryRegisteredManagerHasAMark(t *testing.T) {
-	for _, id := range []string{"brew", "npm", "pip", "pipx", "cargo", "uv-tool"} {
+	for _, id := range []string{"brew", "bun", "npm", "pip", "pipx", "cargo", "uv-tool"} {
 		if ManagerMark(id) == nil {
 			t.Errorf("manager %q has no mark", id)
 		}

@@ -101,17 +101,108 @@ Use conservative capabilities. Only advertise a capability when the implementati
 | Manager | ListInstalled | ListOutdated | GetPackageInfo | Search | Install | Uninstall | Update | ListVersions |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | brew | yes | yes | yes | yes | yes | yes | yes | no |
+| bun | yes | yes | no | no | yes | yes | yes | no |
 | npm | yes | yes | yes | yes | yes | yes | yes | yes |
 | pip | yes | yes | yes | limited | yes | yes | yes | limited |
 | pipx | yes | limited | yes | no | yes | yes | yes | no |
 | cargo | yes | no | limited | yes | yes | yes | no | no |
 | uv-tool | yes | yes | yes | no | yes | yes | yes | no |
 
+bun's three `no` columns are one limitation: `bun info`, which would answer a
+package's details and its published versions, needs a `package.json` in the
+working directory, and the app runs its commands from its own. Its search is
+missing rather than limited — bun has no search command, and its packages are
+npm's, so a second search would list every result twice. The recorded outputs
+are on the branch that added the adapter; the decisions are the section below.
+
 Homebrew's `ListVersions` is `no` and stays there: `brew info --json=v2` reports
 one stable version and a head, and the versions a formula published before live
 only in the tap's git history, so there is no list to offer.
 
 `limited` means the operation can be implemented later if the CLI behavior is verified and parsing is stable. First implementations should usually set limited capabilities to `false`.
+
+## bun Adapter
+
+Manage the packages installed with bun's global install. Treat this as a separate
+manager from `npm`: bun keeps its own global directory, its own lockfile and its
+own package.json, so the same package can be installed through both and the two
+are two rows with two versions.
+
+Metadata:
+
+- `ID`: `bun`
+- `Name`: `Bun`
+- `ExecName`: `bun`
+
+Capabilities:
+
+- Enable `ListInstalled`, `ListOutdated`, `Install`, `Uninstall`, and `Update`.
+- Disable `Search`, `GetPackageInfo`, and `ListVersions`.
+
+CLI plan:
+
+- List installed: `bun pm ls -g`
+- List outdated: `bun outdated -g`
+- Install: `bun add -g <name>@<version>`
+- Uninstall: `bun remove -g <name>...`
+- Update: `bun update -g <name>@<version>`
+
+Do not assume the global directory. It is normally `~/.bun/install/global`, but a
+run on this project's machine installed into `$HOME` instead; the first line of
+`bun pm ls -g` names the directory in use, and the adapter reads the packages from
+the lines under it rather than building a path.
+
+### bun Parsing
+
+`bun pm ls -g` prints a directory line, then one tree line per top-level
+dependency:
+
+```
+/Users/me/.bun/install/global node_modules (61 installed)
+├── @quasar/cli@5.0.9
+└── is-odd@3.0.1
+```
+
+The count in the directory line includes the transitive tree, and `--all` would
+print that tree; without it only the top-level dependencies appear, which is the
+global package set. Split a name from its version at the **last** `@`: a scoped
+name starts with one. Skip nested lines, which are dependencies indented under a
+`│` or under spaces.
+
+`bun outdated -g` prints a pipe-delimited table whose separator rows repeat
+between entries:
+
+```
+bun outdated v1.4.2 (744846f84)
+|--------------------------------------|
+| Package  | Current | Update | Latest |
+|----------|---------|--------|--------|
+| is-odd   | 2.0.0   | 2.0.0  | 3.0.1  |
+|--------------------------------------|
+```
+
+Only top-level globals are listed. `Latest` is the newest version overall and
+becomes the row's newer version; `Update` is the newest within the range the
+global `package.json` declares, and a global install pins an exact version, so it
+never differs from `Current`.
+
+Both listings fail with exit code 1 when bun has never installed a package
+globally, and say `missing lockfile`. That is an empty inventory, not a failure:
+allow exit code 1, return no packages when the output carries that phrase, and
+report anything else as the error. Colour is stripped before parsing, because the
+app inherits the user's environment and `FORCE_COLOR` makes bun colourize a pipe.
+
+Naming the version is part of the command. `bun add -g <name>` writes a caret
+range into the global package.json, where `name@version` writes the exact version
+the user asked for; and `bun update -g <name>` alone answers "no changes" for an
+exactly pinned package, so an update always names the version, falling back to
+`<name>@latest`.
+
+Bun has no search command, and `bun info` needs a project directory, which is why
+those capabilities are off. Turning them on means giving the app a place for a
+scratch `package.json` and `util.Run` a working-directory argument. The open
+question of whether installing a package found by npm should be possible through
+bun at all is deliberately undecided.
 
 ## npm Adapter
 

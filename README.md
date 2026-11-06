@@ -29,6 +29,7 @@ UniPac's backend is adapter-based: each adapter reports its own capabilities,
 and the UI treats manager IDs as opaque values.
 
 - Homebrew
+- Bun
 - npm
 - pip
 - pipx
