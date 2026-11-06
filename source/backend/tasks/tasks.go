@@ -384,14 +384,6 @@ func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
 // snapshot is taken under the lock instead, and the store drops exactly those
 // tasks by ID — a write that lands afterwards updates nothing.
 func (m *Manager) ClearHistory() error {
-	// The queue's lock is held from the snapshot to the store clear.
-	// finishState records the outcome in memory before its store write is
-	// enqueued, so a task that finishes while the clear runs looks finished in
-	// memory but still queued in the store; deciding from the store's own state
-	// would keep its row and let its write land after the clear, which brings
-	// it back on the next launch. The snapshot is taken under the lock instead,
-	// and the store drops exactly those tasks by ID — a write that lands
-	// afterwards updates nothing.
 	m.queueMu.Lock()
 	defer m.queueMu.Unlock()
 
