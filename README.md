@@ -80,8 +80,8 @@ against `version` in `mygo.json`, runs the checks above, and publishes a macOS
 arm64 disk image with checksums to a GitHub release:
 
 ```sh
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The workflow can also be run from the Actions tab to build the disk image as an
