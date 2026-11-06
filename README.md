@@ -1,4 +1,11 @@
+
+<p align="center">
+    <img src="./assets/icon.png" width="128" height="128" alt="UniPac">
+</p>
+
 # UniPac
+
+[![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/unipac)
 
 UniPac is a desktop package manager: one place to inspect and act on packages
 installed through different package managers, without learning each manager's
