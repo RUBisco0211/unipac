@@ -313,3 +313,43 @@ func TestMigratesOldTaskTable(t *testing.T) {
 		t.Fatalf("defaults after migration = %+v", list[0])
 	}
 }
+
+// Clearing the history drops the tasks that have an outcome, in memory and in the
+// store, and leaves what is still running with its record.
+func TestClearHistoryKeepsRunningTasks(t *testing.T) {
+	oldRoot := util.AppRoot
+	util.AppRoot = t.TempDir()
+	defer func() { util.AppRoot = oldRoot }()
+	if Default != nil {
+		Default.Close()
+	}
+
+	ctx := context.Background()
+	if err := Init(ctx); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	finished := Default.Begin(ctx, KindInstall, target("finished"))
+	finished.Start()
+	finished.Finish(true, "Installed")
+	running := Default.Begin(ctx, KindUpdate, target("running"))
+	running.Start()
+
+	if err := Default.ClearHistory(); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	list := Default.List()
+	if len(list) != 1 || list[0].Package != "running" {
+		t.Fatalf("tasks after clearing = %+v, want the running one", list)
+	}
+
+	// And the store agrees: a reload shows the same one.
+	Default.Close()
+	if err := Init(ctx); err != nil {
+		t.Fatalf("re-init: %v", err)
+	}
+	defer Default.Close()
+	reloaded := Default.List()
+	if len(reloaded) != 1 || reloaded[0].Package != "running" {
+		t.Fatalf("tasks after reloading = %+v, want the running one", reloaded)
+	}
+}

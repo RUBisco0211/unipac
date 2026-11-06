@@ -21,11 +21,12 @@ func Data() *inventory.Data {
 		Names:   map[string]string{"brew": "Homebrew", "npm": "NPM"},
 		Version: 1,
 		Managers: []manager.Info{
-			{ID: "brew", Name: "Homebrew", Enabled: true, Available: true, ExecPath: "/opt/homebrew/bin/brew",
+			{ID: "brew", Name: "Homebrew", Enabled: true, Available: true, ExecPath: "/opt/homebrew/bin/brew", Version: "4.6.1",
 				Capabilities: manager.Capabilities{ListInstalled: true, ListOutdated: true, Search: true, Update: true, Uninstall: true}},
-			{ID: "npm", Name: "NPM", Enabled: true, Available: true,
+			{ID: "npm", Name: "NPM", Enabled: true, Available: true, ExecPath: "/opt/homebrew/bin/npm", Version: "11.17.0",
 				Capabilities: manager.Capabilities{ListInstalled: true, Update: true, Uninstall: true}},
-			{ID: "cargo", Name: "Cargo", Enabled: false},
+			{ID: "cargo", Name: "Cargo", Enabled: false,
+				Capabilities: manager.Capabilities{ListInstalled: true, Search: true, Install: true, Uninstall: true}},
 		},
 		Rows: []manager.Package{
 			{Name: "ripgrep", Version: "14.1.1", Manager: "brew", Installed: true, Description: "Line-oriented search tool"},

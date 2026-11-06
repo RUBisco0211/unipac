@@ -6,11 +6,13 @@ package parts
 
 import (
 	"math"
+	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/uiassets"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -144,7 +146,14 @@ func LoadingBar(c *ui.Context, e ui.Element) {
 		phase := math.Mod(seconds, period) / period
 		width := r.W * span
 		x := r.X - width + (r.W+width)*float32(phase)
-		p.Fill(ui.Rect{X: x, Y: r.Y, W: width, H: height}, t.Accent, 0)
+		// The sweep starts and ends beyond the box, as a marquee does, so clamp
+		// it here rather than trusting the box to clip its last and first
+		// fractions: a bar that paints one pixel past the table is the bug this
+		// element was moved onto the box to fix.
+		start, end := max(r.X, x), min(r.X+r.W, x+width)
+		if end > start {
+			p.Fill(ui.Rect{X: start, Y: r.Y, W: end - start, H: height}, t.Accent, 0)
+		}
 	})
 }
 
@@ -276,4 +285,68 @@ func Operation(kind tasks.Kind) string {
 	default:
 		return string(kind)
 	}
+}
+
+// ManagerIcon shows a manager's brand mark, when it has one. The marks are
+// assets the interface embeds, read by manager ID, so no manager is named here;
+// a manager without a mark builds nothing and the row reads as it did.
+func ManagerIcon(c *ui.Context, id string, size float32) {
+	mark := uiassets.ManagerMark(id)
+	if mark == nil {
+		return
+	}
+	components.Icon(c, mark).Size(size, size)
+}
+
+// Capability is one thing a manager may offer, named the way the pages show it
+// and the copied diagnostics spell it.
+type Capability struct {
+	Name      string
+	Supported bool
+}
+
+// Capabilities names what a manager advertises, in the order the adapter guide's
+// capability matrix lists them.
+func Capabilities(caps manager.Capabilities) []Capability {
+	return []Capability{
+		{locales.CapabilityInstalled(), caps.ListInstalled},
+		{locales.CapabilityOutdated(), caps.ListOutdated},
+		{locales.CapabilityPackageInfo(), caps.GetPackageInfo},
+		{locales.CapabilitySearch(), caps.Search},
+		{locales.CapabilityInstall(), caps.Install},
+		{locales.CapabilityUninstall(), caps.Uninstall},
+		{locales.CapabilityUpdate(), caps.Update},
+		{locales.CapabilityVersions(), caps.ListVersions},
+	}
+}
+
+// CapabilityBadges shows what a manager offers, one badge per capability: a check
+// in green for what it does and a cross in red for what it does not, so a gap is
+// visible at a glance instead of read out of a sentence.
+func CapabilityBadges(c *ui.Context, caps manager.Capabilities) {
+	ui.Row(c).FillWidth().Gap(6).Wrap().Children(func() {
+		for _, item := range Capabilities(caps) {
+			tone, icon := components.BadgeSuccess, lucide.Check()
+			if !item.Supported {
+				tone, icon = components.BadgeDanger, lucide.X()
+			}
+			components.Badge(c, item.Name, components.BadgeOptions{Tone: tone, Icon: icon})
+		}
+	})
+}
+
+// UnsupportedCapabilities names the actions a manager does not advertise, for a
+// text that has no room for badges, and is empty when the manager offers every
+// one.
+func UnsupportedCapabilities(caps manager.Capabilities) string {
+	missing := make([]string, 0, 8)
+	for _, item := range Capabilities(caps) {
+		if !item.Supported {
+			missing = append(missing, item.Name)
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return locales.SettingsUnsupported(strings.Join(missing, locales.CommonListSeparator()))
 }

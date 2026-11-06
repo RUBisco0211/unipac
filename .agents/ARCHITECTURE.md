@@ -71,8 +71,9 @@ Exported methods:
 - `UninstallPackage(pkg, opt)`
 - `BatchUninstallPackages(pkgs, opt)`, `BatchUpdatePackages(pkgs, opt)`
 - `ListTasks() []tasks.Snapshot`, `TaskOutput(id) tasks.Output`
-- `SetTaskListener(fn)`, `CancelTask(id) error`
+- `SetTaskListener(fn)`, `CancelTask(id) error`, `ClearTaskHistory() error`
 - `UnfinishedTasks() int`, `StopTasks()`
+- `About() About`, which is the build and where it keeps its files
 - settings: `ManagerOverrides`, `SetManagerEnabled`, `SetManagerExecPath`,
   `ReloadManagers`, `Language`/`Languages`/`SetLanguage`, `AutoScanOnLaunch`/
   `SetAutoScanOnLaunch`, `LogLevel`/`LogLevels`/`SetLogLevel`, and
@@ -281,16 +282,17 @@ broke the JSON can be recovered instead of lost. It
 holds the cache and log settings, `startup.auto_scan` (nil means on, so an older
 file keeps scanning), `hold_to_confirm` (nil means on: a destructive
 confirmation holds rather than clicks), `language` (the tag chosen in Settings,
-absent or empty to follow the system), and `managers`, a map of
-`manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
+absent or empty to follow the system), `theme` (`light`, `dark`, or absent to
+follow the system), `notifications` (nil means on, so a finished task is
+announced), and `managers`, a map of `manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
 paths in it were auto-detected rather than chosen.
 
 `SetManagerEnabled`, `SetManagerExecPath`, `SetAutoScan`, `SetHoldToConfirm`,
-`SetLogLevel` and `SetLanguage` write a copy and only replace `Instance` after
-the file write succeeds, so a failed save leaves the running app on the values it
-started with.
+`SetLogLevel`, `SetTheme` and `SetLanguage` write a copy and only replace
+`Instance` after the file write succeeds, so a failed save leaves the running app
+on the values it started with.
 
 Upgrading from the snapshot format is one-way and lossy on purpose: the old
 `exec_path` values were auto-detected, not chosen, so they are not imported. On
@@ -322,7 +324,7 @@ Command helpers are backend-only. Views should request operations through `App` 
 
 `sidebar.NewShell` from `github.com/oneo-me/onevra/source/shells/sidebar` provides the main window: a `Left` sidebar, a `Content` area, a `ContentTitle` header area, and toasts, which `ShellOptions.Toasts` places at the bottom right.
 
-- Five sidebar entries map to the five pages: Packages, Outdated, Search, Tasks, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
+- Six sidebar entries map to the six pages: Packages, Outdated, Search, Tasks, Managers, Settings. Use `components.Sidebar` with `components.SidebarItem` inside `Left`; an entry with a count uses `components.SidebarItemWithSlots`, which puts the badge on the trailing edge after the label.
 - Give the window a 1024 × 620 minimum; `sidebar.NewShell` defaults to 820 × 740,
   which is too narrow for the table. Keep the sidebar between 220 and 320 DIPs so
   the title bar controls fit and the table columns never overflow. Set `StateKey`
@@ -344,11 +346,13 @@ together, and nothing has to be found across a 900-line file:
 | --- | --- | --- |
 | `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling, task notifications and the window's toasts (bottom right) | every view package below |
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
+| `views/uiassets` | the views' own embedded assets: the brand marks the interface shows beside a manager's name, one file per manager ID, read by name | — |
 | `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update | `inventory`, `parts`, `flight` |
-| `views/settings` | the settings page: startup behavior, log level, language, one row per manager, and the save state machine | `inventory`, `parts` |
+| `views/managers` | the package managers page: one tab per manager, its facts as key-value rows, the capability badges, and the save state machine | `inventory`, `parts` |
+| `views/settings` | the settings page: appearance, language, startup behavior, log level, the task history hold, and About | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
 | `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |
@@ -431,30 +435,73 @@ The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the front
 ### Settings Page
 
 The settings page is one scrollable column of sections separated by rules, not cards.
-A section has a title with an optional trailing action, a sentence saying what
-its settings do, and a rule above the rows. The sections are startup behavior —
-scanning on launch, and whether a destructive confirmation is a hold or a click —
-the log level, the language (the app's languages plus System, named in their own
-language), and one row per package manager.
+A section has a title with an optional trailing action, a caption saying what its
+settings do when the settings need one, and a rule under them. A caption is one
+sentence without a full stop: the page is read as labels, not as prose. Appearance
+and Language carry no caption at all — their titles say what they are — and
+neither do the package-manager and About sections.
 
-A manager row holds the name, a status line only when the executable is missing,
-the executable path, an Apply button and a switch. The path field shows the saved
-override; the detected path is its muted placeholder, so an empty field means
-"detect automatically". Apply stays visible and disabled until the draft differs,
-and the field submits on Enter. Rows are rebuilt only when
-`Data.ManagersVersion` changes, so an unapplied draft survives the frames in
-between.
+The general section is the appearance (the system's, or a pinned light or dark
+one, applied with `mygo.Theme.SetSource` before the window opens and again when it
+changes), the language (the app's languages plus System, named in their own
+language), and then startup behavior — scanning on launch, and whether a
+destructive confirmation is a hold or a click — the notifications switch, and the
+log level. Then a Tasks section whose only job is the hold that clears the
+finished task history, and an About section: the app's version (from
+`mygo.App.Version`, which the build links in from `mygo.json`), the Go it was built
+with, the toolkit versions from the build's own module info, the data folder with a
+button that opens it, and the project's repository with one that opens it in the
+browser — plus an action that copies the lot, with every manager's name, version,
+state, package count and gaps, into a bug report.
+
+The package managers have a page of their own, beside Settings in the sidebar, and
+it is tabs: one per manager with the first chosen, centred over the panel, which is
+a list of key-value rows, because the page is read as a list of answers — Status
+(available, or the red "executable not found"), the Enabled switch, Version,
+Executable with its path field and Apply, Packages (counted from `Data.Rows` and
+rebuilt only when `Data.Version` changes), and Capabilities. The switch sits
+second, under the state it explains, so turning a manager off is where the eye
+lands first. The tabs follow the manager's ID rather than its position, so a rescan
+that reorders or adds managers keeps the tab the user was on. Detecting every
+manager again is the page's title-bar action, which is where a re-probe belongs:
+it is about the managers, not about the rest of the settings.
+
+Capabilities are badges, one per capability in the adapter guide's order: a check
+in green for what the manager offers and a cross in red for what it does not. That
+is where a button disabled elsewhere in the window has its reason, and it costs a
+glance instead of reading a sentence. `parts` builds them, because the diagnostics
+text names the same gaps and both must read the same way.
+
+A tab also carries the manager's brand mark. The marks are Simple Icons files
+(CC0) embedded under `views/uiassets/marks`, one per manager ID, and
+`uiassets.ManagerMark(id)` reads them by that ID — the interface never names a
+manager, and one without a file shows without a mark. They are embedded rather
+than shipped as resources because they are small, fixed, and drawn before the
+window opens, which is what `//go:embed` is for; the marks belong to the views
+because they are presentation, not backend.
+
+The path field shows the saved override; the detected path is its muted
+placeholder, so an empty field means "detect automatically". Apply stays visible
+and disabled until the draft differs, and the field submits on Enter. Rows are
+rebuilt only when `Data.ManagersVersion` changes, so an unapplied draft survives
+the frames in between, and the chosen tab is restored from the ID it was on.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
-subprocess and every write touches the config file. The control moves first and
-the job publishes what the backend reports; a failed write puts the rows back and
-shows the error at the top of the page. Turning a manager off or changing its
-path asks for a rescan, so its rows leave the lists.
+subprocess and every write touches the config file. The guard is one write at a
+time, whichever page asked — the settings page and the managers page share it,
+since both write the same config — and the control moves first while the job
+publishes what the backend reports; a failed write puts the rows back and shows
+the error where the change was made. Turning a manager off or changing its path
+asks for a rescan, so its rows leave the lists.
 
 ### Tasks Page
 
 The tasks page shows one row per package operation in a `TableVirtualized` with the
-same look as the package tables. Its columns are operation, package, version,
+same look as the package tables. Clearing the history keeps the queued and running tasks and drops the rest with
+their consoles; the clear is queued like any other store write, so it cannot
+overtake an insert that would put a row back.
+
+Its columns are operation, package, version,
 manager, status, started and finished; an update's version cell joins the old and
 new versions with `→`, and the time cells show the clock today or the date for an
 older task, with the full timestamp in a tooltip. A search field matches package,
@@ -504,8 +551,8 @@ may have been skipped while another page was shown.
 
 ### Notifications
 
-On each listener frame the UI compares the new task states with the previous
-ones. A task that moved from queued/running to succeeded or failed — or that was
+On each listener frame, when notifications are on and the app is not quitting,
+the UI compares the new task states with the previous ones. A task that moved from queued/running to succeeded or failed — or that was
 created and finished between two frames — produces a `mygo.Notification` through
 `mygo.NewNotification`, grouped under `unipac.tasks`. Its title is the same
 label the toast uses — "Could not update bun", or "Could not update 3 packages"

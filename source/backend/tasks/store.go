@@ -111,6 +111,20 @@ func (s *store) markInterrupted(message string, at time.Time) error {
 	return err
 }
 
+// clearFinished drops every task that has an outcome, and the console lines that
+// belong to them. A queued or running task keeps its row: its page is watching it,
+// and it would have no record left to finish against.
+func (s *store) clearFinished() error {
+	if _, err := s.db.ExecContext(s.ctx,
+		`DELETE FROM package_tasks WHERE state NOT IN (?, ?)`,
+		StateQueued, StateRunning); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(s.ctx,
+		`DELETE FROM package_task_output WHERE task_id NOT IN (SELECT id FROM package_tasks)`)
+	return err
+}
+
 // prune keeps the newest keep tasks, plus any older unfinished row, and drops
 // the console lines of the tasks it removed.
 func (s *store) prune(keep int) error {

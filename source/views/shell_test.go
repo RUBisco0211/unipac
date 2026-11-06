@@ -149,7 +149,9 @@ func TestFlightMovesToTasksButton(t *testing.T) {
 }
 
 // The badges are derived state: a refresh or a task change shows on the next
-// frame without reopening the window.
+// frame without reopening the window. The Managers item's plain-text total is
+// part of the frame too, and it does not move when tasks do — the two counts
+// are told apart by where they sit, so this test counts badge and total.
 func TestSidebarBadgesFollowState(t *testing.T) {
 	u := uiWithRunningTasks()
 	tt := render(t, u.left, 260, 520)
@@ -170,11 +172,27 @@ func TestSidebarBadgesFollowState(t *testing.T) {
 		t.Errorf("running task badge disappeared: %v", tt.Texts())
 	}
 
-	// All but one task finished.
+	// All but one task finished. The Managers total is a "3" of its own, so
+	// the running badge is counted, not found: two before, one after.
+	before := 0
+	for _, text := range tt.Texts() {
+		if text == "3" {
+			before++
+		}
+	}
+	if before != 2 {
+		t.Fatalf("found %d texts saying 3, want the running badge and the manager total", before)
+	}
 	u.tasks.Apply(testui.Tasks())
 	tt.Frame()
-	if exactText(tt, "3") {
-		t.Errorf("running task badge did not decrease: %v", tt.Texts())
+	after := 0
+	for _, text := range tt.Texts() {
+		if text == "3" {
+			after++
+		}
+	}
+	if after != before-1 {
+		t.Errorf("running badge did not decrease: %d texts saying 3 after, want %d", after, before-1)
 	}
 	if !exactText(tt, "1") {
 		t.Errorf("running task badge missing: %v", tt.Texts())
@@ -638,6 +656,9 @@ func (wiredService) LogLevel() string                              { return "" }
 func (wiredService) LogLevels() []string                           { return nil }
 func (wiredService) Language() string                              { return "" }
 func (wiredService) Languages() []string                           { return nil }
+func (wiredService) Theme() string                                 { return "" }
+func (wiredService) Notifications() bool                           { return true }
+func (wiredService) About() inventory.About                        { return inventory.About{} }
 
 // The search page's version picker is the shell's to answer. A page that lost
 // the wiring would quietly install the newest version instead of asking, which
@@ -649,5 +670,53 @@ func TestSearchPageAsksTheShellForVersions(t *testing.T) {
 	}
 	if u.search.OnInstallVersion == nil {
 		t.Error("the search page cannot install a chosen version")
+	}
+}
+
+// The notification switch is what decides whether a finished task is announced,
+// and a window whose settings page has not been built still announces.
+func TestNotificationsFollowTheSetting(t *testing.T) {
+	u := &UI{data: testui.Data()}
+	if !u.notificationsOn() {
+		t.Error("a window without a settings page does not announce")
+	}
+	u.settings = &settings.View{Notifications: false}
+	if u.notificationsOn() {
+		t.Error("the switch did not stop the announcements")
+	}
+	u.settings.Notifications = true
+	if !u.notificationsOn() {
+		t.Error("turning the switch back on did not resume them")
+	}
+}
+
+// Clearing the history is the backend's job, and the page reloads from what it
+// left behind. A window without one does nothing rather than panicking.
+func TestClearTaskHistoryWithoutAWindowIsInert(t *testing.T) {
+	u := &UI{data: testui.Data(), tasks: &taskspage.View{Data: testui.Data(), SelectedIndex: -1}}
+	u.ClearTaskHistory()
+	u.OpenPath("")
+	if len(u.tasks.All()) != 0 {
+		t.Errorf("a window with no service changed the tasks")
+	}
+}
+
+// The Managers item names the page and says how many managers the backend
+// registered, as plain text on the item's trailing edge — not a badge, which
+// would read as work waiting on it.
+func TestManagersItemShowsTheTotal(t *testing.T) {
+	u := &UI{data: testui.Data()}
+	tt := render(t, u.left, 260, 520)
+
+	item, ok := tt.Find(locales.NavManagers())
+	if !ok {
+		t.Fatalf("the managers item is missing: %v", tt.Texts())
+	}
+	total, ok := tt.Find("3")
+	if !ok {
+		t.Fatalf("the total is missing: %v", tt.Texts())
+	}
+	if total.X+total.W/2 < item.X+item.W*0.75 {
+		t.Errorf("the total at %+v is not on the item's trailing edge %+v", total, item)
 	}
 }

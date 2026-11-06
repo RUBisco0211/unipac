@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -21,6 +23,11 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/samber/lo"
 )
+
+// appRepository is where the project lives on the web. A remote of the
+// checkout is a build machine's fact, not the app's, so it is written here
+// rather than asked of git; TestAppRepositoryIsTheRemote pins the two.
+const appRepository = "https://github.com/RUBisco0211/unipac"
 
 // App is the application service. Its exported methods are called directly by
 // the views; there is no binding layer between them.
@@ -85,6 +92,9 @@ func (a *App) Startup(ctx context.Context) error {
 		language = ""
 	}
 	mygo.App.SetLocale(language)
+	// The appearance is settled before the window exists, so it does not open in
+	// the system's and change under the user.
+	applyTheme(config.Instance.Theme)
 
 	if err := logging.Init(config.Instance.Log); err != nil {
 		return a.fail("init logging", err)
@@ -208,6 +218,88 @@ func (a *App) Languages() []string {
 
 // SetLanguage saves the chosen language and applies it at once. An empty tag
 // follows the system again.
+// About reports what this build is and where it keeps its files.
+func (a *App) About() inventory.About {
+	about := inventory.About{
+		// The build links the manifest's version in: `mygo dev` and `mygo build`
+		// pass it, so there is no second copy to keep in step.
+		Version:    mygo.App.Version(),
+		Go:         runtime.Version(),
+		DataDir:    util.AppRoot,
+		Repository: appRepository,
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, dep := range info.Deps {
+			switch dep.Path {
+			case "github.com/egoist/mygo":
+				about.Modules = append(about.Modules, "MyGo "+dep.Version)
+			case "github.com/oneo-me/onevra/source":
+				about.Modules = append(about.Modules, "Onevra "+dep.Version)
+			}
+		}
+	}
+	return about
+}
+
+// ClearTaskHistory drops the tasks that have an outcome and their consoles. A
+// running task keeps its record, so nothing in flight loses its console.
+func (a *App) ClearTaskHistory() error {
+	slog.InfoContext(a.ctx, "clearing task history")
+	if err := tasks.Default.ClearHistory(); err != nil {
+		slog.ErrorContext(a.ctx, "failed to clear the task history", "error", err)
+		return err
+	}
+	return nil
+}
+
+// Notifications reports whether a finished task is announced.
+func (a *App) Notifications() bool {
+	return config.Instance.NotifiesOnFinish()
+}
+
+// SetNotifications saves whether a finished task is announced.
+func (a *App) SetNotifications(on bool) error {
+	slog.InfoContext(a.ctx, "changing notifications", "on", on)
+	if err := config.SetNotifications(on); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save notifications", "error", err)
+		return err
+	}
+	return nil
+}
+
+// Theme is the saved appearance: "light", "dark", or "" to follow the system.
+func (a *App) Theme() string {
+	return config.Instance.Theme
+}
+
+// SetTheme saves the appearance and applies it to the running window and to the
+// next launch.
+func (a *App) SetTheme(value string) error {
+	if !config.ThemeChosen(value) {
+		return fmt.Errorf("unknown appearance: %q", value)
+	}
+	slog.InfoContext(a.ctx, "changing appearance", "theme", value)
+	if err := config.SetTheme(value); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save the appearance", "error", err)
+		return err
+	}
+	applyTheme(value)
+	return nil
+}
+
+// applyTheme makes the system appearance, and with it the palette every frame
+// draws in, follow the saved choice.
+func applyTheme(value string) {
+	switch value {
+	case config.ThemeLight:
+		mygo.Theme.SetSource(mygo.ThemeLight)
+	case config.ThemeDark:
+		mygo.Theme.SetSource(mygo.ThemeDark)
+	default:
+		mygo.Theme.SetSource(mygo.ThemeSystem)
+	}
+}
+
 func (a *App) SetLanguage(tag string) error {
 	tag = strings.TrimSpace(tag)
 	if tag != "" && !slices.Contains(mygo.App.Languages(), tag) {

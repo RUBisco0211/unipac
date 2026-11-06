@@ -109,3 +109,43 @@ func TestWithoutReportingDropsTheCommands(t *testing.T) {
 		t.Fatalf("a quiet command reported %v", events)
 	}
 }
+
+// The managers disagree about how to print a version; these are the outputs the
+// seven of them answered on one machine, and each one's version is the run of
+// dot-separated numbers in it.
+func TestVersionToken(t *testing.T) {
+	cases := []struct {
+		manager string
+		output  string
+		want    string
+	}{
+		{"brew", "Homebrew 7.0.12-105-g3cea970\n", "7.0.12"},
+		{"npm", "11.17.0\n", "11.17.0"},
+		{"bun", "1.4.2\n", "1.4.2"},
+		{"uv", "uv 0.12.17 (635500036 2026-09-18 aarch64-apple-darwin)\n", "0.12.17"},
+		{"cargo", "cargo 1.98.0 (797e8a9bc 2026-08-05)\n", "1.98.0"},
+		{"pip", "pip 26.2.1 from /opt/homebrew/lib/python3.14/site-packages/pip (python 3.14)\n", "26.2.1"},
+		{"pipx", "1.12.0\n", "1.12.0"},
+		{"a tool with no version", "unknown\n", ""},
+	}
+	for _, tc := range cases {
+		if got := VersionToken(tc.output); got != tc.want {
+			t.Errorf("%s: %q -> %q, want %q", tc.manager, strings.TrimSpace(tc.output), got, tc.want)
+		}
+	}
+}
+
+// A version command that cannot run is how an unavailable manager is told apart,
+// and the version it prints is what comes back.
+func TestCommandVersion(t *testing.T) {
+	if _, err := CommandVersion(context.Background(), "/nonexistent/tool", []string{"--version"}); err == nil {
+		t.Fatal("a missing executable reported a version")
+	}
+	version, err := CommandVersion(context.Background(), "/bin/sh", []string{"-c", `echo "fake-tool 3.2.1 (abc)"`})
+	if err != nil {
+		t.Fatalf("version: %v", err)
+	}
+	if version != "3.2.1" {
+		t.Fatalf("version = %q, want 3.2.1", version)
+	}
+}
