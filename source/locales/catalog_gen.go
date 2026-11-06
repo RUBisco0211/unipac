@@ -1508,16 +1508,6 @@ func (msgs Messages) SettingsClearHistory() string {
 	return Catalog.Format(msgs.locale, "settingsClearHistory", nil)
 }
 
-// SettingsClearHistoryHold says "Hold to clear history"
-// in the language the app shows.
-func SettingsClearHistoryHold() string { return In(i18n.Locale()).SettingsClearHistoryHold() }
-
-// SettingsClearHistoryHold says "Hold to clear history"
-// in the language of msgs.
-func (msgs Messages) SettingsClearHistoryHold() string {
-	return Catalog.Format(msgs.locale, "settingsClearHistoryHold", nil)
-}
-
 // ToastHistoryCleared says "Task history cleared"
 // in the language the app shows.
 func ToastHistoryCleared() string { return In(i18n.Locale()).ToastHistoryCleared() }
@@ -1890,11 +1880,11 @@ func (msgs Messages) NavManagers() string {
 	return Catalog.Format(msgs.locale, "navManagers", nil)
 }
 
-// AboutRepository says "Repository"
+// AboutRepository says "GitHub"
 // in the language the app shows.
 func AboutRepository() string { return In(i18n.Locale()).AboutRepository() }
 
-// AboutRepository says "Repository"
+// AboutRepository says "GitHub"
 // in the language of msgs.
 func (msgs Messages) AboutRepository() string {
 	return Catalog.Format(msgs.locale, "aboutRepository", nil)
@@ -1908,4 +1898,24 @@ func AboutRepositoryOpen() string { return In(i18n.Locale()).AboutRepositoryOpen
 // in the language of msgs.
 func (msgs Messages) AboutRepositoryOpen() string {
 	return Catalog.Format(msgs.locale, "aboutRepositoryOpen", nil)
+}
+
+// SettingsClearHistoryMessage says "The tasks that finished will be removed with their console output; a task still running keeps its record."
+// in the language the app shows.
+func SettingsClearHistoryMessage() string { return In(i18n.Locale()).SettingsClearHistoryMessage() }
+
+// SettingsClearHistoryMessage says "The tasks that finished will be removed with their console output; a task still running keeps its record."
+// in the language of msgs.
+func (msgs Messages) SettingsClearHistoryMessage() string {
+	return Catalog.Format(msgs.locale, "settingsClearHistoryMessage", nil)
+}
+
+// SettingsClearHistoryConfirm says "Clear"
+// in the language the app shows.
+func SettingsClearHistoryConfirm() string { return In(i18n.Locale()).SettingsClearHistoryConfirm() }
+
+// SettingsClearHistoryConfirm says "Clear"
+// in the language of msgs.
+func (msgs Messages) SettingsClearHistoryConfirm() string {
+	return Catalog.Format(msgs.locale, "settingsClearHistoryConfirm", nil)
 }

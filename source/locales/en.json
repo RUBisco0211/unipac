@@ -220,7 +220,6 @@
   "settingsTasks": "Tasks",
   "settingsTasksDesc": "UniPac keeps the last 500 tasks and their console output. Clearing removes the ones that finished; a task still running keeps its record",
   "settingsClearHistory": "Clear task history",
-  "settingsClearHistoryHold": "Hold to clear history",
   "toastHistoryCleared": "Task history cleared",
   "settingsAbout": "About",
   "aboutVersion": "Version",
@@ -289,6 +288,8 @@
   "settingsManagerEnabled": "Enabled",
   "settingsCapabilities": "Capabilities",
   "navManagers": "Package managers",
-  "aboutRepository": "Repository",
-  "aboutRepositoryOpen": "Open in browser"
+  "aboutRepository": "GitHub",
+  "aboutRepositoryOpen": "Open in browser",
+  "settingsClearHistoryMessage": "The tasks that finished will be removed with their console output; a task still running keeps its record.",
+  "settingsClearHistoryConfirm": "Clear"
 }

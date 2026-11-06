@@ -61,6 +61,10 @@ type View struct {
 	// instead of vanishing.
 	busy bool
 	err  string
+	// clearOpen asks for a confirmation of the history clear, which is a dialog
+	// rather than a hold: clearing history is not irreversible like uninstalling
+	// is, and a dialog can say exactly what will be dropped.
+	clearOpen bool
 }
 
 // New builds the page from the values the app started with.
@@ -292,23 +296,44 @@ func (s *View) languageRow(c *ui.Context) {
 // uninstalling — a hold, or a click when the user turned holding off.
 func (s *View) tasks(c *ui.Context) {
 	s.section(c, locales.SettingsTasks(), locales.SettingsTasksDesc(), func() {
-		if s.HoldToConfirm {
-			var held bool
-			hold := components.HoldToConfirm(c, &held, locales.SettingsClearHistoryHold(),
-				components.HoldToConfirmOptions{Tone: components.HoldDanger})
-			hold.Disabled(s.busy)
-			if hold.Changed() && s.OnClearHistory != nil {
-				s.OnClearHistory()
-			}
-			return
-		}
 		clear := components.Button(c, locales.SettingsClearHistory(), components.ButtonOutline)
 		clear.TextColor(c.Theme().Danger)
 		clear.Disabled(s.busy)
-		if clear.Clicked() && s.OnClearHistory != nil {
-			s.OnClearHistory()
+		if clear.Clicked() {
+			s.clearOpen = true
 		}
 	}, nil)
+	s.clearDialog(c)
+}
+
+// clearDialog says what clearing drops and asks once. The confirm is a danger
+// button, not a hold: the history is a record, not the package the record is
+// about, and it stops growing back the moment the app runs again.
+func (s *View) clearDialog(c *ui.Context) {
+	t := c.Theme()
+	components.Dialog(c, &s.clearOpen, components.DialogOptions{Label: locales.SettingsClearHistory()}, func(panel ui.Element) {
+		panel.Width(420).Padding(20).Children(func() {
+			ui.Column(c).Gap(12).Children(func() {
+				components.Text(c, locales.SettingsClearHistory()).FontSize(16).Bold()
+				components.Text(c, locales.SettingsClearHistoryMessage()).
+					TextColor(t.TextMuted).Wrap()
+				ui.Row(c).Gap(8).Justify(ui.End).Children(func() {
+					if components.Button(c, locales.CommonCancel(), components.ButtonOutline).Clicked() {
+						s.clearOpen = false
+					}
+					confirm := components.Button(c, locales.SettingsClearHistoryConfirm(), components.ButtonOutline)
+					confirm.TextColor(t.Danger)
+					confirm.Disabled(s.busy)
+					if confirm.Clicked() && !s.busy {
+						s.clearOpen = false
+						if s.OnClearHistory != nil {
+							s.OnClearHistory()
+						}
+					}
+				})
+			})
+		})
+	})
 }
 
 // aboutSection is what this build is and where it keeps its files, with a way to

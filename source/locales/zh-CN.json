@@ -175,7 +175,6 @@
   "settingsTasks": "任务",
   "settingsTasksDesc": "UniPac 保留最近 500 条任务及其控制台输出。清空会移除已结束的任务，正在运行的任务仍保留记录",
   "settingsClearHistory": "清空任务历史",
-  "settingsClearHistoryHold": "长按清空历史",
   "toastHistoryCleared": "任务历史已清空",
   "settingsAbout": "关于",
   "aboutVersion": "版本",
@@ -213,6 +212,8 @@
   "settingsManagerEnabled": "启用",
   "settingsCapabilities": "功能",
   "navManagers": "包管理器",
-  "aboutRepository": "代码仓库",
-  "aboutRepositoryOpen": "在浏览器打开"
+  "aboutRepository": "GitHub",
+  "aboutRepositoryOpen": "在浏览器打开",
+  "settingsClearHistoryMessage": "将删除已结束的任务及其控制台输出，正在运行的任务不受影响。",
+  "settingsClearHistoryConfirm": "清空"
 }

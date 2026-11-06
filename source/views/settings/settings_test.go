@@ -3,7 +3,6 @@ package settings
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
@@ -250,44 +249,45 @@ func TestAboutCopiesDiagnostics(t *testing.T) {
 	}
 }
 
-// uninstalling: a hold, or a click when the user turned holding off.
-func TestClearHistoryAnswersToTheHoldingSetting(t *testing.T) {
+// Clearing the history asks once in its own dialog, and only the dialog's
+// confirm reaches the backend: the button opens the question, nothing else.
+func TestClearHistoryAsksInADialog(t *testing.T) {
 	cleared := 0
-	hold := settingsFixture()
-	hold.HoldToConfirm = true
-	hold.OnClearHistory = func() { cleared++ }
-	tt := render(t, hold.Build, 900, 1600)
+	s := settingsFixture()
+	s.OnClearHistory = func() { cleared++ }
 
-	if tt.HasText(locales.SettingsClearHistory()) {
-		t.Errorf("the click action is offered while holding is on")
-	}
-	control, ok := tt.Find(locales.SettingsClearHistoryHold())
-	if !ok {
-		t.Fatalf("the hold control is missing: %v", tt.Texts())
-	}
-	tt.ClickAt(control.X+control.W/2, control.Y+control.H/2)
-	tt.Frame()
-	if cleared != 0 {
-		t.Fatal("a click confirmed a hold")
-	}
-	tt.Press(control.X+control.W/2, control.Y+control.H/2)
-	tt.Advance(2 * time.Second)
-	tt.Release(control.X+control.W/2, control.Y+control.H/2)
-	tt.Frame()
-	if cleared != 1 {
-		t.Fatalf("the hold cleared %d times, want 1", cleared)
-	}
-
-	// With holding off it is a danger button and one click answers it.
-	click := settingsFixture()
-	click.HoldToConfirm = false
-	click.OnClearHistory = func() { cleared++ }
-	tt = render(t, click.Build, 900, 1600)
+	tt := render(t, s.Build, 900, 1600)
 	if err := tt.Click(locales.SettingsClearHistory()); err != nil {
 		t.Fatalf("click: %v", err)
 	}
 	tt.Frame()
-	if cleared != 2 {
-		t.Fatalf("the click cleared %d times, want one more", cleared)
+	if cleared != 0 {
+		t.Fatal("the button cleared without asking")
+	}
+	if !tt.HasText(locales.SettingsClearHistoryMessage()) {
+		t.Fatalf("the question is not shown: %v", tt.Texts())
+	}
+
+	// Keeping the history closes the dialog and clears nothing.
+	if err := tt.Click(locales.CommonCancel()); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	tt.Frame()
+	if tt.HasText(locales.SettingsClearHistoryMessage()) {
+		t.Error("the dialog stayed open after keeping the history")
+	}
+	if err := tt.Click(locales.SettingsClearHistory()); err != nil {
+		t.Fatalf("click again: %v", err)
+	}
+	tt.Frame()
+	if err := tt.Click(locales.SettingsClearHistoryConfirm()); err != nil {
+		t.Fatalf("confirm: %v", err)
+	}
+	tt.Frame()
+	if cleared != 1 {
+		t.Fatalf("cleared %d times, want 1", cleared)
+	}
+	if tt.HasText(locales.SettingsClearHistoryMessage()) {
+		t.Error("the dialog stayed open after confirming")
 	}
 }
