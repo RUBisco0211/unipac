@@ -346,6 +346,7 @@ together, and nothing has to be found across a 900-line file:
 | --- | --- | --- |
 | `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the background jobs, quit handling, task notifications and the window's toasts (bottom right) | every view package below |
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
+| `views/uiassets` | the views' own embedded assets: the brand marks the interface shows beside a manager's name, one file per manager ID, read by name | — |
 | `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
@@ -469,6 +470,14 @@ in green for what the manager offers and a cross in red for what it does not. Th
 is where a button disabled elsewhere in the window has its reason, and it costs a
 glance instead of reading a sentence. `parts` builds them, because the diagnostics
 text names the same gaps and both must read the same way.
+
+A tab also carries the manager's brand mark. The marks are Simple Icons files
+(CC0) embedded under `views/uiassets/marks`, one per manager ID, and
+`uiassets.ManagerMark(id)` reads them by that ID — the interface never names a
+manager, and one without a file shows without a mark. They are embedded rather
+than shipped as resources because they are small, fixed, and drawn before the
+window opens, which is what `//go:embed` is for; the marks belong to the views
+because they are presentation, not backend.
 
 The path field shows the saved override; the detected path is its muted
 placeholder, so an empty field means "detect automatically". Apply stays visible

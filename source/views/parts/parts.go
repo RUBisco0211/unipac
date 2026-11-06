@@ -12,6 +12,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/uiassets"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -284,6 +285,17 @@ func Operation(kind tasks.Kind) string {
 	default:
 		return string(kind)
 	}
+}
+
+// ManagerIcon shows a manager's brand mark, when it has one. The marks are
+// assets the interface embeds, read by manager ID, so no manager is named here;
+// a manager without a mark builds nothing and the row reads as it did.
+func ManagerIcon(c *ui.Context, id string, size float32) {
+	mark := uiassets.ManagerMark(id)
+	if mark == nil {
+		return
+	}
+	components.Icon(c, mark).Size(size, size)
 }
 
 // Capability is one thing a manager may offer, named the way the pages show it

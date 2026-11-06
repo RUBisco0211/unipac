@@ -149,7 +149,12 @@ func (m *View) tabs(c *ui.Context) {
 	for i := range m.rows {
 		labels[i] = m.rows[i].info.Name
 	}
-	tabs := components.Tabs(c, &m.tab, components.TabsUnderline, labels...)
+	// The tab carries the manager's mark before its name, read by the manager's
+	// ID; a manager without a mark has its name alone.
+	tabs := components.TabsWithLeading(c, &m.tab, components.TabsUnderline,
+		func(c *ui.Context, i int, size float32) {
+			parts.ManagerIcon(c, m.rows[i].info.ID, size)
+		}, labels...)
 	tabs.List.FillWidth().Justify(ui.Center)
 	if m.tab >= 0 && m.tab < len(m.rows) {
 		m.tabID = m.rows[m.tab].info.ID

@@ -1,0 +1,7 @@
+The SVG files in this directory are brand marks from Simple Icons
+(https://simpleicons.org), published there under CC0 1.0 (public domain).
+Each is named by the manager that shows it, not by the brand that drew it:
+pip.svg is Python's mark, cargo.svg is Rust's, and uvtool.svg is uv's.
+
+The set is not complete. A manager without a file here shows without a
+mark; add one named by the manager's ID to give it its own.
