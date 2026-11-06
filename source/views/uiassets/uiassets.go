@@ -11,7 +11,6 @@ package uiassets
 
 import (
 	"embed"
-	"fmt"
 	"sync"
 
 	"github.com/egoist/mygo/ui"
@@ -46,15 +45,4 @@ func ManagerMark(id string) *ui.SVG {
 		markCache.Store(id, svg)
 	}
 	return svg
-}
-
-// MustManagerMark is ManagerMark for the managers the interface knows it drew
-// marks for: it fails the build when the file is missing, which is how the
-// managers page keeps its tabs from silently losing theirs.
-func MustManagerMark(id string) *ui.SVG {
-	mark := ManagerMark(id)
-	if mark == nil {
-		panic(fmt.Sprintf("uiassets: no mark for manager %q", id))
-	}
-	return mark
 }

@@ -96,8 +96,10 @@ type UI struct {
 	settings  *settings.View
 
 	// saving says a settings write is running, so a second change waits rather
-	// than racing the config file.
-	saving bool
+	// than racing the config file. lastSnapshot is what the backend last
+	// reported, which is what a dropped change's controls go back to.
+	saving       bool
+	lastSnapshot settings.Snapshot
 
 	// quitOpen shows the window's own quit dialog, and quitPending says how many
 	// tasks it is about. quitAccepted is set once the user chose to leave
@@ -182,6 +184,16 @@ func New(service inventory.Service) *UI {
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
 	u.settings.OnSetHold = u.SetHoldToConfirm
+	// The controls bind to what the backend last reported, so a change dropped
+	// because another write is running goes back to this.
+	u.lastSnapshot = settings.Snapshot{
+		AutoScan:      service.AutoScanOnLaunch(),
+		LogLevel:      service.LogLevel(),
+		Language:      service.Language(),
+		Theme:         service.Theme(),
+		HoldToConfirm: service.HoldToConfirm(),
+		Notifications: service.Notifications(),
+	}
 	return u
 }
 
@@ -1054,10 +1066,8 @@ func (u *UI) SetHoldToConfirm(on bool) {
 	})
 }
 
-// SetTheme saves the appearance; the backend applies it to the window and to the
-// next launch.
 // OpenPath opens a file or folder in the desktop's own application, which is how
-// the settings page shows the log and the data the app keeps.
+// the About section shows the data the app keeps.
 func (u *UI) OpenPath(path string) {
 	if path == "" {
 		return
@@ -1122,6 +1132,8 @@ func (u *UI) SetNotifications(on bool) {
 	})
 }
 
+// SetTheme saves the appearance; the backend applies it to the window and to
+// the next launch.
 func (u *UI) SetTheme(value string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetTheme(value)
@@ -1138,12 +1150,19 @@ func (u *UI) SetLanguage(tag string) {
 // backend now reports. rescan asks for a new package scan, which is what makes
 // a turned-off manager's rows leave the lists.
 func (u *UI) saveSettings(rescan bool, fn func() error) {
-	if u.shell == nil || u.settings == nil || u.managers == nil || u.saving {
+	if u.settings == nil || u.managers == nil {
 		return
 	}
-	// One write at a time, whichever page asked: a second change while the first
-	// is in flight would race the config file, so the controls go back to the
-	// saved state instead of being silently dropped.
+	if u.saving || u.shell == nil {
+		// A second change while one write runs would race the config file, so
+		// it is dropped and its controls go back to what the backend last
+		// reported, without an error: nothing failed, and the write that is
+		// running keeps the pages busy. No shell means the window is not open
+		// yet, and a change arriving then is dropped the same way.
+		u.settings.Revert(u.lastSnapshot)
+		u.managers.Revert()
+		return
+	}
 	u.saving = true
 	s := u.settings
 	s.BeginSave()
@@ -1163,6 +1182,9 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 		}
 		win.Update(func() {
 			u.saving = false
+			if err == nil {
+				u.lastSnapshot = saved
+			}
 			s.EndSave(err, saved)
 			u.managers.EndSave(err)
 			if err != nil {

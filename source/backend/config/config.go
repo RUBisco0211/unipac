@@ -225,8 +225,13 @@ func SetNotifications(on bool) error {
 }
 
 // SetTheme saves the appearance, "" to follow the system. Applying it to the
-// running window is the caller's job.
+// running window is the caller's job. A value the app does not know is
+// rejected rather than saved, so a hand edit or a stale client cannot leave a
+// config the window cannot show.
 func SetTheme(value string) error {
+	if !ThemeChosen(value) {
+		return fmt.Errorf("unknown appearance: %q", value)
+	}
 	cfg := Instance
 	cfg.Theme = value
 	if err := Save(cfg); err != nil {

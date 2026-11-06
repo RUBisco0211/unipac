@@ -68,7 +68,6 @@
   "logLevelWarn": "Warning",
   "logLevelError": "Error",
   "logLevelUnknown": "Unknown",
-  "settingsManagers": "Package managers",
   "settingsExecPathLabel": "Executable path for {name}",
   "@settingsExecPathLabel": {
     "placeholders": {

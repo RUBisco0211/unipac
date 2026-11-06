@@ -65,6 +65,13 @@ func (m *View) BeginSave() {
 // EndSave installs the write's outcome. A failure puts the rows back on the
 // values the backend reports, so a path the backend refused does not stay on
 // screen as if it had been saved.
+// Revert puts the controls back on what the backend last reported, without
+// ending the write: a change dropped because another write is running is not
+// an error, and the pages stay busy until that write lands.
+func (m *View) Revert() {
+	m.Invalidate()
+}
+
 func (m *View) EndSave(err error) {
 	m.busy = false
 	m.detecting = false

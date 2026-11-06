@@ -646,16 +646,6 @@ func (msgs Messages) LogLevelUnknown() string {
 	return Catalog.Format(msgs.locale, "logLevelUnknown", nil)
 }
 
-// SettingsManagers says "Package managers"
-// in the language the app shows.
-func SettingsManagers() string { return In(i18n.Locale()).SettingsManagers() }
-
-// SettingsManagers says "Package managers"
-// in the language of msgs.
-func (msgs Messages) SettingsManagers() string {
-	return Catalog.Format(msgs.locale, "settingsManagers", nil)
-}
-
 // SettingsExecPathLabel says "Executable path for {name}"
 // in the language the app shows.
 func SettingsExecPathLabel(name string) string { return In(i18n.Locale()).SettingsExecPathLabel(name) }

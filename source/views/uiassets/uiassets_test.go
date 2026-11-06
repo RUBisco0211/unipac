@@ -31,8 +31,9 @@ func TestManagerMarkWithoutAFile(t *testing.T) {
 	}
 }
 
-// The managers of this build all have marks; MustManagerMark is what fails the
-// build when one does not.
+// The managers this build registers all have marks. The list is by hand and
+// must track backend/adapters/index.go — a new adapter without a file here
+// fails this test, which is the guard against a tab silently losing its mark.
 func TestEveryRegisteredManagerHasAMark(t *testing.T) {
 	for _, id := range []string{"brew", "npm", "pip", "pipx", "cargo", "uv-tool"} {
 		if ManagerMark(id) == nil {

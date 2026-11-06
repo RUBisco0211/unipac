@@ -720,3 +720,42 @@ func TestManagersItemShowsTheTotal(t *testing.T) {
 		t.Errorf("the total at %+v is not on the item's trailing edge %+v", total, item)
 	}
 }
+
+// A settings write that lands while another is running is dropped, and the
+// control that moved goes back to what the backend last reported: the switch
+// must not show a state the config does not hold.
+func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
+	svc := wiredService{}
+	u := New(svc)
+	if u.shell != nil {
+		t.Fatal("New built a shell outside Run")
+	}
+	// The guard needs a shell; drive the state machine through the pages
+	// directly, which is what the shell does around saveSettings.
+	u.settings.OnSetTheme = u.SetTheme
+	if u.saving {
+		t.Fatal("no write is running yet")
+	}
+	// First write starts and stays in flight.
+	u.saving = true
+	u.settings.BeginSave()
+	u.managers.BeginSave()
+
+	// A second change flips the control, then is dropped: the control goes
+	// back to the snapshot the backend last reported, while the first write
+	// keeps the pages busy.
+	u.settings.Notifications = false
+	u.SetNotifications(false)
+	if !u.settings.Notifications {
+		t.Fatal("the dropped change should have been reverted to the snapshot")
+	}
+	if u.saving != true {
+		t.Fatal("the first write should still be running")
+	}
+
+	// The first write lands and reports the backend's answer; the shell clears
+	// the guard before handing the snapshot to the pages.
+	u.saving = false
+	u.settings.EndSave(nil, settings.Snapshot{Notifications: false, Theme: ""})
+	u.managers.EndSave(nil)
+}

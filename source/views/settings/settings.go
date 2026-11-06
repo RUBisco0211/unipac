@@ -102,6 +102,18 @@ func (s *View) BeginSave() {
 }
 
 // EndSave installs what the backend now reports and the write's error, if any.
+// Revert puts the controls back on what the backend last reported, without
+// ending the write: a change dropped because another write is running is not
+// an error, and the pages stay busy until that write lands.
+func (s *View) Revert(saved Snapshot) {
+	s.AutoScan = saved.AutoScan
+	s.logLevel = saved.LogLevel
+	s.language = saved.Language
+	s.theme = saved.Theme
+	s.HoldToConfirm = saved.HoldToConfirm
+	s.Notifications = saved.Notifications
+}
+
 func (s *View) EndSave(err error, saved Snapshot) {
 	s.busy = false
 	s.AutoScan = saved.AutoScan

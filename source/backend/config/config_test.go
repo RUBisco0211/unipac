@@ -217,3 +217,83 @@ func TestHoldToConfirmDefaultsOn(t *testing.T) {
 		t.Error("the saved off was lost")
 	}
 }
+
+// The appearance and the notification switch persist like the rest of the
+// settings, and an older config without them keeps announcing and follows the
+// system.
+func TestThemeAndNotificationsPersist(t *testing.T) {
+	useTempRoot(t)
+
+	if Instance.NotifiesOnFinish() {
+		if err := SetNotifications(false); err != nil {
+			t.Fatalf("notifications: %v", err)
+		}
+	}
+	if err := SetTheme(ThemeDark); err != nil {
+		t.Fatalf("theme: %v", err)
+	}
+
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.NotifiesOnFinish() {
+		t.Error("notifications off did not survive the round-trip")
+	}
+	if loaded.Theme != ThemeDark {
+		t.Fatalf("theme = %q, want dark", loaded.Theme)
+	}
+
+	// Following the system is the empty value, which is a real choice and
+	// persists as one.
+	if err := SetTheme(""); err != nil {
+		t.Fatalf("system theme: %v", err)
+	}
+	loaded, err = Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.Theme != "" {
+		t.Fatalf("theme = %q, want the empty system value", loaded.Theme)
+	}
+}
+
+// An appearance the app does not know is rejected rather than saved, so a
+// hand edit or a stale client cannot write a value the window cannot show.
+func TestSetThemeRejectsAnUnknownValue(t *testing.T) {
+	useTempRoot(t)
+
+	if err := SetTheme("blue"); err == nil {
+		t.Fatal("an unknown appearance was saved")
+	}
+	if Instance.Theme == "blue" {
+		t.Fatal("the rejected value replaced the running one")
+	}
+	if !ThemeChosen("") || !ThemeChosen(ThemeLight) || !ThemeChosen(ThemeDark) {
+		t.Error("the known values were rejected")
+	}
+	if ThemeChosen("blue") {
+		t.Error("an unknown value passed as known")
+	}
+}
+
+// A config written before the two settings existed keeps the defaults: the
+// notifications announce, and the appearance follows the system.
+func TestThemeAndNotificationsDefaultOnOldConfigs(t *testing.T) {
+	dir := useTempRoot(t)
+
+	old := `{"language": "en"}`
+	if err := os.WriteFile(filepath.Join(dir, "unipac.json"), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if !loaded.NotifiesOnFinish() {
+		t.Error("an older config lost the notifications default")
+	}
+	if loaded.Theme != "" {
+		t.Errorf("theme = %q, want the empty system default", loaded.Theme)
+	}
+}

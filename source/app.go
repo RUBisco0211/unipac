@@ -216,8 +216,6 @@ func (a *App) Languages() []string {
 	return mygo.App.Languages()
 }
 
-// SetLanguage saves the chosen language and applies it at once. An empty tag
-// follows the system again.
 // About reports what this build is and where it keeps its files.
 func (a *App) About() inventory.About {
 	about := inventory.About{
@@ -275,9 +273,6 @@ func (a *App) Theme() string {
 // SetTheme saves the appearance and applies it to the running window and to the
 // next launch.
 func (a *App) SetTheme(value string) error {
-	if !config.ThemeChosen(value) {
-		return fmt.Errorf("unknown appearance: %q", value)
-	}
 	slog.InfoContext(a.ctx, "changing appearance", "theme", value)
 	if err := config.SetTheme(value); err != nil {
 		slog.ErrorContext(a.ctx, "failed to save the appearance", "error", err)
@@ -300,6 +295,8 @@ func applyTheme(value string) {
 	}
 }
 
+// SetLanguage saves the chosen language and applies it at once. An empty tag
+// follows the system again.
 func (a *App) SetLanguage(tag string) error {
 	tag = strings.TrimSpace(tag)
 	if tag != "" && !slices.Contains(mygo.App.Languages(), tag) {

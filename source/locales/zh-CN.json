@@ -61,7 +61,6 @@
   "logLevelWarn": "警告",
   "logLevelError": "错误",
   "logLevelUnknown": "未知",
-  "settingsManagers": "软件包管理器",
   "settingsExecPathLabel": "{name} 的可执行文件路径",
   "settingsEnableManager": "使用 {name}",
   "settingsPathAuto": "自动检测",

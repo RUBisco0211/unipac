@@ -75,7 +75,8 @@ Exported methods:
 - `UnfinishedTasks() int`, `StopTasks()`
 - `About() About`, which is the build and where it keeps its files
 - settings: `ManagerOverrides`, `SetManagerEnabled`, `SetManagerExecPath`,
-  `ReloadManagers`, `Language`/`Languages`/`SetLanguage`, `AutoScanOnLaunch`/
+  `ReloadManagers`, `Language`/`Languages`/`SetLanguage`, `Theme`/`SetTheme`,
+  `Notifications`/`SetNotifications`, `AutoScanOnLaunch`/
   `SetAutoScanOnLaunch`, `LogLevel`/`LogLevels`/`SetLogLevel`, and
   `HoldToConfirm`/`SetHoldToConfirm`
 
@@ -446,8 +447,8 @@ one, applied with `mygo.Theme.SetSource` before the window opens and again when 
 changes), the language (the app's languages plus System, named in their own
 language), and then startup behavior — scanning on launch, and whether a
 destructive confirmation is a hold or a click — the notifications switch, and the
-log level. Then a Tasks section whose only job is the hold that clears the
-finished task history, and an About section: the app's version (from
+log level. Then a Tasks section whose only job is a danger button that opens a dialog
+asking once about clearing the finished task history, and an About section: the app's version (from
 `mygo.App.Version`, which the build links in from `mygo.json`), the Go it was built
 with, the toolkit versions from the build's own module info, the data folder with a
 button that opens it, and the project's repository with one that opens it in the
@@ -455,8 +456,8 @@ browser — plus an action that copies the lot, with every manager's name, versi
 state, package count and gaps, into a bug report.
 
 The package managers have a page of their own, beside Settings in the sidebar, and
-it is tabs: one per manager with the first chosen, centred over the panel, which is
-a list of key-value rows, because the page is read as a list of answers — Status
+it is tabs: one per manager with the first chosen, starting at the leading edge above the
+panel, which is a list of key-value rows, because the page is read as a list of answers — Status
 (available, or the red "executable not found"), the Enabled switch, Version,
 Executable with its path field and Apply, Packages (counted from `Data.Rows` and
 rebuilt only when `Data.Version` changes), and Capabilities. The switch sits

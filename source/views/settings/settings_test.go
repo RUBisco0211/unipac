@@ -125,6 +125,7 @@ func TestSettingsAppearanceReachesBackend(t *testing.T) {
 	}
 }
 
+// The system choice is the empty value, which is what a config without the
 // setting holds.
 func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
 	s := settingsFixture()
@@ -148,6 +149,7 @@ func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
 	}
 }
 
+// The notification switch reaches the backend and the page keeps the answer the
 // backend reports, like every other switch in the section.
 func TestSettingsNotificationsReachBackend(t *testing.T) {
 	s := settingsFixture()
@@ -173,6 +175,7 @@ func TestSettingsNotificationsReachBackend(t *testing.T) {
 	}
 }
 
+// About is what a bug report needs: the build, and where the app keeps what it
 // writes.
 func TestAboutShowsTheBuild(t *testing.T) {
 	s := settingsFixture()
@@ -193,6 +196,7 @@ func TestAboutShowsTheBuild(t *testing.T) {
 	}
 }
 
+// The two folders open in the desktop's own application, and the page asks for
 // them by the path the backend reported, and the repository by its address.
 func TestAboutOpensItsFolders(t *testing.T) {
 	s := settingsFixture()
@@ -217,6 +221,7 @@ func TestAboutOpensItsFolders(t *testing.T) {
 	}
 }
 
+// Copy places the same facts on the clipboard, with what each manager is, and
 // says it did.
 func TestAboutCopiesDiagnostics(t *testing.T) {
 	s := settingsFixture()
@@ -289,5 +294,26 @@ func TestClearHistoryAsksInADialog(t *testing.T) {
 	}
 	if tt.HasText(locales.SettingsClearHistoryMessage()) {
 		t.Error("the dialog stayed open after confirming")
+	}
+}
+
+// Revert puts the controls back on what the backend last reported without
+// ending the write: a dropped change is not an outcome, and the section stays
+// busy until the write that beat it lands.
+func TestRevertKeepsThePageBusy(t *testing.T) {
+	s := settingsFixture()
+	s.BeginSave()
+	s.Notifications = false
+	s.theme = "dark"
+
+	s.Revert(Snapshot{AutoScan: true, Notifications: true, Theme: ""})
+	if !s.busy {
+		t.Fatal("the revert ended the write that is still running")
+	}
+	if !s.Notifications || s.theme != "" {
+		t.Fatalf("controls = notifications %v theme %q, want the snapshot's", s.Notifications, s.theme)
+	}
+	if s.err != "" {
+		t.Errorf("a dropped change reported an error: %q", s.err)
 	}
 }

@@ -291,3 +291,26 @@ func TestFailedSaveSaysSo(t *testing.T) {
 		t.Error("the page is still busy after the save failed")
 	}
 }
+
+// Revert puts the rows back on the saved state without ending the write that is
+// still running: a dropped change is not an outcome, and the controls stay
+// disabled until the write that beat them lands.
+func TestRevertKeepsThePageBusy(t *testing.T) {
+	m := managersPage()
+	tt := render(t, m.Build, 900, 700)
+	m.BeginSave()
+	m.rows[0].path = "/tmp/draft"
+	m.Invalidate() // the next build is what a draft survives
+
+	m.Revert()
+	if !m.busy {
+		t.Fatal("the revert ended the write that is still running")
+	}
+	tt.Frame()
+	if m.rows[0].path != "/tmp/draft" {
+		t.Fatalf("draft = %q, want the rebuild to have carried it over", m.rows[0].path)
+	}
+	if tt.HasText("permission denied") {
+		t.Error("a dropped change reported an error")
+	}
+}
