@@ -788,6 +788,12 @@ Task UI:
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.
+- Install roots are not shown on the managers page: where each manager puts its
+  packages would be a panel row, but the answers are uneven — `brew --prefix`,
+  `npm prefix -g` and `uv tool dir` are exact, `pipx` and `cargo` only have a
+  default path, `pip` writes into a site-packages directory that depends on the
+  interpreter, and `bun pm bin -g` names the bin directory, not the install root.
+  It wants an optional adapter method; confirm the shape before building it.
 
 ## Resolved
 
