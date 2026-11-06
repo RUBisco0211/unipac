@@ -34,7 +34,7 @@ func TestManagerMarkWithoutAFile(t *testing.T) {
 // The managers of this build all have marks; MustManagerMark is what fails the
 // build when one does not.
 func TestEveryRegisteredManagerHasAMark(t *testing.T) {
-	for _, id := range []string{"brew", "npm", "pip", "pipx", "cargo", "uvtool"} {
+	for _, id := range []string{"brew", "npm", "pip", "pipx", "cargo", "uv-tool"} {
 		if ManagerMark(id) == nil {
 			t.Errorf("manager %q has no mark", id)
 		}
