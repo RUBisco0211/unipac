@@ -1,8 +1,5 @@
 # UniPac
 
-> Status: Work in Progress. Expect incomplete features, rough edges and
-> changing APIs.
-
 UniPac is a desktop package manager: one place to inspect and act on packages
 installed through different package managers, without learning each manager's
 command line.
@@ -15,13 +12,18 @@ webview, no JavaScript.
 
 ## Features
 
-- Discovers the package managers available on the host.
+- Discovers the package managers available on the host, and reports each one's
+  capabilities so unsupported actions stay disabled with a reason.
 - Lists installed and outdated packages in a native UI, cached in SQLite.
-- Reports each manager's capabilities so unsupported actions stay disabled.
-- Searches across managers, marking what is installed and what has a newer
-  version.
-- Records every install, update and uninstall as a task with its console, which
-  can be cancelled, retried and opened from a notification.
+- Searches across managers, marking what is already installed and what has a
+  newer version.
+- Installs a package at a version its manager lists: the search page opens a
+  version dialog, newest first, filtered as you type.
+- Records every install, update and uninstall as a task with its console —
+  cancellable, retriable, reopened from a notification, and clearable.
+- Configures appearance (light, dark or system), notifications, language and
+  each manager's executable, and shows every manager's version, state and
+  capabilities on a page of its own.
 
 ## Supported Package Managers
 
@@ -36,8 +38,9 @@ and the UI treats manager IDs as opaque values.
 - Cargo
 - UV Tool
 
-Support is uneven while the project is under active development: some managers
-list reliably while other actions remain disabled or incomplete.
+Support is uneven: bun, Homebrew and npm list and act reliably; the Python and
+Cargo adapters are narrower. A manager that cannot answer an action says so on
+its page rather than leaving a disabled button unexplained.
 
 ## Requirements
 
@@ -100,7 +103,9 @@ notarized build.
 
 - Not production-ready; package actions may require host permissions.
 - Startup and refresh depend on manager command health.
-- Some capabilities stay disabled until their CLI behavior is reliable.
+- Some capabilities stay off until their CLI behavior is verified — notably,
+  no manager but npm lists a package's versions, and none of the Python or
+  Cargo adapters search.
 - Native layout and platform behavior need manual review; headless tests do not
   cover them.
 
