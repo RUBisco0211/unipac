@@ -27,11 +27,11 @@ func settingsFixture() *View {
 		theme:         "",
 		Notifications: true,
 		about: inventory.About{
-			Version: "0.2.0",
-			Go:      "go1.27.3",
-			Modules: []string{"MyGo 0.7.4", "Onevra 2026.16"},
-			DataDir: "/Users/me/Library/Application Support/com.rubisco.unipac",
-			LogDir:  "/Users/me/Library/Application Support/com.rubisco.unipac/logs",
+			Version:    "0.2.0",
+			Go:         "go1.27.3",
+			Modules:    []string{"MyGo 0.7.4", "Onevra 2026.16"},
+			DataDir:    "/Users/me/Library/Application Support/com.rubisco.unipac",
+			Repository: "https://github.com/RUBisco0211/unipac",
 		},
 	}
 }
@@ -186,7 +186,7 @@ func TestAboutShowsTheBuild(t *testing.T) {
 		"MyGo", "0.7.4",
 		"Onevra", "2026.16",
 		s.about.DataDir,
-		s.about.LogDir,
+		s.about.Repository,
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in the About section", want)
@@ -194,11 +194,13 @@ func TestAboutShowsTheBuild(t *testing.T) {
 	}
 }
 
-// them by the path the backend reported.
+// them by the path the backend reported, and the repository by its address.
 func TestAboutOpensItsFolders(t *testing.T) {
 	s := settingsFixture()
 	var opened []string
+	var openedURLs []string
 	s.OnOpenPath = func(path string) { opened = append(opened, path) }
+	s.OnOpenURL = func(url string) { openedURLs = append(openedURLs, url) }
 
 	tt := render(t, s.Build, 900, 1600)
 	if err := tt.Click(locales.AboutOpen(locales.AboutDataDir())); err != nil {
@@ -207,11 +209,12 @@ func TestAboutOpensItsFolders(t *testing.T) {
 	if len(opened) != 1 || opened[0] != s.about.DataDir {
 		t.Fatalf("opened %v, want the data folder", opened)
 	}
-	if err := tt.Click(locales.AboutOpen(locales.AboutLogDir())); err != nil {
-		t.Fatalf("open the log folder: %v", err)
+	if err := tt.Click(locales.AboutRepositoryOpen()); err != nil {
+		t.Fatalf("open the repository: %v", err)
 	}
-	if len(opened) != 2 || opened[1] != s.about.LogDir {
-		t.Fatalf("opened %v, want the log folder second", opened)
+	tt.Frame()
+	if len(openedURLs) != 1 || openedURLs[0] != s.about.Repository {
+		t.Fatalf("opened %v, want the repository", openedURLs)
 	}
 }
 
@@ -227,7 +230,7 @@ func TestAboutCopiesDiagnostics(t *testing.T) {
 	for _, want := range []string{
 		"0.2.0",
 		s.about.DataDir,
-		s.about.LogDir,
+		s.about.Repository,
 		"Homebrew", "4.6.1",
 		"Bun", // the fixture has no bun, so this must not be there
 	} {

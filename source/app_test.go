@@ -3,12 +3,28 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
+
+// The About section links the project's home; the constant must not drift from
+// the repository the code is actually pushed to.
+func TestAppRepositoryIsTheRemote(t *testing.T) {
+	out, err := exec.Command("git", "remote", "get-url", "origin").Output()
+	if err != nil {
+		t.Skipf("no git origin on this machine: %v", err)
+	}
+	remote := strings.TrimSpace(string(out))
+	remote = strings.TrimSuffix(remote, ".git")
+	if remote != appRepository {
+		t.Errorf("appRepository = %q, origin = %q", appRepository, remote)
+	}
+}
 
 // An install records the version it goes to. A search result is not installed,
 // so it carries that version in Version and has no latest of its own.

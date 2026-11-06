@@ -226,7 +226,6 @@
   "aboutVersion": "Version",
   "aboutRuntime": "Built with",
   "aboutDataDir": "Data folder",
-  "aboutLogDir": "Log folder",
   "aboutOpen": "Open {folder}",
   "aboutOpenAction": "Open",
   "aboutCopy": "Copy diagnostics",
@@ -289,5 +288,7 @@
   "settingsManagerPackages": "Packages",
   "settingsManagerEnabled": "Enabled",
   "settingsCapabilities": "Capabilities",
-  "navManagers": "Package managers"
+  "navManagers": "Package managers",
+  "aboutRepository": "Repository",
+  "aboutRepositoryOpen": "Open in browser"
 }

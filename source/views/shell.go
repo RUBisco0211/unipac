@@ -176,6 +176,7 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetTheme = u.SetTheme
 	u.settings.OnSetNotifications = u.SetNotifications
 	u.settings.OnOpenPath = u.OpenPath
+	u.settings.OnOpenURL = u.OpenURL
 	u.settings.OnClearHistory = u.ClearTaskHistory
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
@@ -1064,6 +1065,25 @@ func (u *UI) OpenPath(path string) {
 	go func() {
 		if err := mygo.Shell.OpenPath(path); err != nil {
 			slog.Warn("views: could not open a path", "path", path, "error", err)
+			if u.shell == nil {
+				return
+			}
+			u.shell.Window().Update(func() {
+				u.data.QueueToast(inventory.Toast{Title: err.Error(), Tone: components.ToastError})
+			})
+		}
+	}()
+}
+
+// OpenURL opens a web address in the browser, which is how the About section
+// links the project's repository.
+func (u *UI) OpenURL(url string) {
+	if url == "" {
+		return
+	}
+	go func() {
+		if err := mygo.Shell.OpenExternal(url); err != nil {
+			slog.Warn("views: could not open a URL", "url", url, "error", err)
 			if u.shell == nil {
 				return
 			}

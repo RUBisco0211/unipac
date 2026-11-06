@@ -181,7 +181,6 @@
   "aboutVersion": "版本",
   "aboutRuntime": "构建用",
   "aboutDataDir": "数据目录",
-  "aboutLogDir": "日志目录",
   "aboutOpen": "打开{folder}",
   "aboutOpenAction": "打开",
   "aboutCopy": "复制诊断信息",
@@ -213,5 +212,7 @@
   "settingsManagerPackages": "软件包",
   "settingsManagerEnabled": "启用",
   "settingsCapabilities": "功能",
-  "navManagers": "包管理器"
+  "navManagers": "包管理器",
+  "aboutRepository": "代码仓库",
+  "aboutRepositoryOpen": "在浏览器打开"
 }

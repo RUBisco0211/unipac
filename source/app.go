@@ -24,6 +24,11 @@ import (
 	"github.com/samber/lo"
 )
 
+// appRepository is where the project lives on the web. A remote of the
+// checkout is a build machine's fact, not the app's, so it is written here
+// rather than asked of git; TestAppRepositoryIsTheRemote pins the two.
+const appRepository = "https://github.com/RUBisco0211/unipac"
+
 // App is the application service. Its exported methods are called directly by
 // the views; there is no binding layer between them.
 type App struct {
@@ -218,10 +223,10 @@ func (a *App) About() inventory.About {
 	about := inventory.About{
 		// The build links the manifest's version in: `mygo dev` and `mygo build`
 		// pass it, so there is no second copy to keep in step.
-		Version: mygo.App.Version(),
-		Go:      runtime.Version(),
-		DataDir: util.AppRoot,
-		LogDir:  logging.AppLogDir,
+		Version:    mygo.App.Version(),
+		Go:         runtime.Version(),
+		DataDir:    util.AppRoot,
+		Repository: appRepository,
 	}
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, dep := range info.Deps {

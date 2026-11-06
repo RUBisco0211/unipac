@@ -449,9 +449,10 @@ destructive confirmation is a hold or a click — the notifications switch, and 
 log level. Then a Tasks section whose only job is the hold that clears the
 finished task history, and an About section: the app's version (from
 `mygo.App.Version`, which the build links in from `mygo.json`), the Go it was built
-with, the toolkit versions from the build's own module info, and the data and log
-folders with a button that opens each and one that copies the lot — with every
-manager's name, version, state, package count and gaps — into a bug report.
+with, the toolkit versions from the build's own module info, the data folder with a
+button that opens it, and the project's repository with one that opens it in the
+browser — plus an action that copies the lot, with every manager's name, version,
+state, package count and gaps, into a bug report.
 
 The package managers have a page of their own, beside Settings in the sidebar, and
 it is tabs: one per manager with the first chosen, centred over the panel, which is

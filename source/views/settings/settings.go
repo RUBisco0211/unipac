@@ -31,6 +31,8 @@ type View struct {
 	OnSetNotifications func(on bool)
 	// OnOpenPath opens a file or folder in the desktop's own application.
 	OnOpenPath func(path string)
+	// OnOpenURL opens a web address in the browser.
+	OnOpenURL func(url string)
 	// OnClearHistory drops the tasks that have an outcome.
 	OnClearHistory func()
 	// TitleActions builds the buttons this page puts in the title bar.
@@ -329,8 +331,10 @@ func (s *View) aboutSection(c *ui.Context) {
 		}
 		parts.Divider(c)
 		s.aboutRow(c, locales.AboutDataDir(), s.about.DataDir, locales.AboutDataDir())
-		parts.Divider(c)
-		s.aboutRow(c, locales.AboutLogDir(), s.about.LogDir, locales.AboutLogDir())
+		if s.about.Repository != "" {
+			parts.Divider(c)
+			s.aboutRow(c, locales.AboutRepository(), s.about.Repository, "")
+		}
 	})
 }
 
@@ -348,15 +352,25 @@ func (s *View) aboutRow(c *ui.Context, label, value, folder string) {
 				}
 				components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
 			})
-			if folder == "" || s.OnOpenPath == nil {
+			if value == "" {
 				return
 			}
-			path := value
-			open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
-			open.Label(locales.AboutOpen(folder))
-			open.Disabled(path == "")
-			if open.Clicked() {
-				s.OnOpenPath(path)
+			if folder != "" && s.OnOpenPath != nil {
+				path := value
+				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
+				open.Label(locales.AboutOpen(folder))
+				if open.Clicked() {
+					s.OnOpenPath(path)
+				}
+				return
+			}
+			if isURL(value) && s.OnOpenURL != nil {
+				repository := value
+				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost)
+				open.Label(locales.AboutRepositoryOpen())
+				if open.Clicked() {
+					s.OnOpenURL(repository)
+				}
 			}
 		})
 	})
@@ -376,7 +390,7 @@ func (s *View) diagnostics() string {
 		line(name, version)
 	}
 	line(locales.AboutDataDir(), s.about.DataDir)
-	line(locales.AboutLogDir(), s.about.LogDir)
+	line(locales.AboutRepository(), s.about.Repository)
 	counts := make(map[string]int, len(s.Data.Managers))
 	for _, pkg := range s.Data.Rows {
 		counts[pkg.Manager]++
@@ -409,6 +423,13 @@ func appearanceLabel(value string) string {
 	default:
 		return locales.AppearanceSystem()
 	}
+}
+
+// isURL reports whether a value is a web address rather than a local path,
+// which is how the About section tells a row it can open in the browser from
+// one it opens in the Finder.
+func isURL(value string) bool {
+	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "http://")
 }
 
 // logLevelLabels names the levels the backend offers. A level this build does

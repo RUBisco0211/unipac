@@ -69,8 +69,9 @@ type About struct {
 	Modules []string
 	// DataDir holds the cache, the config and the task store.
 	DataDir string
-	// LogDir holds app.log.
-	LogDir string
+	// Repository is the project's home on the web, where the source and the
+	// releases live.
+	Repository string
 }
 
 // Data is the package inventory shared by the pages, plus the state of the

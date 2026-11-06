@@ -1568,16 +1568,6 @@ func (msgs Messages) AboutDataDir() string {
 	return Catalog.Format(msgs.locale, "aboutDataDir", nil)
 }
 
-// AboutLogDir says "Log folder"
-// in the language the app shows.
-func AboutLogDir() string { return In(i18n.Locale()).AboutLogDir() }
-
-// AboutLogDir says "Log folder"
-// in the language of msgs.
-func (msgs Messages) AboutLogDir() string {
-	return Catalog.Format(msgs.locale, "aboutLogDir", nil)
-}
-
 // AboutOpen says "Open {folder}"
 // in the language the app shows.
 func AboutOpen(folder string) string { return In(i18n.Locale()).AboutOpen(folder) }
@@ -1898,4 +1888,24 @@ func NavManagers() string { return In(i18n.Locale()).NavManagers() }
 // in the language of msgs.
 func (msgs Messages) NavManagers() string {
 	return Catalog.Format(msgs.locale, "navManagers", nil)
+}
+
+// AboutRepository says "Repository"
+// in the language the app shows.
+func AboutRepository() string { return In(i18n.Locale()).AboutRepository() }
+
+// AboutRepository says "Repository"
+// in the language of msgs.
+func (msgs Messages) AboutRepository() string {
+	return Catalog.Format(msgs.locale, "aboutRepository", nil)
+}
+
+// AboutRepositoryOpen says "Open in browser"
+// in the language the app shows.
+func AboutRepositoryOpen() string { return In(i18n.Locale()).AboutRepositoryOpen() }
+
+// AboutRepositoryOpen says "Open in browser"
+// in the language of msgs.
+func (msgs Messages) AboutRepositoryOpen() string {
+	return Catalog.Format(msgs.locale, "aboutRepositoryOpen", nil)
 }
