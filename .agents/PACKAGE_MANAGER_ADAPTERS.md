@@ -112,8 +112,8 @@ bun's three `no` columns are one limitation: `bun info`, which would answer a
 package's details and its published versions, needs a `package.json` in the
 working directory, and the app runs its commands from its own. Its search is
 missing rather than limited — bun has no search command, and its packages are
-npm's, so a second search would list every result twice. The recorded outputs and
-the decisions live in `.agents/HANDOFF_BUN_ADAPTER.md`.
+npm's, so a second search would list every result twice. The recorded outputs
+are on the branch that added the adapter; the decisions are the section below.
 
 Homebrew's `ListVersions` is `no` and stays there: `brew info --json=v2` reports
 one stable version and a head, and the versions a formula published before live
@@ -200,9 +200,9 @@ exactly pinned package, so an update always names the version, falling back to
 
 Bun has no search command, and `bun info` needs a project directory, which is why
 those capabilities are off. Turning them on means giving the app a place for a
-scratch `package.json` and `util.Run` a working-directory argument; the handoff
-records the evidence and the open question of whether installing a package found
-by npm should be possible through bun at all.
+scratch `package.json` and `util.Run` a working-directory argument. The open
+question of whether installing a package found by npm should be possible through
+bun at all is deliberately undecided.
 
 ## npm Adapter
 
