@@ -1909,3 +1909,33 @@ func SettingsClearHistoryConfirm() string { return In(i18n.Locale()).SettingsCle
 func (msgs Messages) SettingsClearHistoryConfirm() string {
 	return Catalog.Format(msgs.locale, "settingsClearHistoryConfirm", nil)
 }
+
+// SettingsNotificationsToggle says "Toggle notifications"
+// in the language the app shows.
+func SettingsNotificationsToggle() string { return In(i18n.Locale()).SettingsNotificationsToggle() }
+
+// SettingsNotificationsToggle says "Toggle notifications"
+// in the language of msgs.
+func (msgs Messages) SettingsNotificationsToggle() string {
+	return Catalog.Format(msgs.locale, "settingsNotificationsToggle", nil)
+}
+
+// SettingsStartupScanToggle says "Toggle scanning on launch"
+// in the language the app shows.
+func SettingsStartupScanToggle() string { return In(i18n.Locale()).SettingsStartupScanToggle() }
+
+// SettingsStartupScanToggle says "Toggle scanning on launch"
+// in the language of msgs.
+func (msgs Messages) SettingsStartupScanToggle() string {
+	return Catalog.Format(msgs.locale, "settingsStartupScanToggle", nil)
+}
+
+// SettingsHoldToConfirmToggle says "Toggle hold to confirm"
+// in the language the app shows.
+func SettingsHoldToConfirmToggle() string { return In(i18n.Locale()).SettingsHoldToConfirmToggle() }
+
+// SettingsHoldToConfirmToggle says "Toggle hold to confirm"
+// in the language of msgs.
+func (msgs Messages) SettingsHoldToConfirmToggle() string {
+	return Catalog.Format(msgs.locale, "settingsHoldToConfirmToggle", nil)
+}

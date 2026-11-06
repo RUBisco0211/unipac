@@ -384,25 +384,18 @@ func (m *Manager) Begin(ctx context.Context, kind Kind, target Target) *Task {
 // snapshot is taken under the lock instead, and the store drops exactly those
 // tasks by ID — a write that lands afterwards updates nothing.
 func (m *Manager) ClearHistory() error {
-	// Held across everything, so no finish can enqueue between the snapshot and
-	// the clear; one that tries blocks until this method is done.
+	// The queue's lock is held from the snapshot to the store clear.
+	// finishState records the outcome in memory before its store write is
+	// enqueued, so a task that finishes while the clear runs looks finished in
+	// memory but still queued in the store; deciding from the store's own state
+	// would keep its row and let its write land after the clear, which brings
+	// it back on the next launch. The snapshot is taken under the lock instead,
+	// and the store drops exactly those tasks by ID — a write that lands
+	// afterwards updates nothing.
 	m.queueMu.Lock()
 	defer m.queueMu.Unlock()
 
 	m.mu.Lock()
-	if m.store == nil || m.closing {
-		// Memory-only or closed: the snapshot is the whole clear.
-		kept := m.tasks[:0]
-		for _, task := range m.tasks {
-			if task.pending() {
-				kept = append(kept, task)
-			}
-		}
-		m.tasks = kept
-		m.mu.Unlock()
-		m.changed()
-		return nil
-	}
 	drop := make([]int64, 0, len(m.tasks))
 	kept := m.tasks[:0]
 	for _, task := range m.tasks {
@@ -412,19 +405,26 @@ func (m *Manager) ClearHistory() error {
 			drop = append(drop, task.id)
 		}
 	}
-	m.mu.Unlock()
-
-	errc := make(chan error, 1)
-	m.queue <- func(s *store) { errc <- s.clearFinished(drop) }
-	if err := <-errc; err != nil {
-		return err
-	}
-
-	m.mu.Lock()
 	m.tasks = kept
 	m.mu.Unlock()
+
+	if m.hasStore() {
+		errc := make(chan error, 1)
+		m.queue <- func(s *store) { errc <- s.clearFinished(drop) }
+		if err := <-errc; err != nil {
+			return err
+		}
+	}
 	m.changed()
 	return nil
+}
+
+// hasStore reports whether the manager writes to a store. The queue's lock
+// must be held; it answers under it.
+func (m *Manager) hasStore() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.store != nil && !m.closing
 }
 
 // List returns every task, running ones first, then queued ones, then finished

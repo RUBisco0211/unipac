@@ -149,19 +149,19 @@ func (s *View) general(c *ui.Context) {
 		parts.Divider(c)
 		s.languageRow(c)
 		parts.Divider(c)
-		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), &s.AutoScan, func(on bool) {
+		s.switchRow(c, locales.SettingsStartupScan(), locales.SettingsStartupScanDesc(), locales.SettingsStartupScanToggle(), &s.AutoScan, func(on bool) {
 			if s.OnSetAutoScan != nil {
 				s.OnSetAutoScan(on)
 			}
 		})
 		parts.Divider(c)
-		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), &s.HoldToConfirm, func(on bool) {
+		s.switchRow(c, locales.SettingsHoldToConfirm(), locales.SettingsHoldToConfirmDesc(), locales.SettingsHoldToConfirmToggle(), &s.HoldToConfirm, func(on bool) {
 			if s.OnSetHold != nil {
 				s.OnSetHold(on)
 			}
 		})
 		parts.Divider(c)
-		s.switchRow(c, locales.SettingsNotifications(), locales.SettingsNotificationsDesc(), &s.Notifications, func(on bool) {
+		s.switchRow(c, locales.SettingsNotifications(), locales.SettingsNotificationsDesc(), locales.SettingsNotificationsToggle(), &s.Notifications, func(on bool) {
 			if s.OnSetNotifications != nil {
 				s.OnSetNotifications(on)
 			}
@@ -208,7 +208,7 @@ func (s *View) section(c *ui.Context, title, description string, action, body fu
 //
 // A switch reports its own change on the element it returns, not on the row
 // that wraps it, so the value is compared across the build instead.
-func (s *View) switchRow(c *ui.Context, title, description string, value *bool, changed func(bool)) {
+func (s *View) switchRow(c *ui.Context, title, description, switchLabel string, value *bool, changed func(bool)) {
 	ui.Row(c).FillWidth().Padding(12, 0).Gap(16).AlignItems(ui.Center).Children(func() {
 		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
 			components.Text(c, title)
@@ -217,7 +217,10 @@ func (s *View) switchRow(c *ui.Context, title, description string, value *bool, 
 			}
 		})
 		before := *value
-		sw := components.Switch(c, value, title, components.SwitchOptions{HideLabel: true})
+		// The switch's accessible name is its own phrase, not the row title:
+		// the title text beside it already says the setting, and a control
+		// named exactly like its caption reads twice to a screen reader.
+		sw := components.Switch(c, value, switchLabel, components.SwitchOptions{HideLabel: true})
 		sw.Disabled(s.busy)
 		if *value != before {
 			changed(*value)

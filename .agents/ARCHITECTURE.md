@@ -353,7 +353,7 @@ together, and nothing has to be found across a 900-line file:
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update | `inventory`, `parts`, `flight` |
 | `views/managers` | the package managers page: one tab per manager, its facts as key-value rows, the capability badges, and the save state machine | `inventory`, `parts` |
-| `views/settings` | the settings page: appearance, language, startup behavior, log level, the task history hold, and About | `inventory`, `parts` |
+| `views/settings` | the settings page: appearance, language, startup behavior, log level, the task history clear behind its dialog, and About | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
 | `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |

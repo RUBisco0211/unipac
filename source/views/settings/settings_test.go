@@ -153,6 +153,7 @@ func TestSettingsAppearanceSystemIsEmpty(t *testing.T) {
 // backend reports, like every other switch in the section.
 func TestSettingsNotificationsReachBackend(t *testing.T) {
 	s := settingsFixture()
+	s.Notifications = false
 	var got bool
 	s.OnSetNotifications = func(on bool) { got = on }
 
@@ -160,11 +161,15 @@ func TestSettingsNotificationsReachBackend(t *testing.T) {
 	if !tt.HasText(locales.SettingsNotifications()) {
 		t.Fatalf("the switch is missing: %v", tt.Texts())
 	}
-	// A switch owns the value it is bound to; a click turns it over and the next
-	// build reports the change, which is what the switch itself does.
-	s.Notifications = false
+	// Clicking the switch turns it over; the next build reports the change. The
+	// switch's accessible name is its own phrase, so the click lands on the
+	// control and not on the row title beside it — a callback that never fires
+	// fails this test, as it should.
+	if err := tt.Click(locales.SettingsNotificationsToggle()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
 	tt.Frame()
-	if got {
+	if !got {
 		t.Fatalf("notifications sent %v, want the switch's new value", got)
 	}
 

@@ -290,5 +290,8 @@
   "aboutRepository": "GitHub",
   "aboutRepositoryOpen": "Open in browser",
   "settingsClearHistoryMessage": "The tasks that finished will be removed with their console output; a task still running keeps its record.",
-  "settingsClearHistoryConfirm": "Clear"
+  "settingsClearHistoryConfirm": "Clear",
+  "settingsNotificationsToggle": "Toggle notifications",
+  "settingsStartupScanToggle": "Toggle scanning on launch",
+  "settingsHoldToConfirmToggle": "Toggle hold to confirm"
 }
