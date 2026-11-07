@@ -667,6 +667,15 @@ strips that prefix and calls `UI.openTask`, which clears the filters, selects th
 task and loads its console, so a click works while the app is running and after
 it has been relaunched.
 
+Turning the master switch on asks the system whether it will let the app show
+notifications at all: the app shows one silent probe notification, whose success
+is the answer and which is closed at once, and whose `ErrNotificationsDenied`
+opens the system's own notifications page — macOS's System Settings pane and
+Windows' Settings page, by their deep links. The app's switch stays on either
+way: it is the app's choice, and the system's answer reaches it when it changes.
+Notifications are not one of permissionflow's permissions, so there is no Check
+to ask; the probe is the only question the system answers.
+
 A scan that finds packages with a newer version says so with one notification,
 ID `unipac-updates`, under the updates switch and the master switch. It speaks
 when the count changes and stays quiet while it does not — a scan that finds the

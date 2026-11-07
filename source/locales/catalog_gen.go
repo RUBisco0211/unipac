@@ -1662,6 +1662,26 @@ func (msgs Messages) NotificationUpdatesBody() string {
 	return Catalog.Format(msgs.locale, "notificationUpdatesBody", nil)
 }
 
+// NotificationPermissionTitle says "Notifications are on"
+// in the language the app shows.
+func NotificationPermissionTitle() string { return In(i18n.Locale()).NotificationPermissionTitle() }
+
+// NotificationPermissionTitle says "Notifications are on"
+// in the language of msgs.
+func (msgs Messages) NotificationPermissionTitle() string {
+	return Catalog.Format(msgs.locale, "notificationPermissionTitle", nil)
+}
+
+// NotificationPermissionBody says "UniPac will use these quietly. Nothing needs answering."
+// in the language the app shows.
+func NotificationPermissionBody() string { return In(i18n.Locale()).NotificationPermissionBody() }
+
+// NotificationPermissionBody says "UniPac will use these quietly. Nothing needs answering."
+// in the language of msgs.
+func (msgs Messages) NotificationPermissionBody() string {
+	return Catalog.Format(msgs.locale, "notificationPermissionBody", nil)
+}
+
 // SettingsTasks says "Tasks"
 // in the language the app shows.
 func SettingsTasks() string { return In(i18n.Locale()).SettingsTasks() }

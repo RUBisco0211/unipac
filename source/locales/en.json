@@ -235,6 +235,8 @@
   "settingsNotifyUpdatesToggle": "Toggle update notifications",
   "notificationUpdatesTitle": "{count, plural, one {# update is waiting} other {# updates are waiting}}",
   "notificationUpdatesBody": "Open UniPac to update them",
+  "notificationPermissionTitle": "Notifications are on",
+  "notificationPermissionBody": "UniPac will use these quietly. Nothing needs answering.",
   "settingsTasks": "Tasks",
   "settingsTasksDesc": "UniPac keeps the last 500 tasks and their console output. Clearing removes the ones that finished; a task still running keeps its record",
   "settingsHistory": "Task history",

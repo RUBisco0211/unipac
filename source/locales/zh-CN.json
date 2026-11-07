@@ -190,6 +190,8 @@
   "settingsNotifyUpdatesToggle": "切换更新通知",
   "notificationUpdatesTitle": "{count, plural, other {有 # 个可用更新}}",
   "notificationUpdatesBody": "打开 UniPac 进行更新",
+  "notificationPermissionTitle": "通知已开启",
+  "notificationPermissionBody": "UniPac 将使用系统通知，无需回复。",
   "settingsTasks": "任务",
   "settingsTasksDesc": "UniPac 保留最近 500 条任务及其控制台输出。清空会移除已结束的任务，正在运行的任务仍保留记录",
   "settingsHistory": "任务历史",

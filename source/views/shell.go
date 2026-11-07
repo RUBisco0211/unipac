@@ -1197,11 +1197,57 @@ func (u *UI) SetNotifications(kind tasks.Kind, succeeded, on bool) {
 	})
 }
 
-// SetNotificationsEnabled saves the master notification switch.
+// SetNotificationsEnabled saves the master notification switch. Turning it on
+// asks the system whether the app may show notifications at all: a macOS app the
+// user has not answered yet is prompted, and one they denied is walked to where
+// the switch lives. The switch stays on either way — it is the app's choice, and
+// the system's answer reaches it when it changes.
 func (u *UI) SetNotificationsEnabled(on bool) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetNotificationsEnabled(on)
 	})
+	if on {
+		u.ensureNotificationPermission()
+	}
+}
+
+// ensureNotificationPermission asks the system for notifications when it has not
+// answered yet, and opens the settings page where the user changes their mind
+// when it has said no.
+//
+// Notifications are not one of the permissions permissionflow's Check knows, so
+// the app asks the only way the system offers: showing one. macOS prompts the
+// first time and answers at once afterwards; Show's error says which. A denied
+// answer is the system's switch to change, so the master switch stays on and the
+// settings page where the user turns notifications back on opens. A system that
+// keeps no such permission for apps asks for nothing.
+func (u *UI) ensureNotificationPermission() {
+	go func() {
+		if !mygo.NotificationsSupported() {
+			// Not packaged, or a system with no notification center: nothing
+			// to ask, and the first Show will say so if it matters.
+			return
+		}
+		probe := mygo.NewNotification(mygo.NotificationOptions{
+			ID:     "unipac-permission-probe",
+			Title:  locales.NotificationPermissionTitle(),
+			Body:   locales.NotificationPermissionBody(),
+			Silent: true,
+		})
+		if err := probe.Show(); err == nil {
+			probe.Close()
+			return
+		} else if !errors.Is(err, mygo.ErrNotificationsDenied) {
+			slog.Debug("views: the permission probe neither succeeded nor was denied", "error", err)
+			return
+		}
+		// The system said no. Its settings, not the app's, hold the switch;
+		// on macOS that page lives in System Settings' Notifications pane,
+		// which the system's own deep link opens.
+		if err := mygo.Shell.OpenExternal(notificationSettingsURL()); err != nil {
+			slog.Debug("views: notification settings did not open", "error", err)
+		}
+	}()
 }
 
 // SetNotifyUpdates saves whether a scan that finds updates says so.
