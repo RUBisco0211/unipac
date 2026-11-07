@@ -285,8 +285,11 @@ file keeps scanning), `hold_to_confirm` (nil means on: a destructive
 confirmation holds rather than clicks), `language` (the tag chosen in Settings,
 absent or empty to follow the system), `theme` (`light`, `dark`, or absent to
 follow the system), `accent` (a theme color from `config.Accents()`, absent or
-empty for the toolkit's own), `notifications` (nil means on, so a finished task is
-announced), and `managers`, a map of `manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
+empty for the toolkit's own), `notify` (what a system notification says: the
+master `enabled`, each finished operation's `success` and `failure`, and whether
+`updates` waiting are announced; a nil field follows the single `notifications`
+switch an older file carries, which settles into the per-outcome switches on the
+next write, and every nil means on), and `managers`, a map of `manager.Settings` keyed by manager ID. Only user choices live there: an absent entry means "on, detected
 automatically". The previous version snapshotted every `manager.Info` into the
 file; that block is ignored on load and gone after the next save, because the
 paths in it were auto-detected rather than chosen.
@@ -478,7 +481,11 @@ The catalog is two sidebar sections. The first is the app's settings:
   offers),
   the language (the app's languages plus System, named in their own language),
   startup behavior (scanning on launch, and whether a destructive confirmation is
-  a hold or a click), the notifications switch, and the log level.
+  a hold or a click), and the log level.
+- Notifications — the master switch (off silences everything below without
+  forgetting it), then Finished operations with a Success and a Failure checkbox
+  per operation, then the updates switch. Every switch here is about system
+  notifications; the window's toasts are not part of it.
 - Tasks — the sentence saying what the history holds, and the danger button that
   opens a dialog asking once about clearing the finished task history.
 - About — the app's version (from `mygo.App.Version`, which the build links in
@@ -635,9 +642,16 @@ may have been skipped while another page was shown.
 
 ### Notifications
 
-On each listener frame, when notifications are on and the app is not quitting,
-the UI compares the new task states with the previous ones. A task that moved from queued/running to succeeded or failed — or that was
-created and finished between two frames — produces a `mygo.Notification` through
+What is announced is what Settings' Notifications category says: the master
+switch first, then one Success and one Failure switch per operation, then the
+updates switch. The master switch gates the rest without forgetting their answers
+— a category turned off greys its switches out and keeps what they were — and it
+gates only system notifications; the window's toasts are not part of it.
+
+On each listener frame, when the app is not quitting, the UI compares the new
+task states with the previous ones. A task that moved from queued/running to
+succeeded or failed — or that was created and finished between two frames — whose
+operation's switch for that outcome is on produces a `mygo.Notification` through
 `mygo.NewNotification`, grouped under `unipac.tasks`. Its title is the same
 label the toast uses — "Could not update bun", or "Could not update 3 packages"
 for a batch — and its body is the package and its manager: the command's output
@@ -652,6 +666,14 @@ Each notification's ID is `unipac-task-<task id>`. `App.OnNotificationClick`
 strips that prefix and calls `UI.openTask`, which clears the filters, selects the
 task and loads its console, so a click works while the app is running and after
 it has been relaunched.
+
+A scan that finds packages with a newer version says so with one notification,
+ID `unipac-updates`, under the updates switch and the master switch. It speaks
+when the count changes and stays quiet while it does not — a scan that finds the
+same number again is not news — and a count back to zero clears the memory, so
+the same count later announces again. Its click opens the Outdated page, which is
+the list it is about. The count it compares is `UI.outdatedCount`, the same one
+the sidebar's badge shows.
 
 A failed action's toast carries that same ID in its `TaskID`, so it offers one
 `Show task` button that opens the console instead of repeating the command's

@@ -13,6 +13,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/cache"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/logging"
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
 
@@ -33,8 +34,13 @@ type Config struct {
 	// HoldToConfirm is nil in a config written before the setting existed, which
 	// behaves like true: the destructive confirmations hold rather than click.
 	HoldToConfirm *bool `json:"hold_to_confirm,omitempty"`
-	// Notifications is nil in a config written before the setting existed, which
-	// behaves like true: a finished task is announced.
+	// Notify is which finished operations are announced, one switch per task
+	// kind. Its fields are nil in a config written before the setting was split,
+	// which is what Notifies falls back on.
+	Notify Notify `json:"notify,omitempty"`
+	// Notifications is the single switch a config written before the split holds.
+	// It is read when Notify has nothing to say and dropped on the next write, so
+	// the file converges on the per-operation switches.
 	Notifications *bool `json:"notifications,omitempty"`
 }
 
@@ -44,9 +50,100 @@ func (c Config) HoldsToConfirm() bool {
 	return c.HoldToConfirm == nil || *c.HoldToConfirm
 }
 
-// NotifiesOnFinish reports whether a finished task is announced.
-func (c Config) NotifiesOnFinish() bool {
+// Notify is what the app announces: each finished operation by how it ended, and
+// whether a scan that finds updates says so. A nil field follows the single
+// switch the config used to hold, and that switch being absent means on, so an
+// old file keeps announcing.
+type Notify struct {
+	// Enabled is the master switch: off means the app announces nothing at all.
+	// Nil in a file written before it existed, which behaves like on.
+	Enabled   *bool         `json:"enabled,omitempty"`
+	Install   NotifyOutcome `json:"install,omitempty"`
+	Update    NotifyOutcome `json:"update,omitempty"`
+	Uninstall NotifyOutcome `json:"uninstall,omitempty"`
+	// Updates is the "an update is available" switch, nil in a file written
+	// before it existed, which behaves like on.
+	Updates *bool `json:"updates,omitempty"`
+}
+
+// NotifyOutcome is one operation's two switches: it finished, or it failed.
+type NotifyOutcome struct {
+	Success *bool `json:"success,omitempty"`
+	Failure *bool `json:"failure,omitempty"`
+}
+
+// NotifyKinds is the operations Settings offers switches for, in the order the
+// category shows them.
+func NotifyKinds() []tasks.Kind {
+	return []tasks.Kind{tasks.KindInstall, tasks.KindUpdate, tasks.KindUninstall}
+}
+
+// Notifies reports whether a finished operation of kind is announced, when it
+// succeeded or when it failed. A kind this build does not know is never
+// announced.
+func (c Config) Notifies(kind tasks.Kind, succeeded bool) bool {
+	if chosen := c.Notify.switchFor(kind, succeeded); chosen != nil {
+		return *chosen
+	}
 	return c.Notifications == nil || *c.Notifications
+}
+
+// NotifiesEnabled reports whether the app announces anything at all. It is what
+// the other switches are read under, so turning it off silences them without
+// forgetting them.
+func (c Config) NotifiesEnabled() bool {
+	if c.Notify.Enabled != nil {
+		return *c.Notify.Enabled
+	}
+	return c.Notifications == nil || *c.Notifications
+}
+
+// NotifiesUpdates reports whether a scan that finds packages with a newer version
+// says so.
+func (c Config) NotifiesUpdates() bool {
+	if c.Notify.Updates != nil {
+		return *c.Notify.Updates
+	}
+	return c.Notifications == nil || *c.Notifications
+}
+
+// outcome is the saved switches of kind, nil when the file does not have them.
+func (n *Notify) outcome(kind tasks.Kind) *NotifyOutcome {
+	switch kind {
+	case tasks.KindInstall:
+		return &n.Install
+	case tasks.KindUpdate:
+		return &n.Update
+	case tasks.KindUninstall:
+		return &n.Uninstall
+	}
+	return nil
+}
+
+// switchFor is the saved switch of kind and outcome, nil when the file does not
+// have one.
+func (n *Notify) switchFor(kind tasks.Kind, succeeded bool) *bool {
+	outcome := n.outcome(kind)
+	if outcome == nil {
+		return nil
+	}
+	if succeeded {
+		return outcome.Success
+	}
+	return outcome.Failure
+}
+
+// switchField is where a switch is saved, nil for a kind this build does not
+// know.
+func (n *Notify) switchField(kind tasks.Kind, succeeded bool) **bool {
+	outcome := n.outcome(kind)
+	if outcome == nil {
+		return nil
+	}
+	if succeeded {
+		return &outcome.Success
+	}
+	return &outcome.Failure
 }
 
 // Startup holds what the app does when it opens.
@@ -257,10 +354,64 @@ func ThemeChosen(value string) bool {
 	}
 }
 
-// SetNotifications saves whether a finished task is announced.
-func SetNotifications(on bool) error {
+// SetNotify saves whether a finished operation of kind is announced, when it
+// succeeded or when it failed. Saving one switch settles all of them: the single
+// switch an older file carries is materialized first, so dropping it keeps every
+// answer and the file converges on the shape it is read in now. A kind this build
+// does not know is rejected rather than saved.
+func SetNotify(kind tasks.Kind, succeeded, on bool) error {
 	cfg := Instance
-	cfg.Notifications = &on
+	if cfg.Notify.switchField(kind, succeeded) == nil {
+		return fmt.Errorf("unknown operation: %q", kind)
+	}
+	settleNotify(&cfg)
+	*cfg.Notify.switchField(kind, succeeded) = &on
+	return saveSettings(cfg)
+}
+
+// SetNotifyEnabled saves the master switch.
+func SetNotifyEnabled(on bool) error {
+	cfg := Instance
+	settleNotify(&cfg)
+	cfg.Notify.Enabled = &on
+	return saveSettings(cfg)
+}
+
+// SetNotifyUpdates saves whether a scan that finds updates says so.
+func SetNotifyUpdates(on bool) error {
+	cfg := Instance
+	settleNotify(&cfg)
+	cfg.Notify.Updates = &on
+	return saveSettings(cfg)
+}
+
+// settleNotify fills every switch the config does not answer yet with what it
+// currently reports, and drops the single switch it replaced. One write is what
+// takes a file written before the per-operation switches to the current shape.
+func settleNotify(cfg *Config) {
+	for _, kind := range NotifyKinds() {
+		for _, succeeded := range []bool{true, false} {
+			field := cfg.Notify.switchField(kind, succeeded)
+			if field == nil || *field != nil {
+				continue
+			}
+			value := cfg.Notifies(kind, succeeded)
+			*field = &value
+		}
+	}
+	if cfg.Notify.Enabled == nil {
+		value := cfg.NotifiesEnabled()
+		cfg.Notify.Enabled = &value
+	}
+	if cfg.Notify.Updates == nil {
+		value := cfg.NotifiesUpdates()
+		cfg.Notify.Updates = &value
+	}
+	cfg.Notifications = nil
+}
+
+// saveSettings writes the config and installs it as the running one.
+func saveSettings(cfg Config) error {
 	if err := Save(cfg); err != nil {
 		return err
 	}

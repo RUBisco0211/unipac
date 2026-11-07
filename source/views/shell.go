@@ -123,6 +123,14 @@ type UI struct {
 	// knownTasks is the last state seen for each task, so the listener can tell
 	// a task that just finished from one whose history was loaded.
 	knownTasks map[string]tasks.State
+
+	// announcedUpdates is how many updates the last system notification named, so
+	// a scan that finds the same number again stays quiet.
+	announcedUpdates int
+	// notifyUpdates tells the user that this many packages have a newer version.
+	// It is a field so a test can answer it without the system's notifications;
+	// Run installs the real one.
+	notifyUpdates func(count int)
 }
 
 // New builds the window state. Everything the pages need is loaded here, so no
@@ -173,7 +181,9 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetLogLevel = u.SetLogLevel
 	u.settings.OnSetLanguage = u.SetLanguage
 	u.settings.OnSetTheme = u.SetTheme
-	u.settings.OnSetNotifications = u.SetNotifications
+	u.settings.OnSetNotifyEnabled = u.SetNotificationsEnabled
+	u.settings.OnSetNotify = u.SetNotifications
+	u.settings.OnSetNotifyUpdates = u.SetNotifyUpdates
 	u.settings.OnSetAccent = u.SetAccent
 	u.settings.OnSetManagerEnabled = u.SetManagerEnabled
 	u.settings.OnSetManagerPath = u.SetManagerExecPath
@@ -194,7 +204,7 @@ func New(service inventory.Service) *UI {
 		Theme:         service.Theme(),
 		Accent:        service.Accent(),
 		HoldToConfirm: service.HoldToConfirm(),
-		Notifications: service.Notifications(),
+		Notify:        settings.NotifyFrom(service),
 	}
 	return u
 }
@@ -253,7 +263,12 @@ func (u *UI) Run() {
 			u.knownTasks = taskStates(list)
 		})
 	})
+	u.notifyUpdates = u.systemNotifyUpdates
 	mygo.App.OnNotificationClick(func(id string) {
+		if id == "unipac-updates" {
+			win.Update(func() { u.openOutdated() })
+			return
+		}
 		taskID, ok := strings.CutPrefix(id, "unipac-task-")
 		if !ok {
 			return
@@ -289,6 +304,7 @@ func (u *UI) Refresh() {
 			// The settings window counts the same rows per manager, so a
 			// refresh moves its numbers as well as the lists'.
 			u.invalidateSettings()
+			u.announceUpdatesAvailable()
 		})
 	}()
 }
@@ -542,6 +558,18 @@ func (u *UI) loadTaskOutput(id string) {
 	}()
 }
 
+// openOutdated brings the Outdated page up, which is what the update
+// notification is about.
+func (u *UI) openOutdated() {
+	if u.shell == nil {
+		return
+	}
+	u.navigate(PageOutdated)
+	win := u.shell.Window()
+	win.Show()
+	win.Focus()
+}
+
 // openTask brings a task from a notification click into view.
 func (u *UI) openTask(id string) {
 	if u.svc == nil {
@@ -556,21 +584,67 @@ func (u *UI) openTask(id string) {
 }
 
 // announceTaskResults shows a system notification for each task that finished
-// since the last listener update. Cancelled tasks are quiet: the user stopped
-// them, or the app is quitting.
+// since the last listener update, unless Settings turned its operation off.
+// Cancelled tasks are quiet: the user stopped them, or the app is quitting.
 func (u *UI) announceTaskResults(previous map[string]tasks.State, list []tasks.Snapshot) {
-	if u.quitAccepted.Load() || !u.notificationsOn() {
+	if u.quitAccepted.Load() {
 		return
 	}
 	for _, task := range finishedTasks(previous, list) {
+		if !u.notificationsOn(task.Kind, task.State == tasks.StateSucceeded) {
+			continue
+		}
 		u.notifyTask(task)
 	}
 }
 
-// notificationsOn reports whether a finished task should be announced. The
-// setting follows the switch in Settings: nothing else is announced either way.
-func (u *UI) notificationsOn() bool {
-	return u.settings == nil || u.settings.Notifications
+// notificationsOn reports whether a finished task of this kind and outcome should
+// be announced. The setting follows the switches in Settings, and only system
+// notifications answer to it: the window's toasts are not part of it.
+func (u *UI) notificationsOn(kind tasks.Kind, succeeded bool) bool {
+	return u.settings == nil || u.settings.Notifies(kind, succeeded)
+}
+
+// announceUpdatesAvailable says once, with a system notification, that a scan
+// found packages with a newer version. It is not a toast: the window says what it
+// just did, and this is for when nobody is looking at it. Announcing every scan
+// would be noise, so it speaks when the number changes and stays quiet until it
+// changes again.
+func (u *UI) announceUpdatesAvailable() {
+	if u.quitAccepted.Load() || u.settings == nil || !u.settings.NotifiesUpdates() {
+		return
+	}
+	count := u.outdatedCount()
+	if count == 0 {
+		u.announcedUpdates = 0
+		return
+	}
+	if count == u.announcedUpdates {
+		return
+	}
+	u.announcedUpdates = count
+	if u.notifyUpdates != nil {
+		u.notifyUpdates(count)
+	}
+}
+
+// systemNotifyUpdates tells the user that count packages have a newer version.
+// Clicking it opens the Outdated page, which is the list it is about.
+func (u *UI) systemNotifyUpdates(count int) {
+	notification := mygo.NewNotification(mygo.NotificationOptions{
+		ID:    "unipac-updates",
+		Title: locales.NotificationUpdatesTitle(count),
+		Body:  locales.NotificationUpdatesBody(),
+		Group: "unipac.updates",
+	})
+	go func() {
+		if !mygo.NotificationsSupported() {
+			return
+		}
+		if err := notification.Show(); err != nil && !errors.Is(err, mygo.ErrNotificationsDenied) {
+			slog.Debug("views: update notification failed", "error", err)
+		}
+	}()
 }
 
 // finishedTasks are the tasks that succeeded or failed since the previous
@@ -1115,10 +1189,25 @@ func (u *UI) ClearTaskHistory() {
 	}()
 }
 
-// SetNotifications saves whether a finished task is announced.
-func (u *UI) SetNotifications(on bool) {
+// SetNotifications saves whether a finished operation of this kind and outcome is
+// announced.
+func (u *UI) SetNotifications(kind tasks.Kind, succeeded, on bool) {
 	u.saveSettings(false, func() error {
-		return u.svc.SetNotifications(on)
+		return u.svc.SetNotifications(kind, succeeded, on)
+	})
+}
+
+// SetNotificationsEnabled saves the master notification switch.
+func (u *UI) SetNotificationsEnabled(on bool) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetNotificationsEnabled(on)
+	})
+}
+
+// SetNotifyUpdates saves whether a scan that finds updates says so.
+func (u *UI) SetNotifyUpdates(on bool) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetNotifyUpdates(on)
 	})
 }
 
@@ -1178,7 +1267,7 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			Theme:         u.svc.Theme(),
 			Accent:        u.svc.Accent(),
 			HoldToConfirm: u.svc.HoldToConfirm(),
-			Notifications: u.svc.Notifications(),
+			Notify:        settings.NotifyFrom(u.svc),
 		}
 		settingsWin.Update(func() {
 			u.saving = false

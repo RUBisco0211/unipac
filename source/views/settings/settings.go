@@ -15,6 +15,7 @@ package settings
 import (
 	"strings"
 
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/parts"
@@ -48,7 +49,9 @@ type View struct {
 	OnSetTheme         func(value string)
 	OnSetAccent        func(value string)
 	OnSetHold          func(on bool)
-	OnSetNotifications func(on bool)
+	OnSetNotifyEnabled func(on bool)
+	OnSetNotify        func(kind tasks.Kind, succeeded, on bool)
+	OnSetNotifyUpdates func(on bool)
 	// OnOpenPath opens a file or folder in the desktop's own application.
 	OnOpenPath func(path string)
 	// OnOpenURL opens a web address in the browser.
@@ -66,14 +69,17 @@ type View struct {
 	// HoldToConfirm is how a destructive confirmation is answered, a hold or a
 	// click; the shell reads it for the quit dialog.
 	HoldToConfirm bool
-	// Notifications is whether a finished task is announced; the shell reads it
-	// before showing one.
-	Notifications bool
-	logLevel      string
-	levels        []string
-	language      string
-	languages     []string
-	theme         string
+	// notify is what the app announces with a system notification; the shell
+	// reads it before showing one. In-app toasts are not part of it.
+	notify Notify
+	// notifyKinds is the operations the backend offers a switch for, in the order
+	// the row shows them.
+	notifyKinds []tasks.Kind
+	logLevel    string
+	levels      []string
+	language    string
+	languages   []string
+	theme       string
 	// accent is the theme color, and accents the ones the backend offers, in the
 	// order the choice shows them.
 	accent  string
@@ -112,7 +118,8 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		Data:          d,
 		AutoScan:      service.AutoScanOnLaunch(),
 		HoldToConfirm: service.HoldToConfirm(),
-		Notifications: service.Notifications(),
+		notify:        NotifyFrom(service),
+		notifyKinds:   service.NotificationKinds(),
 		logLevel:      service.LogLevel(),
 		levels:        service.LogLevels(),
 		language:      service.Language(),
@@ -133,7 +140,8 @@ type Snapshot struct {
 	Theme         string
 	Accent        string
 	HoldToConfirm bool
-	Notifications bool
+	// Notify is which finished operations are announced.
+	Notify Notify
 }
 
 // BeginSave marks the page busy for one settings write. The shell owns the guard
@@ -155,7 +163,7 @@ func (s *View) Revert(saved Snapshot) {
 	s.theme = saved.Theme
 	s.accent = saved.Accent
 	s.HoldToConfirm = saved.HoldToConfirm
-	s.Notifications = saved.Notifications
+	s.notify = saved.Notify
 	s.managers.invalidate()
 }
 
@@ -228,6 +236,7 @@ func (s *View) categories() []components.SettingsCategory {
 			Icon:    lucide.Settings(),
 			Groups:  []components.SettingsGroup{{ID: "general", Items: s.generalItems()}},
 		},
+		s.notifyCategory(section),
 		{
 			ID:          "tasks",
 			Title:       locales.SettingsTasks(),
@@ -294,21 +303,190 @@ func (s *View) generalItems() []components.SettingsItem {
 			},
 		},
 		{
-			ID:          "notifications",
-			Title:       locales.SettingsNotifications(),
-			Description: locales.SettingsNotificationsDesc(),
-			Keywords:    []string{"notifications", "announce", "finished"},
-			Build: func(c *ui.Context) {
-				s.switchAction(c, &s.Notifications, locales.SettingsNotificationsToggle(), s.OnSetNotifications)
-			},
-		},
-		{
 			ID:          "log",
 			Title:       locales.SettingsLogLevel(),
 			Description: locales.SettingsLogLevelDesc(),
 			Keywords:    []string{"log", "level", "debug", "verbose"},
 			Build:       s.logLevelAction,
 		},
+	}
+}
+
+// notifyCategory is the notifications page: the master switch first, then which
+// of them the app sends. Every switch here is about system notifications — what
+// the app says while the window is not in front. An in-app toast is the window
+// saying what just happened, and none of these turn it off.
+func (s *View) notifyCategory(section string) components.SettingsCategory {
+	return components.SettingsCategory{
+		ID:      "notifications",
+		Title:   locales.SettingsNotifications(),
+		Section: section,
+		Icon:    lucide.Bell(),
+		Groups: []components.SettingsGroup{
+			{
+				ID: "master",
+				Items: []components.SettingsItem{{
+					ID:          "enabled",
+					Title:       locales.SettingsNotifyMaster(),
+					Description: locales.SettingsNotifyMasterDesc(),
+					Keywords:    []string{"notifications", "system", "announce", "silence"},
+					Build: func(c *ui.Context) {
+						s.switchAction(c, &s.notify.Enabled, locales.SettingsNotifyMasterToggle(), s.OnSetNotifyEnabled)
+					},
+				}},
+			},
+			{
+				ID:    "operations",
+				Title: locales.SettingsNotifyOperations(),
+				Items: s.notifyOperationItems(),
+			},
+			{
+				ID:    "updates",
+				Title: locales.SettingsNotifyUpdates(),
+				Items: []components.SettingsItem{{
+					ID:          "updates",
+					Title:       locales.SettingsNotifyUpdatesOn(),
+					Description: locales.SettingsNotifyUpdatesDesc(),
+					Keywords:    []string{"updates", "outdated", "newer version", "scan"},
+					Build: func(c *ui.Context) {
+						before := s.notify.Updates
+						sw := components.Switch(c, &s.notify.Updates, locales.SettingsNotifyUpdatesToggle(), components.SwitchOptions{HideLabel: true})
+						sw.Disabled(s.busy || !s.notify.Enabled)
+						if s.notify.Updates != before && s.OnSetNotifyUpdates != nil {
+							s.OnSetNotifyUpdates(s.notify.Updates)
+						}
+					},
+				}},
+			},
+		},
+	}
+}
+
+// notifyOperationItems is one row per operation, each with the two outcomes it
+// can end in: a user may want to hear about a failed uninstall without hearing
+// about every update that finished.
+func (s *View) notifyOperationItems() []components.SettingsItem {
+	items := make([]components.SettingsItem, 0, len(s.notifyKinds))
+	for _, kind := range s.notifyKinds {
+		outcome := s.notify.forKind(kind)
+		if outcome == nil {
+			continue
+		}
+		items = append(items, components.SettingsItem{
+			ID:       string(kind),
+			Title:    notifyLabel(kind),
+			Keywords: []string{string(kind), "success", "failure"},
+			// Two choices need the row's width; stacked, they line up under the
+			// operation they belong to instead of beside its title.
+			Stacked: true,
+			Build: func(c *ui.Context) {
+				ui.Row(c).Gap(c.Theme().Space(4)).Wrap().Children(func() {
+					s.notifyOutcomeBox(c, kind, outcome, true)
+					s.notifyOutcomeBox(c, kind, outcome, false)
+				})
+			},
+		})
+	}
+	return items
+}
+
+// notifyOutcomeBox is one outcome's checkbox. It is read-only while the master
+// switch is off: the choices are kept, not forgotten, so turning notifications
+// back on restores what they were.
+func (s *View) notifyOutcomeBox(c *ui.Context, kind tasks.Kind, outcome *Outcome, succeeded bool) {
+	value, label := &outcome.Failure, locales.SettingsNotifyFailure()
+	if succeeded {
+		value, label = &outcome.Success, locales.SettingsNotifySuccess()
+	}
+	before := *value
+	box := components.Checkbox(c, value, label)
+	// Three "Failure" boxes on one page would read the same to a screen reader:
+	// the accessible name says which operation it belongs to.
+	box.Label(locales.SettingsNotifyOutcome(notifyLabel(kind), label))
+	box.Disabled(s.busy || !s.notify.Enabled)
+	if *value != before && s.OnSetNotify != nil {
+		s.OnSetNotify(kind, succeeded, *value)
+	}
+}
+
+// Notifies reports whether a finished operation of this kind and outcome is
+// announced. The master switch is read here, so no caller has to remember it.
+func (s *View) Notifies(kind tasks.Kind, succeeded bool) bool {
+	outcome := s.notify.forKind(kind)
+	if outcome == nil || !s.notify.Enabled {
+		return false
+	}
+	if succeeded {
+		return outcome.Success
+	}
+	return outcome.Failure
+}
+
+// NotifiesUpdates reports whether a scan that finds updates says so, under the
+// master switch.
+func (s *View) NotifiesUpdates() bool {
+	return s.notify.Enabled && s.notify.Updates
+}
+
+// Notify is what the app announces with a system notification: the master
+// switch, each finished operation by how it ended, and a scan that finds updates.
+// It is the page's state and part of a Snapshot, so the shell can report what the
+// backend says after a write.
+type Notify struct {
+	Enabled   bool
+	Install   Outcome
+	Update    Outcome
+	Uninstall Outcome
+	Updates   bool
+}
+
+// Outcome is one operation's two switches: it finished, or it failed.
+type Outcome struct {
+	Success, Failure bool
+}
+
+// forKind is the switches a checkbox binds to, nil for a kind this build does not
+// know.
+func (n *Notify) forKind(kind tasks.Kind) *Outcome {
+	switch kind {
+	case tasks.KindInstall:
+		return &n.Install
+	case tasks.KindUpdate:
+		return &n.Update
+	case tasks.KindUninstall:
+		return &n.Uninstall
+	}
+	return nil
+}
+
+// NotifyFrom reads the switches the backend reports, which is what the page
+// starts with and what a write answers with.
+func NotifyFrom(service inventory.Service) Notify {
+	notify := Notify{
+		Enabled: service.NotificationsEnabled(),
+		Updates: service.NotifyUpdates(),
+	}
+	for _, kind := range service.NotificationKinds() {
+		if outcome := notify.forKind(kind); outcome != nil {
+			outcome.Success = service.Notifications(kind, true)
+			outcome.Failure = service.Notifications(kind, false)
+		}
+	}
+	return notify
+}
+
+// notifyLabel names an operation in the multi-select, the way the tasks page
+// names it.
+func notifyLabel(kind tasks.Kind) string {
+	switch kind {
+	case tasks.KindInstall:
+		return locales.TasksKindInstall()
+	case tasks.KindUpdate:
+		return locales.TasksKindUpdate()
+	case tasks.KindUninstall:
+		return locales.TasksKindUninstall()
+	default:
+		return string(kind)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
 
@@ -218,14 +219,14 @@ func TestHoldToConfirmDefaultsOn(t *testing.T) {
 	}
 }
 
-// The appearance and the notification switch persist like the rest of the
+// The appearance and the notification switches persist like the rest of the
 // settings, and an older config without them keeps announcing and follows the
 // system.
 func TestThemeAndNotificationsPersist(t *testing.T) {
 	useTempRoot(t)
 
-	if Instance.NotifiesOnFinish() {
-		if err := SetNotifications(false); err != nil {
+	if Instance.Notifies(tasks.KindUpdate, true) {
+		if err := SetNotify(tasks.KindUpdate, true, false); err != nil {
 			t.Fatalf("notifications: %v", err)
 		}
 	}
@@ -237,8 +238,13 @@ func TestThemeAndNotificationsPersist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if loaded.NotifiesOnFinish() {
-		t.Error("notifications off did not survive the round-trip")
+	if loaded.Notifies(tasks.KindUpdate, true) {
+		t.Error("an operation turned off did not survive the round-trip")
+	}
+	// One switch is one operation and one outcome: the rest keep announcing.
+	if !loaded.Notifies(tasks.KindInstall, true) || !loaded.Notifies(tasks.KindUpdate, false) ||
+		!loaded.Notifies(tasks.KindUninstall, false) {
+		t.Error("turning one switch off silenced another")
 	}
 	if loaded.Theme != ThemeDark {
 		t.Fatalf("theme = %q, want dark", loaded.Theme)
@@ -255,6 +261,77 @@ func TestThemeAndNotificationsPersist(t *testing.T) {
 	}
 	if loaded.Theme != "" {
 		t.Fatalf("theme = %q, want the empty system value", loaded.Theme)
+	}
+}
+
+// A config written with the single switch it replaced keeps it: whatever it said
+// applies to every operation until one of the switches is saved, which is when
+// the file converges on the per-operation ones.
+func TestOneNotificationSwitchMigratesToAllOperations(t *testing.T) {
+	dir := useTempRoot(t)
+
+	old := `{"notifications": false}`
+	if err := os.WriteFile(filepath.Join(dir, "unipac.json"), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Init is the path the app takes: it is what installs the loaded file as the
+	// running config, which SetNotify then writes.
+	if err := Init(); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	for _, kind := range NotifyKinds() {
+		for _, succeeded := range []bool{true, false} {
+			if Instance.Notifies(kind, succeeded) {
+				t.Errorf("the old switch was off, but %s succeeded=%v announces", kind, succeeded)
+			}
+		}
+	}
+	if Instance.NotifiesUpdates() {
+		t.Error("the old switch was off, but the updates switch announces")
+	}
+
+	// Saving one switch rewrites the file in the shape it is read in now, and
+	// keeps every other answer.
+	if err := SetNotify(tasks.KindInstall, true, true); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if Instance.Notifications != nil {
+		t.Error("the single switch survived a per-operation write")
+	}
+	loaded, err := Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if !loaded.Notifies(tasks.KindInstall, true) {
+		t.Error("the saved switch did not survive")
+	}
+	if loaded.Notifies(tasks.KindInstall, false) || loaded.Notifies(tasks.KindUpdate, true) {
+		t.Error("a switch that was not saved took the new one's value")
+	}
+
+	// The master switch and the updates switch are saved the same way.
+	if err := SetNotifyEnabled(false); err != nil {
+		t.Fatalf("master: %v", err)
+	}
+	if err := SetNotifyUpdates(false); err != nil {
+		t.Fatalf("updates: %v", err)
+	}
+	loaded, err = Load()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if loaded.NotifiesEnabled() || loaded.NotifiesUpdates() {
+		t.Error("the master or the updates switch did not survive")
+	}
+	// The master switch says nothing is announced, and the operation's own answer
+	// is kept rather than forgotten: turning it back on restores it.
+	if loaded.Notify.Install.Success == nil || !*loaded.Notify.Install.Success {
+		t.Error("the master switch forgot the operation's own answer")
+	}
+
+	// A kind this build does not know is rejected rather than saved.
+	if err := SetNotify("frobnicate", true, true); err == nil {
+		t.Error("an unknown operation was saved")
 	}
 }
 
@@ -331,8 +408,15 @@ func TestThemeAndNotificationsDefaultOnOldConfigs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if !loaded.NotifiesOnFinish() {
-		t.Error("an older config lost the notifications default")
+	for _, kind := range NotifyKinds() {
+		for _, succeeded := range []bool{true, false} {
+			if !loaded.Notifies(kind, succeeded) {
+				t.Errorf("an older config lost the %s default", kind)
+			}
+		}
+	}
+	if !loaded.NotifiesUpdates() {
+		t.Error("an older config lost the updates default")
 	}
 	if loaded.Theme != "" {
 		t.Errorf("theme = %q, want the empty system default", loaded.Theme)

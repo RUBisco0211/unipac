@@ -250,15 +250,32 @@ func (a *App) ClearTaskHistory() error {
 	return nil
 }
 
-// Notifications reports whether a finished task is announced.
-func (a *App) Notifications() bool {
-	return config.Instance.NotifiesOnFinish()
+// Notifications reports whether a finished operation of this kind is announced,
+// when it succeeded or when it failed.
+func (a *App) Notifications(kind tasks.Kind, succeeded bool) bool {
+	return config.Instance.NotifiesEnabled() && config.Instance.Notifies(kind, succeeded)
 }
 
-// SetNotifications saves whether a finished task is announced.
-func (a *App) SetNotifications(on bool) error {
-	slog.InfoContext(a.ctx, "changing notifications", "on", on)
-	if err := config.SetNotifications(on); err != nil {
+// NotificationsEnabled reports whether the app announces anything at all.
+func (a *App) NotificationsEnabled() bool {
+	return config.Instance.NotifiesEnabled()
+}
+
+// NotifyUpdates reports whether a scan that finds updates says so.
+func (a *App) NotifyUpdates() bool {
+	return config.Instance.NotifiesEnabled() && config.Instance.NotifiesUpdates()
+}
+
+// NotificationKinds is the operations Settings offers a notification switch for.
+func (a *App) NotificationKinds() []tasks.Kind {
+	return config.NotifyKinds()
+}
+
+// SetNotifications saves whether a finished operation of this kind is announced,
+// when it succeeded or when it failed.
+func (a *App) SetNotifications(kind tasks.Kind, succeeded, on bool) error {
+	slog.InfoContext(a.ctx, "changing notifications", "operation", kind, "succeeded", succeeded, "on", on)
+	if err := config.SetNotify(kind, succeeded, on); err != nil {
 		slog.ErrorContext(a.ctx, "failed to save notifications", "error", err)
 		return err
 	}
@@ -268,6 +285,26 @@ func (a *App) SetNotifications(on bool) error {
 // Theme is the saved appearance: "light", "dark", or "" to follow the system.
 func (a *App) Theme() string {
 	return config.Instance.Theme
+}
+
+// SetNotificationsEnabled saves the master switch.
+func (a *App) SetNotificationsEnabled(on bool) error {
+	slog.InfoContext(a.ctx, "changing notifications", "on", on)
+	if err := config.SetNotifyEnabled(on); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save notifications", "error", err)
+		return err
+	}
+	return nil
+}
+
+// SetNotifyUpdates saves whether a scan that finds updates says so.
+func (a *App) SetNotifyUpdates(on bool) error {
+	slog.InfoContext(a.ctx, "changing update notifications", "on", on)
+	if err := config.SetNotifyUpdates(on); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save update notifications", "error", err)
+		return err
+	}
+	return nil
 }
 
 // SetTheme saves the appearance and applies it to the running window and to the

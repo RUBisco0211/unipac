@@ -638,8 +638,13 @@ func (wiredService) Languages() []string                           { return nil 
 func (wiredService) Theme() string                                 { return "" }
 func (wiredService) Accent() string                                { return "" }
 func (wiredService) Accents() []string                             { return nil }
-func (wiredService) Notifications() bool                           { return true }
-func (wiredService) About() inventory.About                        { return inventory.About{} }
+func (wiredService) NotificationsEnabled() bool                    { return true }
+func (wiredService) Notifications(tasks.Kind, bool) bool           { return true }
+func (wiredService) NotificationKinds() []tasks.Kind {
+	return []tasks.Kind{tasks.KindInstall, tasks.KindUpdate, tasks.KindUninstall}
+}
+func (wiredService) NotifyUpdates() bool    { return true }
+func (wiredService) About() inventory.About { return inventory.About{} }
 
 // The search page's version picker is the shell's to answer. A page that lost
 // the wiring would quietly install the newest version instead of asking, which
@@ -656,19 +661,32 @@ func TestSearchPageAsksTheShellForVersions(t *testing.T) {
 
 // The notification switch is what decides whether a finished task is announced,
 // and a window whose settings page has not been built still announces.
-func TestNotificationsFollowTheSetting(t *testing.T) {
+func TestNotificationsFollowEachSwitch(t *testing.T) {
 	u := &UI{data: testui.Data()}
-	if !u.notificationsOn() {
+	if !u.notificationsOn(tasks.KindInstall, true) {
 		t.Error("a window without a settings page does not announce")
 	}
-	u.settings = &settings.View{Notifications: false}
-	if u.notificationsOn() {
-		t.Error("the switch did not stop the announcements")
+	// Update failures turned off in Settings, everything else left on.
+	u.settings = settings.New(quietService{quiet: tasks.KindUpdate}, testui.Data())
+	if u.notificationsOn(tasks.KindUpdate, false) {
+		t.Error("the switch did not stop that operation's failures")
 	}
-	u.settings.Notifications = true
-	if !u.notificationsOn() {
-		t.Error("turning the switch back on did not resume them")
+	if !u.notificationsOn(tasks.KindUpdate, true) {
+		t.Error("the switch stopped the same operation's successes")
 	}
+	if !u.notificationsOn(tasks.KindInstall, false) || !u.notificationsOn(tasks.KindUninstall, true) {
+		t.Error("one switched-off outcome silenced another")
+	}
+}
+
+// quietService reports every operation as announced but one outcome of one.
+type quietService struct {
+	wiredService
+	quiet tasks.Kind
+}
+
+func (s quietService) Notifications(kind tasks.Kind, succeeded bool) bool {
+	return kind != s.quiet || succeeded
 }
 
 // Clearing the history is the backend's job, and the page reloads from what it
@@ -746,10 +764,18 @@ func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
 
 	// A second change flips the control, then is dropped: the control goes
 	// back to the snapshot the backend last reported, while the first write
-	// keeps the page busy.
-	u.settings.Notifications = false
-	u.SetNotifications(false)
-	if !u.settings.Notifications {
+	// keeps the page busy. The change is made where the switch is bound, which
+	// is the page's own state; the shell holds only what it last reported.
+	u.settings.Revert(settings.Snapshot{Notify: settings.Notify{
+		Enabled:   true,
+		Install:   settings.Outcome{Success: true, Failure: true},
+		Update:    settings.Outcome{Success: true, Failure: false},
+		Uninstall: settings.Outcome{Success: true, Failure: true},
+		Updates:   true,
+	}})
+	u.settings.OnSetNotify = u.SetNotifications
+	u.SetNotifications(tasks.KindInstall, true, false)
+	if !u.settings.Notifies(tasks.KindInstall, true) {
 		t.Fatal("the dropped change should have been reverted to the snapshot")
 	}
 	if u.saving != true {
@@ -759,5 +785,5 @@ func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
 	// The first write lands and reports the backend's answer; the shell clears
 	// the guard before handing the snapshot to the page.
 	u.saving = false
-	u.settings.EndSave(nil, settings.Snapshot{Notifications: false, Theme: ""})
+	u.settings.EndSave(nil, settings.Snapshot{Notify: settings.NotifyFrom(u.svc), Theme: ""})
 }

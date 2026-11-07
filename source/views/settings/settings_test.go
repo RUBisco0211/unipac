@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
@@ -20,16 +21,23 @@ func fixture() *inventory.Data { return testui.Data() }
 
 func settingsFixture() *View {
 	return &View{
-		Data:          fixture(),
-		AutoScan:      true,
-		logLevel:      "info",
-		levels:        []string{"debug", "info", "warn", "error"},
-		language:      "",
-		languages:     []string{"en", "zh-CN"},
-		theme:         "",
-		accent:        "",
-		accents:       []string{"", "blue", "purple", "pink", "green", "graphite"},
-		Notifications: true,
+		Data:      fixture(),
+		AutoScan:  true,
+		logLevel:  "info",
+		levels:    []string{"debug", "info", "warn", "error"},
+		language:  "",
+		languages: []string{"en", "zh-CN"},
+		theme:     "",
+		accent:    "",
+		accents:   []string{"", "blue", "purple", "pink", "green", "graphite"},
+		notify: Notify{
+			Enabled:   true,
+			Install:   Outcome{Success: true, Failure: true},
+			Update:    Outcome{Success: true, Failure: true},
+			Uninstall: Outcome{Success: true, Failure: true},
+			Updates:   true,
+		},
+		notifyKinds: []tasks.Kind{tasks.KindInstall, tasks.KindUpdate, tasks.KindUninstall},
 		about: inventory.About{
 			Version:    "0.2.0",
 			Go:         "go1.27.3",
@@ -259,34 +267,90 @@ func TestSettingsAccentReachesBackend(t *testing.T) {
 	}
 }
 
-// The notification switch reaches the backend and the page keeps the answer the
-// backend reports, like every other switch in the category.
-func TestSettingsNotificationsReachBackend(t *testing.T) {
+// Notifications is a page of its own: the master switch first, then which
+// finished operations are announced by outcome, then the updates switch.
+func TestSettingsNotificationsArePerOperation(t *testing.T) {
 	s := settingsFixture()
-	s.Notifications = false
-	var got bool
-	s.OnSetNotifications = func(on bool) { got = on }
+	var gotKind tasks.Kind
+	var gotSucceeded, gotOn bool
+	s.OnSetNotify = func(kind tasks.Kind, succeeded, on bool) {
+		gotKind, gotSucceeded, gotOn = kind, succeeded, on
+	}
 
 	tt := render(t, s.Build, 1200, 900)
-	if !tt.HasText(locales.SettingsNotifications()) {
-		t.Fatalf("the switch is missing: %v", tt.Texts())
+	choose(t, tt, locales.SettingsNotifications())
+
+	for _, want := range []string{
+		locales.SettingsNotifyMaster(),
+		locales.SettingsNotifyOperations(),
+		locales.TasksKindInstall(), locales.TasksKindUpdate(), locales.TasksKindUninstall(),
+		locales.SettingsNotifySuccess(), locales.SettingsNotifyFailure(),
+		locales.SettingsNotifyUpdates(), locales.SettingsNotifyUpdatesOn(),
+	} {
+		if !tt.HasText(want) {
+			t.Errorf("the notifications page is missing %q: %v", want, tt.Texts())
+		}
 	}
-	// Clicking the switch turns it over; the next build reports the change. The
-	// switch's accessible name is its own phrase, so the click lands on the
-	// control and not on the row title beside it — a callback that never fires
-	// fails this test, as it should.
-	if err := tt.Click(locales.SettingsNotificationsToggle()); err != nil {
+
+	// One operation's failure switch sends that operation and outcome, and no
+	// other switch moves with it.
+	failureLabel := locales.SettingsNotifyOutcome(locales.TasksKindUpdate(), locales.SettingsNotifyFailure())
+	if err := tt.Click(failureLabel); err != nil {
+		t.Fatalf("click %q: %v", failureLabel, err)
+	}
+	tt.Frame()
+	if gotKind != tasks.KindUpdate || gotSucceeded || gotOn {
+		t.Fatalf("sent %q succeeded=%v on=%v, want update failure off", gotKind, gotSucceeded, gotOn)
+	}
+	if !s.Notifies(tasks.KindInstall, false) || !s.Notifies(tasks.KindUpdate, true) {
+		t.Error("one switch changed another")
+	}
+
+	// A save that reports the backend's answer puts the boxes back.
+	s.EndSave(nil, Snapshot{Notify: Notify{
+		Enabled:   true,
+		Install:   Outcome{Success: true, Failure: true},
+		Update:    Outcome{Success: true, Failure: true},
+		Uninstall: Outcome{Success: true, Failure: false},
+		Updates:   true,
+	}})
+	if !s.Notifies(tasks.KindUpdate, false) {
+		t.Error("the backend's answer did not restore the update switch")
+	}
+	if s.Notifies(tasks.KindUninstall, false) {
+		t.Error("the backend's answer did not turn the uninstall switch off")
+	}
+}
+
+// The master switch is the first row, and off means nothing is announced: the
+// other switches keep their answers but are not read, and cannot be changed.
+func TestNotificationsMasterSwitch(t *testing.T) {
+	s := settingsFixture()
+	var got bool
+	s.OnSetNotifyEnabled = func(on bool) { got = on }
+
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsNotifications())
+	master, ok := tt.Find(locales.SettingsNotifyMaster())
+	if !ok {
+		t.Fatalf("the master switch is missing: %v", tt.Texts())
+	}
+	operations, _ := tt.Find(locales.SettingsNotifyOperations())
+	if master.Y >= operations.Y {
+		t.Errorf("the master switch at y=%.0f is not above the operations at y=%.0f", master.Y, operations.Y)
+	}
+	if err := tt.Click(locales.SettingsNotifyMasterToggle()); err != nil {
 		t.Fatalf("click: %v", err)
 	}
 	tt.Frame()
-	if !got {
-		t.Fatalf("notifications sent %v, want the switch's new value", got)
+	if got {
+		t.Fatal("the master switch sent on, want off")
 	}
 
-	// A save that reports the backend's answer puts the switch back.
-	s.EndSave(nil, Snapshot{Notifications: true})
-	if !s.Notifications {
-		t.Error("the backend's answer did not restore the switch")
+	// Off silences everything the page offers, whatever the other switches say.
+	s.notify.Enabled = false
+	if s.Notifies(tasks.KindInstall, true) || s.NotifiesUpdates() {
+		t.Error("the master switch off still announces")
 	}
 }
 
@@ -440,15 +504,15 @@ func TestFailedSaveSaysSo(t *testing.T) {
 func TestRevertKeepsThePageBusy(t *testing.T) {
 	s := settingsFixture()
 	s.BeginSave()
-	s.Notifications = false
+	s.notify.Enabled = false
 	s.theme = "dark"
 
-	s.Revert(Snapshot{AutoScan: true, Notifications: true, Theme: ""})
+	s.Revert(Snapshot{AutoScan: true, Notify: Notify{Enabled: true}, Theme: ""})
 	if !s.busy {
 		t.Fatal("the revert ended the write that is still running")
 	}
-	if !s.Notifications || s.theme != "" {
-		t.Fatalf("controls = notifications %v theme %q, want the snapshot's", s.Notifications, s.theme)
+	if !s.notify.Enabled || s.theme != "" {
+		t.Fatalf("controls = notifications %v theme %q, want the snapshot's", s.notify.Enabled, s.theme)
 	}
 	if s.err != "" {
 		t.Errorf("a dropped change reported an error: %q", s.err)

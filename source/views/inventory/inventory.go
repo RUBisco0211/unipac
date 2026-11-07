@@ -44,8 +44,16 @@ type Service interface {
 	Accent() string
 	Accents() []string
 	SetAccent(value string) error
-	Notifications() bool
-	SetNotifications(on bool) error
+	// NotificationsEnabled is the master switch; Notifications reports one
+	// operation's outcome under it, and NotifyUpdates the "an update is
+	// available" switch. NotificationKinds is the operations the switches cover.
+	NotificationsEnabled() bool
+	SetNotificationsEnabled(on bool) error
+	Notifications(kind tasks.Kind, succeeded bool) bool
+	NotificationKinds() []tasks.Kind
+	SetNotifications(kind tasks.Kind, succeeded, on bool) error
+	NotifyUpdates() bool
+	SetNotifyUpdates(on bool) error
 	SetLanguage(tag string) error
 	AutoScanOnLaunch() bool
 	SetAutoScanOnLaunch(on bool) error

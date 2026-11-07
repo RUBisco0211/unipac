@@ -1538,14 +1538,138 @@ func (msgs Messages) SettingsNotifications() string {
 	return Catalog.Format(msgs.locale, "settingsNotifications", nil)
 }
 
-// SettingsNotificationsDesc says "Announce a finished install, update or uninstall with a system notification"
+// SettingsNotifyMaster says "System notifications"
 // in the language the app shows.
-func SettingsNotificationsDesc() string { return In(i18n.Locale()).SettingsNotificationsDesc() }
+func SettingsNotifyMaster() string { return In(i18n.Locale()).SettingsNotifyMaster() }
 
-// SettingsNotificationsDesc says "Announce a finished install, update or uninstall with a system notification"
+// SettingsNotifyMaster says "System notifications"
 // in the language of msgs.
-func (msgs Messages) SettingsNotificationsDesc() string {
-	return Catalog.Format(msgs.locale, "settingsNotificationsDesc", nil)
+func (msgs Messages) SettingsNotifyMaster() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyMaster", nil)
+}
+
+// SettingsNotifyMasterDesc says "Announce what the app finishes, and that updates are waiting, while it is not in front"
+// in the language the app shows.
+func SettingsNotifyMasterDesc() string { return In(i18n.Locale()).SettingsNotifyMasterDesc() }
+
+// SettingsNotifyMasterDesc says "Announce what the app finishes, and that updates are waiting, while it is not in front"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyMasterDesc() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyMasterDesc", nil)
+}
+
+// SettingsNotifyMasterToggle says "Toggle system notifications"
+// in the language the app shows.
+func SettingsNotifyMasterToggle() string { return In(i18n.Locale()).SettingsNotifyMasterToggle() }
+
+// SettingsNotifyMasterToggle says "Toggle system notifications"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyMasterToggle() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyMasterToggle", nil)
+}
+
+// SettingsNotifyOutcome says "{operation}: {outcome}"
+// in the language the app shows.
+func SettingsNotifyOutcome(operation string, outcome string) string {
+	return In(i18n.Locale()).SettingsNotifyOutcome(operation, outcome)
+}
+
+// SettingsNotifyOutcome says "{operation}: {outcome}"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyOutcome(operation string, outcome string) string {
+	return Catalog.Format(msgs.locale, "settingsNotifyOutcome", map[string]any{"operation": operation, "outcome": outcome})
+}
+
+// SettingsNotifyOperations says "Finished operations"
+// in the language the app shows.
+func SettingsNotifyOperations() string { return In(i18n.Locale()).SettingsNotifyOperations() }
+
+// SettingsNotifyOperations says "Finished operations"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyOperations() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyOperations", nil)
+}
+
+// SettingsNotifySuccess says "Success"
+// in the language the app shows.
+func SettingsNotifySuccess() string { return In(i18n.Locale()).SettingsNotifySuccess() }
+
+// SettingsNotifySuccess says "Success"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifySuccess() string {
+	return Catalog.Format(msgs.locale, "settingsNotifySuccess", nil)
+}
+
+// SettingsNotifyFailure says "Failure"
+// in the language the app shows.
+func SettingsNotifyFailure() string { return In(i18n.Locale()).SettingsNotifyFailure() }
+
+// SettingsNotifyFailure says "Failure"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyFailure() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyFailure", nil)
+}
+
+// SettingsNotifyUpdates says "Available updates"
+// in the language the app shows.
+func SettingsNotifyUpdates() string { return In(i18n.Locale()).SettingsNotifyUpdates() }
+
+// SettingsNotifyUpdates says "Available updates"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyUpdates() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyUpdates", nil)
+}
+
+// SettingsNotifyUpdatesOn says "Tell me when updates are waiting"
+// in the language the app shows.
+func SettingsNotifyUpdatesOn() string { return In(i18n.Locale()).SettingsNotifyUpdatesOn() }
+
+// SettingsNotifyUpdatesOn says "Tell me when updates are waiting"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyUpdatesOn() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyUpdatesOn", nil)
+}
+
+// SettingsNotifyUpdatesDesc says "A scan that finds packages with a newer version says so once"
+// in the language the app shows.
+func SettingsNotifyUpdatesDesc() string { return In(i18n.Locale()).SettingsNotifyUpdatesDesc() }
+
+// SettingsNotifyUpdatesDesc says "A scan that finds packages with a newer version says so once"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyUpdatesDesc() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyUpdatesDesc", nil)
+}
+
+// SettingsNotifyUpdatesToggle says "Toggle update notifications"
+// in the language the app shows.
+func SettingsNotifyUpdatesToggle() string { return In(i18n.Locale()).SettingsNotifyUpdatesToggle() }
+
+// SettingsNotifyUpdatesToggle says "Toggle update notifications"
+// in the language of msgs.
+func (msgs Messages) SettingsNotifyUpdatesToggle() string {
+	return Catalog.Format(msgs.locale, "settingsNotifyUpdatesToggle", nil)
+}
+
+// NotificationUpdatesTitle says "{count, plural, one {# update is waiting} other {# updates are waiting}}"
+// in the language the app shows.
+func NotificationUpdatesTitle(count int) string {
+	return In(i18n.Locale()).NotificationUpdatesTitle(count)
+}
+
+// NotificationUpdatesTitle says "{count, plural, one {# update is waiting} other {# updates are waiting}}"
+// in the language of msgs.
+func (msgs Messages) NotificationUpdatesTitle(count int) string {
+	return Catalog.Format(msgs.locale, "notificationUpdatesTitle", map[string]any{"count": count})
+}
+
+// NotificationUpdatesBody says "Open UniPac to update them"
+// in the language the app shows.
+func NotificationUpdatesBody() string { return In(i18n.Locale()).NotificationUpdatesBody() }
+
+// NotificationUpdatesBody says "Open UniPac to update them"
+// in the language of msgs.
+func (msgs Messages) NotificationUpdatesBody() string {
+	return Catalog.Format(msgs.locale, "notificationUpdatesBody", nil)
 }
 
 // SettingsTasks says "Tasks"
@@ -2038,16 +2162,6 @@ func SettingsClearHistoryConfirm() string { return In(i18n.Locale()).SettingsCle
 // in the language of msgs.
 func (msgs Messages) SettingsClearHistoryConfirm() string {
 	return Catalog.Format(msgs.locale, "settingsClearHistoryConfirm", nil)
-}
-
-// SettingsNotificationsToggle says "Toggle notifications"
-// in the language the app shows.
-func SettingsNotificationsToggle() string { return In(i18n.Locale()).SettingsNotificationsToggle() }
-
-// SettingsNotificationsToggle says "Toggle notifications"
-// in the language of msgs.
-func (msgs Messages) SettingsNotificationsToggle() string {
-	return Catalog.Format(msgs.locale, "settingsNotificationsToggle", nil)
 }
 
 // SettingsStartupScanToggle says "Toggle scanning on launch"
