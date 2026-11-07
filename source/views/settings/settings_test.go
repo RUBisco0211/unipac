@@ -581,3 +581,28 @@ func TestSettingsProxyWithoutASystemOne(t *testing.T) {
 		}
 	}
 }
+
+// A place in a settings row is answered on the trailing edge, where every other
+// fact's answer is: a link that starts where its label ends reads as a value of its
+// own, floating in the middle of the row.
+func TestLinkRowsAnswerOnTheTrailingEdge(t *testing.T) {
+	s := settingsFixture()
+	s.OnOpenURL = func(string) {}
+	s.OnOpenPath = func(string) {}
+
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
+	value, ok := tt.Find("0.2.0")
+	if !ok {
+		t.Fatal("the version's answer is missing")
+	}
+	link, ok := tt.Find(s.about.DataDir)
+	if !ok {
+		t.Fatal("the data folder's link is missing")
+	}
+	// Both answers end where the other facts' answers end.
+	got, want := link.X+link.W, value.X+value.W
+	if diff := got - want; diff > 2 || diff < -2 {
+		t.Errorf("the link ends at %.0f, the version at %.0f: the row's answers do not line up", got, want)
+	}
+}

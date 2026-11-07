@@ -767,7 +767,9 @@ func linkItem(id, title string, keywords []string, link func(*ui.Context)) compo
 			t := c.Theme()
 			ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(4)).AlignItems(ui.Center).Children(func() {
 				components.Text(c, title).FontSize(12).TextColor(t.TextMuted).Width(t.Space(25)).Shrink(0)
-				ui.Box(c).Grow(1).MinWidth(0).ClipX().Children(func() { link(c) })
+				// The answer sits on the row's trailing edge, where the other
+				// facts' answers are, rather than starting where its label ends.
+				ui.Row(c).Grow(1).MinWidth(0).Justify(ui.End).ClipX().Children(func() { link(c) })
 			})
 		},
 	}
