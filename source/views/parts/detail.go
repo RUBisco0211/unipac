@@ -8,156 +8,211 @@ import (
 	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
-// DetailPanelOptions is what a page shows in the side panel for one package: what
-// it already knows, what was read about it, and the two ways a fact can be acted
-// on.
-type DetailPanelOptions struct {
-	// Package is the row the user opened; Detail is what its own page says,
-	// which arrives after the panel does.
-	Package manager.Package
-	Detail  manager.Detail
-	// Loading says the facts are being read, so the panel says so instead of
-	// showing an empty page.
-	Loading bool
-	// Err is why the page is incomplete, when it is: the local facts still show.
-	Err string
+// PackagePage is one package's own page, shown in a dialog: the state a page
+// keeps between frames, and the builder every page that lists packages calls.
+// The three tables — installed, outdated and search — show the same page, so a
+// reader who learns it once reads it everywhere.
+type PackagePage struct {
+	// Open is the dialog's state; the header's close button and Escape clear it.
+	Open bool
+	// pkg is the package the page is about, and what its own entry answered.
+	pkg     manager.Package
+	detail  manager.Detail
+	loading bool
+	err     string
+}
 
+// Show opens the page for pkg, dropping what the previous package answered: a
+// page is about one package at a time.
+func (p *PackagePage) Show(pkg manager.Package) {
+	p.Open = true
+	p.pkg = pkg
+	p.detail = manager.Detail{}
+	p.err = ""
+	p.loading = false
+}
+
+// Loading says the page's facts are being read, so the dialog says so instead of
+// showing empty rows.
+func (p *PackagePage) Loading() { p.loading = true }
+
+// Apply installs what was read about pkg. An answer for another package is
+// dropped: the dialog has moved on since.
+func (p *PackagePage) Apply(pkg manager.Package, detail manager.Detail, err error) {
+	if p.pkg.Manager != pkg.Manager || p.pkg.Name != pkg.Name {
+		return
+	}
+	p.loading = false
+	p.detail = detail
+	p.err = ""
+	if err != nil {
+		p.err = err.Error()
+	}
+}
+
+// Pkg is the package the page shows, and whether it shows one at all.
+func (p *PackagePage) Pkg() (manager.Package, bool) {
+	if p.pkg.Name == "" {
+		return manager.Package{}, false
+	}
+	return p.pkg, true
+}
+
+// PackagePageOptions is what the page's buttons do, which the page hosting it
+// decides.
+type PackagePageOptions struct {
 	// OnOpenURL opens a web address, and OnReveal shows a path in the file
 	// manager. Either may be nil, which hides its button.
 	OnOpenURL func(string)
 	OnReveal  func(string)
-	// OnClose puts the panel away.
-	OnClose func()
 }
 
-// DetailPanel is a package's own page beside the table: what it is, who publishes
-// it, where it lives, and the way to each address it names. Rows a manager cannot
-// answer show a dash rather than disappearing, so the same rows appear for every
-// package.
-func DetailPanel(c *ui.Context, o DetailPanelOptions) {
-	t := c.Theme()
-	ui.Column(c).Fill().MinWidth(0).Padding(t.Space(3)).Gap(t.Space(3)).Children(func() {
-		header(c, o)
-		if o.Loading {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				components.Spinner(c, components.SpinnerRing)
-				components.Text(c, locales.DetailLoading()).FontSize(12).TextColor(t.TextMuted)
-			})
-		}
-		if o.Package.Description != "" && o.Detail.Summary == "" {
-			components.Text(c, o.Package.Description).FontSize(12).TextColor(t.TextMuted).Wrap()
-		}
-		if o.Detail.Summary != "" {
-			components.Text(c, o.Detail.Summary).FontSize(12).TextColor(t.TextMuted).Wrap()
-		}
-		ui.Column(c).FillWidth().Children(func() {
-			valueRow(c, locales.DetailVersion(), func() {
-				versionLine(c, o)
-			})
-			Divider(c)
-			linkRow(c, locales.DetailHomepage(), o.Detail.Homepage, locales.DetailHomepageOpen(), o.OnOpenURL)
-			Divider(c)
-			valueRow(c, locales.DetailPublisher(), func() {
-				components.Text(c, OrDash(o.Detail.Publisher)).FontSize(12).SingleLine()
-			})
-			Divider(c)
-			valueRow(c, locales.DetailLicense(), func() {
-				components.Text(c, OrDash(o.Detail.License)).FontSize(12).SingleLine()
-			})
-			Divider(c)
-			linkRow(c, locales.DetailLocation(), o.Detail.Path, locales.DetailReveal(), o.OnReveal)
-			Divider(c)
-			valueRow(c, locales.DetailSource(), func() {
-				components.Text(c, OrDash(o.Detail.Source)).FontSize(12).TextColor(t.TextMuted).SingleLine()
-			})
-		})
-		if o.Err != "" {
-			components.Text(c, locales.DetailIncomplete(o.Err)).FontSize(11).TextColor(t.TextMuted).Wrap()
-		}
-	})
-}
-
-// header is the package the panel is about: its name, the manager it came from,
-// and the way to put the panel away.
-func header(c *ui.Context, o DetailPanelOptions) {
-	t := c.Theme()
-	ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		ManagerLogo(o.Package.Manager)
-		ui.Column(c).Grow(1).MinWidth(0).Gap(2).Children(func() {
-			components.Tooltip(c, components.Text(c, o.Package.Name).Bold().SingleLine(), o.Package.Name)
-			// The project's own name, when the registry spells it differently:
-			// "Android SDK Platform-Tools" beside the token brew installed.
-			if full := o.Detail.Name; full != "" && full != o.Package.Name {
-				components.Text(c, full).FontSize(11).TextColor(t.TextMuted).SingleLine()
-			}
-		})
-		closeButton(c, o.OnClose)
-	})
-}
-
-// closeButton puts the panel away.
-func closeButton(c *ui.Context, close func()) {
-	if close == nil {
+// Build draws the dialog. Call it every frame from the page that owns the state.
+func (p *PackagePage) Build(c *ui.Context, o PackagePageOptions) {
+	if p.pkg.Name == "" {
 		return
 	}
-	button := components.IconButton(c, lucide.X(), locales.DetailClose(), components.IconButtonPlain).Shrink(0)
-	if button.Clicked() {
-		close()
+	t := c.Theme()
+	components.Dialog(c, &p.Open, components.DialogOptions{Label: p.pkg.Name}, func(panel ui.Element) {
+		panel.Width(t.Space(140)).Padding(t.Space(5)).Gap(t.Space(4)).Children(func() {
+			header(c, p)
+			summary(c, p)
+			ui.Column(c).FillWidth().Children(func() {
+				versionRow(c, p)
+				Divider(c)
+				valueRow(c, locales.DetailPublisher(), p.detail.Publisher, false)
+				Divider(c)
+				valueRow(c, locales.DetailLicense(), p.detail.License, false)
+				Divider(c)
+				valueRow(c, locales.DetailHomepage(), p.detail.Homepage, isURL(p.detail.Homepage))
+				Divider(c)
+				valueRow(c, locales.DetailLocation(), p.detail.Path, false)
+			})
+			if p.err != "" {
+				components.Text(c, locales.DetailIncomplete(p.err)).
+					FontSize(11).TextColor(t.TextMuted).Wrap()
+			}
+			footer(c, p, o)
+		})
+	})
+}
+
+// header is the package the page is about and the manager it came from.
+func header(c *ui.Context, p *PackagePage) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+		ui.Image(c, ManagerLogo(p.pkg.Manager)).Size(t.Space(5), t.Space(5)).Fit(ui.Contain).Radius(t.Space(1)).Shrink(0)
+		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
+			components.Tooltip(c, components.Text(c, p.pkg.Name).FontSize(15).Bold().SingleLine(), p.pkg.Name)
+			// The project's own name, when the registry spells it differently:
+			// "Android SDK Platform-Tools" beside the token brew installed.
+			if full := p.detail.Name; full != "" && full != p.pkg.Name {
+				components.Text(c, full).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
+			}
+			if p.detail.Source != "" {
+				components.Text(c, locales.DetailSourceLine(p.detail.Source)).
+					FontSize(11).TextColor(t.TextMuted).SingleLine()
+			}
+		})
+	})
+}
+
+// summary is the project's own line, and while the facts are being read, what the
+// table already knew.
+func summary(c *ui.Context, p *PackagePage) {
+	t := c.Theme()
+	if p.loading {
+		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
+			components.Spinner(c, components.SpinnerRing).Size(t.Space(3), t.Space(3))
+			components.Text(c, locales.DetailLoading()).FontSize(12).TextColor(t.TextMuted)
+		})
+	}
+	text := p.detail.Summary
+	if text == "" {
+		text = p.pkg.Description
+	}
+	if text != "" {
+		components.Text(c, text).FontSize(12).TextColor(t.TextMuted).Wrap()
 	}
 }
 
-// versionLine is the installed version and, when they differ, the one the manager
-// offers.
-func versionLine(c *ui.Context, o DetailPanelOptions) {
-	t := c.Theme()
-	installed := OrDash(o.Detail.Version)
+// versionRow is the installed version and, when the manager offers another, the
+// one it offers.
+func versionRow(c *ui.Context, p *PackagePage) {
+	installed := OrDash(p.detail.Version)
 	if installed == "-" {
-		installed = OrDash(o.Package.Version)
+		installed = OrDash(p.pkg.Version)
 	}
-	ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-		components.Text(c, installed).FontSize(12).SingleLine()
-		latest := o.Detail.Latest
-		if latest == "" {
-			latest = o.Package.LatestVersion
-		}
-		if latest == "" || latest == installed {
-			return
-		}
-		components.Text(c, "→").FontSize(12).TextColor(t.TextMuted)
-		components.Text(c, latest).FontSize(12).TextColor(t.Accent).SingleLine()
-	})
+	latest := p.detail.Latest
+	if latest == "" {
+		latest = p.pkg.LatestVersion
+	}
+	valueRow(c, locales.DetailVersion(), installed, false)
+	if latest == "" || latest == installed || latest == "-" {
+		return
+	}
+	valueRow(c, locales.DetailLatest(), latest, false)
 }
 
 // valueRow is one fact: what it is on the leading side, the answer across the
-// rest of the row, so a long value has room.
-func valueRow(c *ui.Context, label string, value func()) {
+// rest. An empty answer is a dash, so every package shows the same rows.
+func valueRow(c *ui.Context, label, value string, link bool) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().MinWidth(0).Padding(t.Space(1.5), 0).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
-		components.Text(c, label).FontSize(11).TextColor(t.TextMuted).Width(t.Space(20)).Shrink(0)
-		ui.Box(c).Grow(1).MinWidth(0).Children(value)
+	ui.Row(c).FillWidth().MinWidth(0).Padding(t.Space(1.5), 0).Gap(t.Space(4)).AlignItems(ui.Center).Children(func() {
+		components.Text(c, label).FontSize(11.5).TextColor(t.TextMuted).Width(t.Space(22)).Shrink(0)
+		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
+			if value == "" || value == "-" {
+				components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+				return
+			}
+			text := components.Text(c, value).FontSize(12).SingleLine()
+			if link {
+				text.TextColor(t.Accent)
+			}
+			components.Tooltip(c, text, value)
+		})
 	})
 }
 
-// linkRow is a fact that is a place: the address, and the button that opens it.
-// A manager that does not answer it shows a dash and no button.
-func linkRow(c *ui.Context, label, value, action string, open func(string)) {
-	valueRow(c, label, func() {
-		t := c.Theme()
-		ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-				if value == "" {
-					components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
-					return
-				}
-				components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
-			})
-			if value == "" || open == nil {
-				return
+// footer is the page's actions: the two places a fact can point at, and the way
+// back to the table.
+func footer(c *ui.Context, p *PackagePage, o PackagePageOptions) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().Gap(t.Space(2)).Justify(ui.End).Children(func() {
+		if p.detail.Homepage != "" && o.OnOpenURL != nil {
+			open := glyphButton(c, locales.DetailHomepageOpen(), components.ButtonOutline, lucide.ExternalLink())
+			if open.Clicked() {
+				o.OnOpenURL(p.detail.Homepage)
 			}
-			button := components.Button(c, action, components.ButtonGhost).Shrink(0)
-			if button.Clicked() {
-				open(value)
+		}
+		if p.detail.Path != "" && o.OnReveal != nil {
+			reveal := glyphButton(c, locales.DetailReveal(), components.ButtonOutline, lucide.FolderOpen())
+			if reveal.Clicked() {
+				o.OnReveal(p.detail.Path)
 			}
+		}
+		close := components.Button(c, locales.DetailClose(), components.ButtonPrimary)
+		if close.Clicked() {
+			p.Open = false
+		}
+	})
+}
+
+// glyphButton is a button whose label has a glyph before it: Button appends its
+// children after the label without a gap of its own, so the label and the glyph
+// are one child row.
+func glyphButton(c *ui.Context, label string, variant components.ButtonVariant, glyph *ui.SVG) ui.Element {
+	button := components.Button(c, "", variant).Label(label)
+	button.Children(func() {
+		ui.Row(c).Gap(c.Theme().Space(1.5)).AlignItems(ui.Center).Children(func() {
+			components.Icon(c, glyph).Size(14, 14)
+			components.Text(c, label).SingleLine()
 		})
 	})
+	return button
+}
+
+// isURL reports whether a value is a web address rather than a local path.
+func isURL(value string) bool {
+	return len(value) > 8 && (value[:7] == "http://" || value[:8] == "https://")
 }

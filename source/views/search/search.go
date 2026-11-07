@@ -33,6 +33,19 @@ type View struct {
 	OnVersions func(manager.Package, int)
 	// TitleActions builds the buttons this page puts in the title bar.
 	TitleActions func(*ui.Context)
+	// OnDetail asks for a package's own page; SetDetail installs the answer. A
+	// search result is not installed here, so its page is read from the registry
+	// rather than from a local copy.
+	OnDetail  func(manager.Package)
+	OnOpenURL func(string)
+	OnReveal  func(string)
+	// Page is the package page a row opens in a dialog.
+	Page parts.PackagePage
+	// cursor is the row last chosen and selection the choice the table draws, so
+	// the opened result stays marked: MyGo chooses a row on a click through the
+	// selection, and the cursor is the row it last chose.
+	cursor    int
+	selection ui.Selection[any]
 
 	query       string
 	resultQuery string
@@ -90,6 +103,7 @@ func (s *View) Build(c *ui.Context) {
 		}
 	})
 	s.versionDialog(c)
+	s.Page.Build(c, parts.PackagePageOptions{OnOpenURL: s.OnOpenURL, OnReveal: s.OnReveal})
 }
 
 // syncManagers drops results from managers that were turned off since the
@@ -306,6 +320,26 @@ func (s *View) applySort() {
 	})
 }
 
+// open shows one result's page and asks for its facts.
+func (s *View) open(row int) {
+	if row < 0 || row >= len(s.results) {
+		return
+	}
+	pkg := s.results[row]
+	s.Page.Show(pkg)
+	if s.OnDetail == nil {
+		return
+	}
+	s.Page.Loading()
+	s.OnDetail(pkg)
+}
+
+// SetDetail installs what was read about a package; a dialog that has moved on to
+// another package drops it.
+func (s *View) SetDetail(pkg manager.Package, detail manager.Detail, err error) {
+	s.Page.Apply(pkg, detail, err)
+}
+
 func (s *View) body(c *ui.Context) {
 	switch {
 	case s.searching:
@@ -318,6 +352,13 @@ func (s *View) body(c *ui.Context) {
 	default:
 		s.table.Sort = &s.sortOrder
 		s.table.OnSort = func() { s.applySort() }
+		// A plain click opens the row's page: nothing else on this page uses the
+		// table's choice, so it is free for that.
+		s.table.List.Selection = &s.selection
+		s.table.List.Key = func(row int) any { return s.results[row].Manager + ":" + s.results[row].Name }
+		s.table.List.Selected = &s.cursor
+		s.table.List.OnChange = func() { s.open(s.cursor) }
+		s.table.List.OnSubmit = func(row int) { s.open(row) }
 		ui.Column(c).Fill().MinHeight(0).Children(func() {
 			if s.truncated {
 				// The list is what a manager had to give within its limit, so say

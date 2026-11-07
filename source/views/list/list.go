@@ -3,7 +3,6 @@
 package list
 
 import (
-	"cmp"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
-	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
@@ -50,8 +48,8 @@ type View struct {
 	// the file manager.
 	OnOpenURL func(string)
 	OnReveal  func(string)
-	// Panel is the details panel beside the table.
-	Panel panel.State
+	// Page is the package page the table opens in a dialog.
+	Page parts.PackagePage
 
 	query    string
 	managers map[string]bool
@@ -128,6 +126,7 @@ func (l *View) Build(c *ui.Context) {
 	})
 	l.uninstallDialog(c)
 	l.bulkDialog(c)
+	l.Page.Build(c, parts.PackagePageOptions{OnOpenURL: l.OnOpenURL, OnReveal: l.OnReveal})
 }
 
 // sync rebuilds the filtered rows when the inventory or a filter changed. It is
@@ -557,11 +556,6 @@ func (l *View) toggleAll() {
 }
 
 func (l *View) body(c *ui.Context) {
-	// The panel shows one package, so it stays away until a row is opened: a
-	// page built without one shows the table across its whole width.
-	if l.opened == nil {
-		l.Panel.Closed = true
-	}
 	switch {
 	case l.Data.LoadErr != nil:
 		parts.Placeholder(c, locales.PackagesLoadError(l.Data.LoadErr.Error()))
@@ -595,34 +589,32 @@ func (l *View) body(c *ui.Context) {
 		// Space(2) either side of the table: Onevra gives a header cell and a row
 		// cell the same padding and has no per-column inset, so the table's own
 		// edge is where the first cell's padding, header included, goes.
-		panel.View(c, &l.Panel, func(c *ui.Context) {
-			ui.Column(c).Fill().Padding(0, t.Space(2), 0, t.Space(2)).Children(func() {
-				components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
-					l.cell(c, row, col)
-				}).Fill()
-				// The table header only takes text, so the select-all control is
-				// laid over the first header cell, on the same padding the cells use.
-				ui.Row(c).Absolute().Top(0).Left(firstCellInset(t)).Height(t.Space(8)).
-					AlignItems(ui.Center).Children(func() {
-					all := l.allSelected()
-					box := components.Checkbox(c, &all, "").Label(locales.PackagesSelectAll())
-					if box.Changed() {
-						l.toggleAll()
-					}
-				})
-				if len(l.chosen) > 0 {
-					titleWidth, _ := c.MeasureText(0, ui.Span{Text: locales.TablePackage(), Weight: 600})
-					left := firstCellInset(t) + selectColumnWidth + titleWidth + t.Space(2)
-					ui.Row(c).Absolute().Top(0).Left(left).Height(t.Space(8)).
-						AlignItems(ui.Center).Children(func() {
-						// Badge pins itself to the cross-start; centre it on the
-						// header's title line instead.
-						components.Badge(c, locales.CommonSelectionCount(len(l.chosen), len(l.rows))).
-							AlignSelf(ui.Center)
-					})
+		ui.Column(c).Fill().Padding(0, t.Space(2), 0, t.Space(2)).Children(func() {
+			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
+				l.cell(c, row, col)
+			}).Fill()
+			// The table header only takes text, so the select-all control is
+			// laid over the first header cell, on the same padding the cells use.
+			ui.Row(c).Absolute().Top(0).Left(firstCellInset(t)).Height(t.Space(8)).
+				AlignItems(ui.Center).Children(func() {
+				all := l.allSelected()
+				box := components.Checkbox(c, &all, "").Label(locales.PackagesSelectAll())
+				if box.Changed() {
+					l.toggleAll()
 				}
 			})
-		}, l.panelSide)
+			if len(l.chosen) > 0 {
+				titleWidth, _ := c.MeasureText(0, ui.Span{Text: locales.TablePackage(), Weight: 600})
+				left := firstCellInset(t) + selectColumnWidth + titleWidth + t.Space(2)
+				ui.Row(c).Absolute().Top(0).Left(left).Height(t.Space(8)).
+					AlignItems(ui.Center).Children(func() {
+					// Badge pins itself to the cross-start; centre it on the
+					// header's title line instead.
+					components.Badge(c, locales.CommonSelectionCount(len(l.chosen), len(l.rows))).
+						AlignSelf(ui.Center)
+				})
+			}
+		})
 	}
 }
 
@@ -640,54 +632,18 @@ func (l *View) open(row int) {
 		return
 	}
 	pkg := l.rows[row]
-	if l.opened != nil && inventory.Key(*l.opened) == inventory.Key(pkg) {
-		l.Panel.Show()
+	l.Page.Show(pkg)
+	if l.OnDetail == nil {
 		return
 	}
-	l.opened = &pkg
-	l.detail = manager.Detail{}
-	l.detailErr = ""
-	l.detailLoading = l.OnDetail != nil
-	l.seq++
-	l.Panel.Show()
-	if l.OnDetail != nil {
-		l.OnDetail(pkg)
-	}
+	l.Page.Loading()
+	l.OnDetail(pkg)
 }
 
 // SetDetail installs what was read about a package. An answer for a package the
-// user has left behind is dropped: only the page showing takes an answer.
+// dialog has moved on from is dropped there.
 func (l *View) SetDetail(pkg manager.Package, detail manager.Detail, err error) {
-	if l.opened == nil || inventory.Key(*l.opened) != inventory.Key(pkg) {
-		return
-	}
-	l.detailLoading = false
-	l.detail = detail
-	l.detailErr = ""
-	if err != nil {
-		l.detailErr = err.Error()
-	}
-}
-
-// panelSide is the panel's content: the package's page, or a line saying nothing is
-// open yet.
-func (l *View) panelSide(c *ui.Context) {
-	if l.opened == nil {
-		parts.Placeholder(c, locales.DetailNone())
-		return
-	}
-	summary := l.detail
-	summary.Version = cmp.Or(summary.Version, l.opened.Version)
-	summary.Latest = cmp.Or(summary.Latest, l.opened.LatestVersion)
-	parts.DetailPanel(c, parts.DetailPanelOptions{
-		Package:   *l.opened,
-		Detail:    summary,
-		Loading:   l.detailLoading,
-		Err:       l.detailErr,
-		OnOpenURL: l.OnOpenURL,
-		OnReveal:  l.OnReveal,
-		OnClose:   func() { l.Panel.Closed = true },
-	})
+	l.Page.Apply(pkg, detail, err)
 }
 
 func (l *View) cell(c *ui.Context, row, col int) {

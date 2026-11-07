@@ -17,7 +17,9 @@ import (
 func (a *Adapter) Detail(pkg manager.Package) (manager.Detail, error) {
 	output, err := util.Exec(a.ctx, a.info.ExecPath, []string{"show", pkg.Name}, nil)
 	if err != nil {
-		return manager.Detail{Name: pkg.Name, Version: pkg.Version}, err
+		// A package that is not installed here — a search result — has no local
+		// copy to read: its project's page is the registry's.
+		return pypi.Detail(a.ctx, pkg.Name)
 	}
 	detail := parseShow(output, pkg)
 	// The registry knows the current version; the installed copy does not. A

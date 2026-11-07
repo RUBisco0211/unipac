@@ -16,7 +16,8 @@ func (a Adapter) Detail(pkg manager.Package) (manager.Detail, error) {
 	venvsDir := a.venvsDir()
 	detail, err := pymeta.FromVenv(venvsDir+"/"+pkg.Name, pkg.Name)
 	if err != nil {
-		return manager.Detail{Name: pkg.Name, Version: pkg.Version}, err
+		// Not installed here: a search result has no environment to read.
+		return pypi.Detail(a.ctx, pkg.Name)
 	}
 	detail.Path = venvsDir + "/" + pkg.Name
 	if detail.Version == "" {

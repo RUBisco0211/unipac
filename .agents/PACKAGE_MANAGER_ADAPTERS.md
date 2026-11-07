@@ -143,6 +143,12 @@ formula's history is its tap's git log), and brew's publisher is the tap that
 ships the formula — Homebrew itself for its own taps — because a formula has no
 author field.
 
+Detail is also asked for packages that are not installed: the search page opens
+the same page for a result. A local source answers when there is one — brew's
+`info` reads its tap data for a formula that is not installed — and the python
+managers fall back to PyPI when there is no environment or site-packages to read,
+so a result shows the project's own words without a copy on the machine.
+
 Homebrew's `ListVersions` is `no` and stays there: `brew info --json=v2` reports
 one stable version and a head, and the versions a formula published before live
 only in the tap's git history, so there is no list to offer.

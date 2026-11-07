@@ -3,49 +3,52 @@ package list
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/locales"
 )
 
-// Opening a row shows its page in the panel and asks for the facts; the answer
-// fills the panel in.
+// The row the user clicked, as the page holds it.
+func openedPkg(t *testing.T, l *View) manager.Package {
+	t.Helper()
+	pkg, ok := l.Page.Pkg()
+	if !ok {
+		t.Fatal("no package is open")
+	}
+	return pkg
+}
+
+// A row opens its package's page in a dialog and asks for the facts; the answer
+// fills the page in.
 func TestRowClickOpensThePackagePage(t *testing.T) {
 	l := &View{Data: fixture(), AllowRemove: true}
 	var asked []manager.Package
 	l.OnDetail = func(pkg manager.Package) { asked = append(asked, pkg) }
 
-	tt := render(t, l.Build, 1100, 500)
-	if l.opened != nil {
+	tt := render(t, l.Build, 1100, 620)
+	if _, ok := l.Page.Pkg(); ok {
 		t.Fatal("a page opened before anything was clicked")
 	}
-	if tt.HasText(locales.DetailNone()) {
-		t.Errorf("the panel is showing with nothing opened: %v", tt.Texts())
-	}
 
-	// A click on the table's first row opens it.
-	// The click lands in the row, not on a control: the package's own
-	// description is text the table passes to the row.
+	// The click lands in the row, not on a control: the package's own description
+	// is text the table passes to the row.
 	if err := tt.Click("Line-oriented search tool"); err != nil {
 		t.Fatalf("click the row: %v", err)
 	}
 	tt.Frame()
-	if l.opened == nil || l.opened.Name != "ripgrep" {
-		t.Fatalf("opened = %+v, want ripgrep", l.opened)
+	pkg := openedPkg(t, l)
+	if pkg.Name != "ripgrep" {
+		t.Fatalf("opened %+v, want ripgrep", pkg)
 	}
 	if len(asked) != 1 || asked[0].Name != "ripgrep" {
 		t.Fatalf("asked for %v, want ripgrep's page", asked)
 	}
-	// The panel slides in; past its motion the page is drawn.
-	tt.Advance(300 * time.Millisecond)
-	tt.Frame()
-	if !tt.HasText(locales.DetailLoading()) {
-		t.Fatalf("the panel did not arrive: %v", tt.Texts())
+	if !l.Page.Open || !tt.HasText(locales.DetailLoading()) {
+		t.Errorf("the dialog does not say it is reading: %v", tt.Texts())
 	}
 
 	// The answer arrives and the page shows it.
-	l.SetDetail(*l.opened, manager.Detail{
+	l.SetDetail(pkg, manager.Detail{
 		Name: "ripgrep", Version: "14.1.1", Latest: "15.0.0",
 		Summary: "line-oriented search tool", Homepage: "https://github.com/BurntSushi/ripgrep",
 		Publisher: "Andrew Gallant", License: "MIT", Path: "/opt/homebrew/opt/ripgrep", Source: "brew",
@@ -53,14 +56,16 @@ func TestRowClickOpensThePackagePage(t *testing.T) {
 	tt.Frame()
 	for _, want := range []string{
 		"line-oriented search tool", "https://github.com/BurntSushi/ripgrep",
-		"Andrew Gallant", "MIT", "/opt/homebrew/opt/ripgrep", "brew", "15.0.0",
+		"Andrew Gallant", "MIT", "/opt/homebrew/opt/ripgrep",
+		locales.DetailSourceLine("brew"), "15.0.0",
 		locales.DetailPublisher(), locales.DetailLicense(), locales.DetailLocation(),
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("the page is missing %q: %v", want, tt.Texts())
 		}
 	}
-	// The path and the page are actable on.
+
+	// The page and the path are actable on.
 	var openedURL, revealed string
 	l.OnOpenURL = func(url string) { openedURL = url }
 	l.OnReveal = func(path string) { revealed = path }
@@ -77,15 +82,31 @@ func TestRowClickOpensThePackagePage(t *testing.T) {
 	if revealed != "/opt/homebrew/opt/ripgrep" {
 		t.Errorf("revealed %q", revealed)
 	}
+
+	// Closing the dialog puts the page away.
+	if err := tt.Click(locales.DetailClose()); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	tt.Frame()
+	if l.Page.Open {
+		t.Error("the dialog stayed open")
+	}
 }
 
 // A page read for one package never lands on another: the user may click a second
 // row while the first is still being read.
 func TestDetailForAnotherPackageIsDropped(t *testing.T) {
 	l := &View{Data: fixture(), AllowRemove: true, OnDetail: func(manager.Package) {}}
-	tt := render(t, l.Build, 1100, 500)
+	tt := render(t, l.Build, 1100, 620)
 	if err := tt.Click("Line-oriented search tool"); err != nil {
 		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	first := openedPkg(t, l)
+	// The dialog is modal: the next row is reached by closing it first, which is
+	// also when an answer for the package left behind can still arrive.
+	if err := tt.Click(locales.DetailClose()); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	tt.Frame()
 	if err := tt.Click("5.9.3"); err != nil {
@@ -93,7 +114,6 @@ func TestDetailForAnotherPackageIsDropped(t *testing.T) {
 	}
 	tt.Frame()
 
-	first := manager.Package{Name: "ripgrep", Manager: "brew", Version: "14.1.1"}
 	l.SetDetail(first, manager.Detail{Name: "ripgrep", Summary: "the first one's page"}, nil)
 	tt.Frame()
 	if tt.HasText("the first one's page") {
@@ -105,16 +125,15 @@ func TestDetailForAnotherPackageIsDropped(t *testing.T) {
 // what is missing.
 func TestDetailFailureStillShowsTheLocalFacts(t *testing.T) {
 	l := &View{Data: fixture(), AllowRemove: true, OnDetail: func(manager.Package) {}}
-	tt := render(t, l.Build, 1100, 500)
+	tt := render(t, l.Build, 1100, 620)
 	if err := tt.Click("Line-oriented search tool"); err != nil {
 		t.Fatalf("click: %v", err)
 	}
 	tt.Frame()
-	tt.Advance(300 * time.Millisecond)
 
-	l.SetDetail(*l.opened, manager.Detail{
+	l.SetDetail(openedPkg(t, l), manager.Detail{
 		Name: "ripgrep", Version: "14.1.1", Path: "/opt/homebrew/opt/ripgrep", Source: "brew",
-	}, errors.New("registry.npmjs.org answered 504"))
+	}, errors.New("crates.io answered 504"))
 	tt.Frame()
 	if !tt.HasText("/opt/homebrew/opt/ripgrep") {
 		t.Errorf("the local facts are missing: %v", tt.Texts())
@@ -124,36 +143,33 @@ func TestDetailFailureStillShowsTheLocalFacts(t *testing.T) {
 	}
 }
 
-// Closing the panel leaves the table alone, and a further click opens it again.
-func TestDetailPanelClosesAndReopens(t *testing.T) {
+// The same row opens the page again without reading it a second time, and a
+// different row replaces what the dialog shows.
+func TestPackagePageFollowsTheRow(t *testing.T) {
 	l := &View{Data: fixture(), AllowRemove: true, OnDetail: func(manager.Package) {}}
-	tt := render(t, l.Build, 1100, 500)
+	tt := render(t, l.Build, 1100, 620)
 	if err := tt.Click("Line-oriented search tool"); err != nil {
 		t.Fatalf("click: %v", err)
 	}
 	tt.Frame()
-	if l.Panel.Closed {
-		t.Fatal("the panel did not open")
+	if !l.Page.Open {
+		t.Fatal("the page did not open")
 	}
-	tt.Advance(300 * time.Millisecond)
-	tt.Frame()
+
+	asked := 0
+	l.OnDetail = func(manager.Package) { asked++ }
 	if err := tt.Click(locales.DetailClose()); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 	tt.Frame()
-	tt.Advance(300 * time.Millisecond)
-	tt.Frame()
-	if !l.Panel.Closed {
-		t.Fatal("the panel stayed open")
-	}
-	// The same row opens it again without reading the page a second time.
-	asked := 0
-	l.OnDetail = func(manager.Package) { asked++ }
-	if err := tt.Click("Line-oriented search tool"); err != nil {
-		t.Fatalf("click again: %v", err)
+	if err := tt.Click("5.9.3"); err != nil {
+		t.Fatalf("click the second row: %v", err)
 	}
 	tt.Frame()
-	if l.Panel.Closed || asked != 0 {
-		t.Fatalf("reopening read the page again: closed=%v reads=%d", l.Panel.Closed, asked)
+	if pkg := openedPkg(t, l); pkg.Name != "typescript" {
+		t.Fatalf("opening the second row left %q in the dialog", pkg.Name)
+	}
+	if asked != 1 {
+		t.Fatalf("the second package was read %d times, want once", asked)
 	}
 }

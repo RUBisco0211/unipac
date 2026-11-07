@@ -152,7 +152,6 @@ func New(service inventory.Service) *UI {
 		OnOpenURL:    u.OpenURL,
 		OnReveal:     u.RevealPath,
 	}
-	u.installed.Panel.Width = 380
 	u.outdated = &list.View{
 		Data:         u.data,
 		OutdatedOnly: true,
@@ -163,7 +162,6 @@ func New(service inventory.Service) *UI {
 		OnOpenURL:    u.OpenURL,
 		OnReveal:     u.RevealPath,
 	}
-	u.outdated.Panel.Width = 380
 	u.search = &search.View{
 		Data:             u.data,
 		Submit:           u.Search,
@@ -171,6 +169,9 @@ func New(service inventory.Service) *UI {
 		OnUpdate:         u.Update,
 		OnVersions:       u.Versions,
 		OnInstallVersion: u.InstallVersion,
+		OnDetail:         u.PackageDetail,
+		OnOpenURL:        u.OpenURL,
+		OnReveal:         u.RevealPath,
 	}
 	u.tasks = &taskspage.View{
 		Data:          u.data,
@@ -358,11 +359,11 @@ func (u *UI) PackageDetail(pkg manager.Package) {
 	go func() {
 		detail, err := u.svc.PackageDetail(pkg.Manager, pkg.Name, pkg.Version)
 		win.Update(func() {
-			if u.page == PageOutdated {
-				u.outdated.SetDetail(pkg, detail, err)
-				return
-			}
+			// The answer goes to every page that could have asked; a page whose
+			// dialog is about another package drops it.
 			u.installed.SetDetail(pkg, detail, err)
+			u.outdated.SetDetail(pkg, detail, err)
+			u.search.SetDetail(pkg, detail, err)
 		})
 	}()
 }

@@ -231,7 +231,7 @@
   "detailLocation": "位置",
   "detailReveal": "显示",
   "detailSource": "来源",
-  "detailClose": "关闭详情",
+  "detailClose": "关闭",
   "detailIncomplete": "部分信息未能读取：{error}",
   "versionsTitle": "选择安装版本",
   "versionsFor": "选择 {name} 的版本（来自 {manager}）",
@@ -259,5 +259,6 @@
   "settingsClearHistoryMessage": "将删除已结束的任务及其控制台输出，正在运行的任务不受影响。",
   "settingsClearHistoryConfirm": "清空",
   "settingsStartupScanToggle": "切换启动时扫描开关",
-  "settingsHoldToConfirmToggle": "切换长按确认开关"
+  "settingsHoldToConfirmToggle": "切换长按确认开关",
+  "detailSourceLine": "详情来自 {source}"
 }
