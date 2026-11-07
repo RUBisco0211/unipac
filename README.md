@@ -7,9 +7,11 @@
 
 [![Listed on Awesome MyGo](https://awesomemygo.dev/badge.svg)](https://awesomemygo.dev/apps/unipac)
 
+Inspired by [Devolutions/UniGetUI](https://github.com/Devolutions/UniGetUI).
+
 UniPac is a desktop package manager: one place to inspect and act on packages
 installed through different package managers, without learning each manager's
-command line.
+command line interfaces.
 
 The window is native Go, drawn by [MyGo](https://github.com/egoist/mygo) with
 controls from [Onevra](https://github.com/oneo-me/onevra). One binary, no
