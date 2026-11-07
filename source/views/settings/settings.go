@@ -767,20 +767,23 @@ func linkItem(id, title string, keywords []string, link func(*ui.Context)) compo
 			t := c.Theme()
 			ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(4)).AlignItems(ui.Center).Children(func() {
 				components.Text(c, title).FontSize(12).TextColor(t.TextMuted).Width(t.Space(25)).Shrink(0)
-				ui.Box(c).Grow(1).MinWidth(0).Children(func() { link(c) })
+				ui.Box(c).Grow(1).MinWidth(0).ClipX().Children(func() { link(c) })
 			})
 		},
 	}
 }
 
-// dataDirLink is the folder the app writes to, which the file manager opens.
+// dataDirLink is the folder the app writes to, which the file manager opens. A
+// link is a text node, so its visible words are its address and its name for
+// assistive technology: the tooltip says what clicking it does.
 func (s *View) dataDirLink(c *ui.Context) {
 	if s.about.DataDir == "" || s.OnOpenPath == nil {
 		components.Text(c, parts.OrDash(s.about.DataDir)).FontSize(12).TextColor(c.Theme().TextMuted)
 		return
 	}
 	path := s.about.DataDir
-	link := components.Button(c, path, components.ButtonLink).Label(locales.AboutOpen(locales.AboutDataDir()))
+	link := components.Button(c, path, components.ButtonLink)
+	components.Tooltip(c, link, locales.AboutOpen(locales.AboutDataDir()))
 	if link.Clicked() {
 		s.OnOpenPath(path)
 	}
@@ -793,7 +796,8 @@ func (s *View) repositoryLink(c *ui.Context) {
 		return
 	}
 	url := s.about.Repository
-	link := components.Button(c, url, components.ButtonLink).Label(locales.AboutRepositoryOpen())
+	link := components.Button(c, url, components.ButtonLink)
+	components.Tooltip(c, link, locales.AboutRepositoryOpen())
 	if link.Clicked() {
 		s.OnOpenURL(url)
 	}

@@ -94,7 +94,8 @@ func TestManagerPageShowsItsWebsite(t *testing.T) {
 	if !tt.HasText("https://brew.sh") {
 		t.Fatalf("the website is missing: %v", tt.Texts())
 	}
-	if err := tt.Click(locales.SettingsManagerWebsiteOpen()); err != nil {
+	// The address is the link itself.
+	if err := tt.Click("https://brew.sh"); err != nil {
 		t.Fatalf("click: %v", err)
 	}
 	tt.Frame()

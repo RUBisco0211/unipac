@@ -540,6 +540,12 @@ Onevra decides that layout; the page supplies the catalog. Do not hand-build a
 sidebar or a search field again — the reason the app has no managers page is that
 this surface searches settings and manager overrides together.
 
+A place on the About category and a manager's website are links, not addresses
+with a button beside them: the address itself is the control, in the accent color,
+with the tooltip naming what clicking it does. A link is a text node in MyGo, so
+its visible words are also its name for assistive technology — the address is what
+a reader wants to see and what a screen reader reads.
+
 The catalog is two sidebar sections. The first is the app's settings:
 
 - General — the appearance (the system's, or a pinned light or dark one, applied
@@ -573,8 +579,8 @@ holds Enabled and Executable with its path field and Apply, and comes first
 because it is what a user opened the page to change. The second holds Status,
 Version, Packages (counted from `Data.Rows` and rebuilt only when `Data.Version`
 changes), Website and Capabilities, and changes nothing. Website is the address
-the adapter declares in its `Info`, shown as the row's caption with the window's
-way to open it in the browser; `adapters`' own test asks every registered adapter
+the adapter declares in its `Info`, drawn as a link to click in place, as the About
+category's folder and repository are; `adapters`' own test asks every registered adapter
 for one, so a new adapter cannot silently leave the row empty. Status is a badge, not a colored
 word: a check in green when the executable answered, a cross in red when it did
 not, which is how the capability badges below it are read too. Version wears the

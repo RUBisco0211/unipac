@@ -198,22 +198,24 @@ func (s *View) managerInfoItems(row *managerRow) []components.SettingsItem {
 			Keywords: []string{id, "packages", "count", "installed"},
 			Build:    func(c *ui.Context) { factValue(c, s.packageCount(id)) },
 		},
-		{
-			ID:          "website",
-			Title:       locales.SettingsManagerWebsite(),
-			Description: info.Website,
-			Keywords:    []string{id, "website", "homepage", "docs", "documentation"},
-			Build: func(c *ui.Context) {
+		// The address is the link itself, clicked in place as on a web page,
+		// rather than a button beside it.
+		linkItem("website", locales.SettingsManagerWebsite(),
+			[]string{id, "website", "homepage", "docs", "documentation"},
+			func(c *ui.Context) {
 				if info.Website == "" || s.OnOpenURL == nil {
+					components.Text(c, parts.OrDash(info.Website)).FontSize(12).TextColor(c.Theme().TextMuted)
 					return
 				}
+				// A link is a text node: its visible words are its address.
 				url := info.Website
-				open := components.Button(c, locales.SettingsManagerWebsiteOpen(), components.ButtonGhost).Shrink(0)
-				if open.Clicked() {
+				link := components.Button(c, url, components.ButtonLink)
+				components.Tooltip(c, link, locales.SettingsManagerWebsiteOpen())
+				if link.Clicked() {
 					s.OnOpenURL(url)
 				}
 			},
-		},
+		),
 		{
 			ID:       "capabilities",
 			Title:    locales.SettingsCapabilities(),

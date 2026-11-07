@@ -386,14 +386,15 @@ func TestAboutOpensItsPlaces(t *testing.T) {
 
 	tt := render(t, s.Build, 1200, 900)
 	choose(t, tt, locales.SettingsAbout())
-	if err := tt.Click(locales.AboutOpen(locales.AboutDataDir())); err != nil {
+	// The folder's path is the link itself.
+	if err := tt.Click(s.about.DataDir); err != nil {
 		t.Fatalf("open the data folder: %v", err)
 	}
 	if len(opened) != 1 || opened[0] != s.about.DataDir {
 		t.Fatalf("opened %v, want the data folder", opened)
 	}
 	tt.Frame()
-	if err := tt.Click(locales.AboutRepositoryOpen()); err != nil {
+	if err := tt.Click(s.about.Repository); err != nil {
 		t.Fatalf("open the repository: %v", err)
 	}
 	tt.Frame()

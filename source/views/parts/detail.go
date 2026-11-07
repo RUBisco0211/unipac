@@ -200,7 +200,9 @@ func linkRow(c *ui.Context, label, value string, loading bool, open func(string)
 			components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
 			return
 		}
-		link := components.Button(c, value, components.ButtonLink).Label(value)
+		// A link is a text node: its visible words are its address, which is what
+		// a reader wants to see and what a screen reader reads.
+		link := components.Button(c, value, components.ButtonLink)
 		if link.Clicked() {
 			open(value)
 		}
