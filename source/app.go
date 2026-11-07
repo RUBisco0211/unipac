@@ -250,10 +250,13 @@ func (a *App) ClearTaskHistory() error {
 	return nil
 }
 
-// Notifications reports whether a finished operation of this kind is announced,
-// when it succeeded or when it failed.
+// Notifications reports the saved switch of one operation and outcome, whether
+// the master switch is on or not: this is what Settings shows and reverts
+// against, and the switch must not disappear because it is not in effect. The
+// master switch gates the announcements themselves, in the shell and in the
+// page's Notifies.
 func (a *App) Notifications(kind tasks.Kind, succeeded bool) bool {
-	return config.Instance.NotifiesEnabled() && config.Instance.Notifies(kind, succeeded)
+	return config.Instance.Notifies(kind, succeeded)
 }
 
 // NotificationsEnabled reports whether the app announces anything at all.
@@ -261,9 +264,10 @@ func (a *App) NotificationsEnabled() bool {
 	return config.Instance.NotifiesEnabled()
 }
 
-// NotifyUpdates reports whether a scan that finds updates says so.
+// NotifyUpdates reports the saved updates switch, whatever the master switch
+// says; see Notifications.
 func (a *App) NotifyUpdates() bool {
-	return config.Instance.NotifiesEnabled() && config.Instance.NotifiesUpdates()
+	return config.Instance.NotifiesUpdates()
 }
 
 // NotificationKinds is the operations Settings offers a notification switch for.

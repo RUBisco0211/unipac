@@ -367,7 +367,7 @@ func (s *View) notifyCategory(section string) components.SettingsCategory {
 func (s *View) notifyOperationItems() []components.SettingsItem {
 	items := make([]components.SettingsItem, 0, len(s.notifyKinds))
 	for _, kind := range s.notifyKinds {
-		outcome := s.notify.forKind(kind)
+		outcome := s.notify.ForKind(kind)
 		if outcome == nil {
 			continue
 		}
@@ -411,7 +411,7 @@ func (s *View) notifyOutcomeBox(c *ui.Context, kind tasks.Kind, outcome *Outcome
 // Notifies reports whether a finished operation of this kind and outcome is
 // announced. The master switch is read here, so no caller has to remember it.
 func (s *View) Notifies(kind tasks.Kind, succeeded bool) bool {
-	outcome := s.notify.forKind(kind)
+	outcome := s.notify.ForKind(kind)
 	if outcome == nil || !s.notify.Enabled {
 		return false
 	}
@@ -444,9 +444,9 @@ type Outcome struct {
 	Success, Failure bool
 }
 
-// forKind is the switches a checkbox binds to, nil for a kind this build does not
-// know.
-func (n *Notify) forKind(kind tasks.Kind) *Outcome {
+// ForKind is the switches of one operation, nil for a kind this build does not
+// know. Exported because the shell's tests read what a write answered with.
+func (n *Notify) ForKind(kind tasks.Kind) *Outcome {
 	switch kind {
 	case tasks.KindInstall:
 		return &n.Install
@@ -466,7 +466,7 @@ func NotifyFrom(service inventory.Service) Notify {
 		Updates: service.NotifyUpdates(),
 	}
 	for _, kind := range service.NotificationKinds() {
-		if outcome := notify.forKind(kind); outcome != nil {
+		if outcome := notify.ForKind(kind); outcome != nil {
 			outcome.Success = service.Notifications(kind, true)
 			outcome.Failure = service.Notifications(kind, false)
 		}
