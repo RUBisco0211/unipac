@@ -493,28 +493,19 @@ func TestFailedSaveSaysSo(t *testing.T) {
 	if !tt.HasText(locales.SettingsSaveError("permission denied")) {
 		t.Errorf("the failure is not shown: %v", tt.Texts())
 	}
-	if s.busy {
-		t.Error("the page is still busy after the save failed")
-	}
 }
 
-// Revert puts the controls back on what the backend last reported without
-// ending the write: a dropped change is not an outcome, and the category stays
-// busy until the write that beat it lands.
-func TestRevertKeepsThePageBusy(t *testing.T) {
+// Revert puts the controls back on what the backend last reported: a write that
+// answered installs its answer through here, and a refused path edit must not
+// stay on screen as if it had been saved. It says nothing about the error line —
+// that is the write's outcome, which EndSave owns.
+func TestRevertRestoresTheSavedState(t *testing.T) {
 	s := settingsFixture()
-	s.BeginSave()
 	s.notify.Enabled = false
 	s.theme = "dark"
 
 	s.Revert(Snapshot{AutoScan: true, Notify: Notify{Enabled: true}, Theme: ""})
-	if !s.busy {
-		t.Fatal("the revert ended the write that is still running")
-	}
 	if !s.notify.Enabled || s.theme != "" {
 		t.Fatalf("controls = notifications %v theme %q, want the snapshot's", s.notify.Enabled, s.theme)
-	}
-	if s.err != "" {
-		t.Errorf("a dropped change reported an error: %q", s.err)
 	}
 }

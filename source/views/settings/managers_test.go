@@ -324,35 +324,10 @@ func TestFailedManagerSaveSaysSo(t *testing.T) {
 	tt.Frame()
 	s.EndSave(errors.New("permission denied"), Snapshot{})
 	tt.Frame()
-	if s.busy {
-		t.Error("the page is still busy after the save failed")
-	}
 	if !tt.HasText(locales.SettingsSaveError("permission denied")) {
 		t.Errorf("the failure is not shown: %v", tt.Texts())
 	}
 	if s.managers.rows[0].path != "/tmp/draft" {
 		t.Errorf("the draft was thrown away: %q", s.managers.rows[0].path)
-	}
-}
-
-// A dropped change keeps the page busy and the draft on screen: nothing failed,
-// the write that beat it is still running, and a rebuild never eats typing.
-func TestDroppedManagerChangeKeepsTheDraft(t *testing.T) {
-	s := settingsFixture()
-	tt := render(t, s.Build, 1200, 900)
-	choose(t, tt, "Homebrew")
-
-	s.BeginSave()
-	s.managers.rows[0].path = "/tmp/draft"
-	s.Revert(Snapshot{})
-	tt.Frame()
-	if !s.busy {
-		t.Fatal("the revert ended the write that is still running")
-	}
-	if s.managers.rows[0].path != "/tmp/draft" {
-		t.Fatalf("draft = %q, want the rebuild to have carried it over", s.managers.rows[0].path)
-	}
-	if s.err != "" {
-		t.Errorf("a dropped change reported an error: %q", s.err)
 	}
 }

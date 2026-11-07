@@ -743,47 +743,63 @@ func TestSettingsShortcutOpensTheWindow(t *testing.T) {
 	}
 }
 
-// A settings write that lands while another is running is dropped, and the
-// control that moved goes back to what the backend last reported: the switch
-// must not show a state the config does not hold.
-func TestSecondSettingsWriteIsDroppedAndReverted(t *testing.T) {
-	svc := wiredService{}
+// Writes that arrive while one is running queue behind it and run in the order
+// they were made: nothing is dropped, and no control is disabled while a write
+// runs — disabling the page on every change is what made it flash.
+func TestQueuedSettingsWritesRunInTheOrderTheyWereMade(t *testing.T) {
+	svc := &recordingService{calls: make(chan string, 8)}
 	u := New(svc)
 	if u.shell != nil {
 		t.Fatal("New built a shell outside Run")
 	}
-	// The guard needs a shell; drive the state machine through the page
-	// directly, which is what the shell does around saveSettings.
-	u.settings.OnSetTheme = u.SetTheme
 	if u.saving {
 		t.Fatal("no write is running yet")
 	}
-	// First write starts and stays in flight.
+
+	// The first write is in flight; two more arrive while it runs.
 	u.saving = true
-	u.settings.BeginSave()
-
-	// A second change flips the control, then is dropped: the control goes
-	// back to the snapshot the backend last reported, while the first write
-	// keeps the page busy. The change is made where the switch is bound, which
-	// is the page's own state; the shell holds only what it last reported.
-	u.settings.Revert(settings.Snapshot{Notify: settings.Notify{
-		Enabled:   true,
-		Install:   settings.Outcome{Success: true, Failure: true},
-		Update:    settings.Outcome{Success: true, Failure: false},
-		Uninstall: settings.Outcome{Success: true, Failure: true},
-		Updates:   true,
-	}})
-	u.settings.OnSetNotify = u.SetNotifications
-	u.SetNotifications(tasks.KindInstall, true, false)
-	if !u.settings.Notifies(tasks.KindInstall, true) {
-		t.Fatal("the dropped change should have been reverted to the snapshot")
+	u.SetNotifications(tasks.KindInstall, true, true)
+	u.SetNotifications(tasks.KindUpdate, true, true)
+	select {
+	case got := <-svc.calls:
+		t.Fatalf("a queued write ran early: %q", got)
+	default:
 	}
-	if u.saving != true {
-		t.Fatal("the first write should still be running")
+	if len(u.pendingSaves) != 2 {
+		t.Fatalf("%d writes queued, want 2", len(u.pendingSaves))
 	}
 
-	// The first write lands and reports the backend's answer; the shell clears
-	// the guard before handing the snapshot to the page.
+	// The in-flight write lands; the queue runs one at a time, in order.
 	u.saving = false
-	u.settings.EndSave(nil, settings.Snapshot{Notify: settings.NotifyFrom(u.svc), Theme: ""})
+	u.runPendingSaves()
+	for _, want := range []string{"install", "update"} {
+		select {
+		case got := <-svc.calls:
+			if got != want {
+				t.Fatalf("queued writes ran as %q, want %q", got, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("the queued write %q never ran", want)
+		}
+	}
+	select {
+	case got := <-svc.calls:
+		t.Fatalf("an extra write ran: %q", got)
+	default:
+	}
+	if u.saving {
+		t.Error("a write is still running after the queue drained")
+	}
+}
+
+// recordingService records the writes it is asked for, one signal per call, so
+// the test can read them in order.
+type recordingService struct {
+	wiredService
+	calls chan string
+}
+
+func (s *recordingService) SetNotifications(kind tasks.Kind, succeeded, on bool) error {
+	s.calls <- string(kind)
+	return nil
 }

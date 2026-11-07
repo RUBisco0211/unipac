@@ -145,8 +145,7 @@ func (s *View) managerSettingItems(row *managerRow) []components.SettingsItem {
 			Keywords: []string{id, "use", "enable", "disable"},
 			Build: func(c *ui.Context) {
 				before := row.enabled
-				sw := components.Switch(c, &row.enabled, locales.SettingsEnableManager(info.Name), components.SwitchOptions{HideLabel: true})
-				sw.Disabled(s.busy)
+				components.Switch(c, &row.enabled, locales.SettingsEnableManager(info.Name), components.SwitchOptions{HideLabel: true})
 				if row.enabled != before && s.OnSetManagerEnabled != nil {
 					s.OnSetManagerEnabled(id, row.enabled)
 				}
@@ -250,7 +249,7 @@ func (s *View) executableAction(c *ui.Context, row *managerRow) {
 		}
 		apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost)
 		apply.Label(locales.SettingsApplyPathFor(row.info.Name))
-		apply.Disabled(s.busy || strings.TrimSpace(row.path) == row.saved)
+		apply.Disabled(strings.TrimSpace(row.path) == row.saved)
 		if apply.Clicked() {
 			s.applyPath(row)
 		}
@@ -287,7 +286,6 @@ func (s *View) sectionAction(managersSection string) func(*ui.Context, string) {
 			label = locales.SettingsDetecting()
 		}
 		button := components.IconButton(c, lucide.RefreshCcw(), label, components.IconButtonCompact)
-		button.Disabled(s.busy)
 		if button.Clicked() && s.OnReloadManagers != nil {
 			s.managers.detecting = true
 			s.OnReloadManagers()

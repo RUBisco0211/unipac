@@ -573,11 +573,14 @@ rebuilt only when `Data.ManagersVersion` changes, so an unapplied draft survives
 the frames in between.
 
 Writes are background jobs (`UI.saveSettings`): a path change preflights a
-subprocess and every write touches the config file. The guard is one write at a
-time — the app's settings and the managers' overrides are the same file, so they
-share it and one error line — and the control moves first while the job publishes
-what the backend reports; a failed or dropped write puts the rows back and, when
-it failed, shows the error above the surface. Turning a manager off or changing
+subprocess and every write touches the config file. Writes never run two at a
+time — the app's settings and the managers' overrides are the same file — but
+they queue rather than keep the page from being used: a change made while one
+write runs applies when it lands, in the order it was made, and no control is
+disabled meanwhile. Disabling the page for the duration of a write is what made
+it flash on every change. The control moves first; the write publishes what the
+backend reports when it lands, a failed write puts the rows back and shows the
+error above the surface, and the error line is the last write's. Turning a manager off or changing
 its path asks for a rescan, so its rows leave the lists.
 
 A write is published in the settings window and the lists it changes are then

@@ -99,11 +99,10 @@ type UI struct {
 	// behind them; Run installs it.
 	openSettings func()
 
-	// saving says a settings write is running, so a second change waits rather
-	// than racing the config file. lastSnapshot is what the backend last
-	// reported, which is what a dropped change's controls go back to.
+	// saving says a settings write is running; pendingSaves holds the writes
+	// that arrived meanwhile, which run in order when it lands.
 	saving       bool
-	lastSnapshot settings.Snapshot
+	pendingSaves []func()
 
 	// quitOpen shows the window's own quit dialog, and quitPending says how many
 	// tasks it is about. quitAccepted is set once the user chose to leave
@@ -195,17 +194,6 @@ func New(service inventory.Service) *UI {
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
 	u.settings.OnSetHold = u.SetHoldToConfirm
-	// The controls bind to what the backend last reported, so a change dropped
-	// because another write is running goes back to this.
-	u.lastSnapshot = settings.Snapshot{
-		AutoScan:      service.AutoScanOnLaunch(),
-		LogLevel:      service.LogLevel(),
-		Language:      service.Language(),
-		Theme:         service.Theme(),
-		Accent:        service.Accent(),
-		HoldToConfirm: service.HoldToConfirm(),
-		Notify:        settings.NotifyFrom(service),
-	}
 	return u
 }
 
@@ -1286,22 +1274,28 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 	if u.settings == nil {
 		return
 	}
-	if u.saving || u.shell == nil || u.settingsShell == nil {
-		// A second change while one write runs would race the config file, so
-		// it is dropped and its controls go back to what the backend last
-		// reported, without an error: nothing failed, and the write that is
-		// running keeps the page busy. No window means nothing is on screen to
-		// change, and a change arriving then is dropped the same way.
-		u.settings.Revert(u.lastSnapshot)
+	if u.saving {
+		// One write at a time touches the config file; the rest queue behind it
+		// and run, in the order they were made, when it lands. Nothing is
+		// dropped and no control is disabled while a write runs — disabling the
+		// page on every change is what made it flash.
+		u.pendingSaves = append(u.pendingSaves, func() { u.saveSettings(rescan, fn) })
 		return
 	}
 	u.saving = true
 	s := u.settings
 	s.BeginSave()
 	// The page is published in its own window; the lists it changes are in the
-	// other one, which is asked for a frame after the data moved.
-	settingsWin := u.settingsShell.Window()
-	mainWin := u.shell.Window()
+	// other one, which is asked for a frame after the data moved. Either may
+	// have closed by the time the write lands, in which case what remains
+	// publishes plainly: the state moves all the same.
+	var settingsWin, mainWin *mygo.Window
+	if u.settingsShell != nil {
+		settingsWin = u.settingsShell.Window()
+	}
+	if u.shell != nil {
+		mainWin = u.shell.Window()
+	}
 	go func() {
 		err := fn()
 		managers := u.svc.ListManagers()
@@ -1315,20 +1309,41 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			HoldToConfirm: u.svc.HoldToConfirm(),
 			Notify:        settings.NotifyFrom(u.svc),
 		}
-		settingsWin.Update(func() {
+		publish := func(f func()) {
+			switch {
+			case settingsWin != nil:
+				settingsWin.Update(f)
+			case mainWin != nil:
+				mainWin.Update(f)
+			default:
+				f()
+			}
+		}
+		publish(func() {
 			u.saving = false
-			if err == nil {
-				u.lastSnapshot = saved
-			}
 			s.EndSave(err, saved)
-			if err != nil {
-				return
+			if err == nil {
+				u.data.SetManagers(managers, overrides)
+				if mainWin != nil {
+					mainWin.Invalidate()
+				}
 			}
-			u.data.SetManagers(managers, overrides)
-			mainWin.Invalidate()
 			if rescan {
 				u.Refresh()
 			}
+			u.runPendingSaves()
 		})
 	}()
+}
+
+// runPendingSaves starts the first write that queued behind the one which just
+// landed; the rest follow when it lands, one at a time, so the config file is
+// never written twice at once and each write answers with the state it produced.
+func (u *UI) runPendingSaves() {
+	if u.saving || len(u.pendingSaves) == 0 {
+		return
+	}
+	next := u.pendingSaves[0]
+	u.pendingSaves = u.pendingSaves[1:]
+	next()
 }

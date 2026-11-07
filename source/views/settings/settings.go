@@ -92,10 +92,7 @@ type View struct {
 	// window's drag strip when content runs behind it. The page pads its error
 	// line by it; zero is a window that insets the page instead.
 	TopInset float32
-	// busy is true while a save runs; controls stay in place and are disabled
-	// instead of vanishing.
-	busy bool
-	err  string
+	err      string
 	// clearOpen asks for a confirmation of the history clear, which is a dialog
 	// rather than a hold: clearing history is not irreversible like uninstalling
 	// is, and a dialog can say exactly what will be dropped.
@@ -144,18 +141,17 @@ type Snapshot struct {
 	Notify Notify
 }
 
-// BeginSave marks the page busy for one settings write. The shell owns the guard
-// that keeps two writes from racing; this only disables the controls.
+// BeginSave opens one settings write: the error line of the write before it
+// goes, since the page is about to report this one. The shell owns the
+// sequencing; writes queue, so no control is disabled while one runs.
 func (s *View) BeginSave() {
-	s.busy = true
 	s.err = ""
 }
 
 // Revert puts the controls back on what the backend last reported, without
 // ending the write: a change dropped because another write is running is not
-// an error, and the page stays busy until that write lands. The manager rows
-// are rebuilt from the backend for the same reason a dropped path edit must not
-// stay on screen.
+// an error. The manager rows are rebuilt from the backend for the same reason a
+// refused path edit must not stay on screen.
 func (s *View) Revert(saved Snapshot) {
 	s.AutoScan = saved.AutoScan
 	s.logLevel = saved.LogLevel
@@ -169,7 +165,6 @@ func (s *View) Revert(saved Snapshot) {
 
 // EndSave installs what the backend now reports and the write's error, if any.
 func (s *View) EndSave(err error, saved Snapshot) {
-	s.busy = false
 	s.managers.detecting = false
 	s.Revert(saved)
 	if err != nil {
@@ -350,7 +345,7 @@ func (s *View) notifyCategory(section string) components.SettingsCategory {
 					Build: func(c *ui.Context) {
 						before := s.notify.Updates
 						sw := components.Switch(c, &s.notify.Updates, locales.SettingsNotifyUpdatesToggle(), components.SwitchOptions{HideLabel: true})
-						sw.Disabled(s.busy || !s.notify.Enabled)
+						sw.Disabled(!s.notify.Enabled)
 						if s.notify.Updates != before && s.OnSetNotifyUpdates != nil {
 							s.OnSetNotifyUpdates(s.notify.Updates)
 						}
@@ -402,7 +397,7 @@ func (s *View) notifyOutcomeBox(c *ui.Context, kind tasks.Kind, outcome *Outcome
 	// Three "Failure" boxes on one page would read the same to a screen reader:
 	// the accessible name says which operation it belongs to.
 	box.Label(locales.SettingsNotifyOutcome(notifyLabel(kind), label))
-	box.Disabled(s.busy || !s.notify.Enabled)
+	box.Disabled(!s.notify.Enabled)
 	if *value != before && s.OnSetNotify != nil {
 		s.OnSetNotify(kind, succeeded, *value)
 	}
@@ -498,8 +493,7 @@ func (s *View) switchAction(c *ui.Context, value *bool, label string, set func(b
 	// The switch's accessible name is its own phrase, not the row title: the
 	// title text beside it already says the setting, and a control named exactly
 	// like its caption reads twice to a screen reader.
-	sw := components.Switch(c, value, label, components.SwitchOptions{HideLabel: true})
-	sw.Disabled(s.busy)
+	components.Switch(c, value, label, components.SwitchOptions{HideLabel: true})
 	if *value != before && set != nil {
 		set(*value)
 	}
@@ -514,7 +508,6 @@ func (s *View) appearanceAction(c *ui.Context) {
 	sel.Trigger.Label(locales.SettingsAppearance()).Width(150).Children(func() {
 		components.Text(c, appearanceLabel(s.theme)).SingleLine()
 	})
-	sel.Trigger.Disabled(s.busy)
 	sel.Popup(func(panel ui.Element) {
 		for _, value := range []string{"", "light", "dark"} {
 			sel.Item(value).Label(appearanceLabel(value)).Children(func() {
@@ -536,7 +529,6 @@ func (s *View) accentAction(c *ui.Context) {
 	sel.Trigger.Label(locales.SettingsAccent()).Width(150).Children(func() {
 		accentChoice(c, s.accent)
 	})
-	sel.Trigger.Disabled(s.busy)
 	sel.Popup(func(panel ui.Element) {
 		for _, value := range s.accents {
 			sel.Item(value).Label(accentLabel(value)).Children(func() {
@@ -573,7 +565,6 @@ func (s *View) logLevelAction(c *ui.Context) {
 	sel.Trigger.Label(locales.SettingsLogLevel()).Width(130).Children(func() {
 		components.Text(c, logLevelLabel(s.logLevel)).SingleLine()
 	})
-	sel.Trigger.Disabled(s.busy)
 	sel.Popup(func(panel ui.Element) {
 		for _, level := range s.levels {
 			sel.Item(level).Label(logLevelLabel(level)).Children(func() {
@@ -592,7 +583,6 @@ func (s *View) languageAction(c *ui.Context) {
 	sel.Trigger.Label(locales.SettingsLanguage()).Width(150).Children(func() {
 		components.Text(c, languageLabel(s.language)).SingleLine()
 	})
-	sel.Trigger.Disabled(s.busy)
 	sel.Popup(func(panel ui.Element) {
 		item := sel.Item("")
 		item.Label(locales.SettingsLanguageSystem()).Children(func() {
@@ -615,7 +605,6 @@ func (s *View) languageAction(c *ui.Context) {
 func (s *View) clearHistoryAction(c *ui.Context) {
 	clear := components.Button(c, locales.SettingsClearHistory(), components.ButtonOutline)
 	clear.TextColor(c.Theme().Danger)
-	clear.Disabled(s.busy)
 	if clear.Clicked() {
 		s.clearOpen = true
 	}
@@ -638,8 +627,7 @@ func (s *View) clearDialog(c *ui.Context) {
 					}
 					confirm := components.Button(c, locales.SettingsClearHistoryConfirm(), components.ButtonOutline)
 					confirm.TextColor(t.Danger)
-					confirm.Disabled(s.busy)
-					if confirm.Clicked() && !s.busy {
+					if confirm.Clicked() {
 						s.clearOpen = false
 						if s.OnClearHistory != nil {
 							s.OnClearHistory()
