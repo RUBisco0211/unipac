@@ -126,6 +126,13 @@ proxy there expects; the settings row offers the desktop's own proxy
 (`util.SystemProxy`, `scutil --proxy`) for the case where System Settings has one
 and the app's environment does not.
 
+A system proxy's scheme is `http` whatever traffic it carries: `scutil`'s
+`HTTPSProxy` names the proxy that HTTPS traffic goes through, not a proxy spoken to
+over TLS, and it is reached over plain HTTP with CONNECT. Writing that entry as
+`https://` made every request fail with `proxyconnect tcp: EOF` — including the
+registry reads behind a package's page — so `proxyScheme` maps both of `scutil`'s
+HTTP entries to `http` and only its SOCKS entry to `socks5`.
+
 The backend manager registry is the source of truth for which package managers exist. The views must not maintain a parallel list of managers such as `brew`, `npm`, `pip`, or `cargo`.
 
 ### Registry

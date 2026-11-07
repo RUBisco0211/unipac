@@ -49,13 +49,16 @@ func parseScutilProxy(out string) string {
 	return ""
 }
 
-// proxyScheme names the scheme of a proxy scutil calls kind: its SOCKS is a
-// SOCKS5, which is what http.Client dials.
+// proxyScheme names the scheme to reach a proxy scutil calls kind. Its HTTP and
+// HTTPS entries both name a plain HTTP proxy: the word says which traffic goes
+// through it, not how it is spoken to — a system proxy for HTTPS is reached over
+// HTTP and tunnels with CONNECT. Only its SOCKS entry is a SOCKS proxy, and a
+// SOCKS5 one, which is what http.Client dials.
 func proxyScheme(kind string) string {
 	if kind == "SOCKS" {
 		return "socks5"
 	}
-	return strings.ToLower(kind)
+	return "http"
 }
 
 // proxyPort is a port that scutil prints as a number: it is kept in its own

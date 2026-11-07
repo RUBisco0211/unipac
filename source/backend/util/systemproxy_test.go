@@ -23,7 +23,9 @@ const scutilSample = `<dictionary> {
 }`
 
 func TestParseScutilProxy(t *testing.T) {
-	if got, want := parseScutilProxy(scutilSample), "https://127.0.0.1:7890"; got != want {
+	// The HTTPS entry names a plain HTTP proxy: the word says which traffic goes
+	// through it, not how it is spoken to.
+	if got, want := parseScutilProxy(scutilSample), "http://127.0.0.1:7890"; got != want {
 		t.Errorf("proxy = %q, want %q", got, want)
 	}
 }
@@ -53,5 +55,30 @@ func TestParseScutilProxySocks(t *testing.T) {
 }`
 	if got, want := parseScutilProxy(socks), "socks5://127.0.0.1:1080"; got != want {
 		t.Errorf("proxy = %q, want %q", got, want)
+	}
+}
+
+// An HTTP-only proxy is reached the same way, which is what a reader with a
+// plain HTTP proxy needs.
+func TestParseScutilProxyHTTPOnly(t *testing.T) {
+	http := `<dictionary> {
+  HTTPEnable : 1
+  HTTPPort : 8080
+  HTTPProxy : proxy.local
+  HTTPSEnable : 0
+}`
+	if got, want := parseScutilProxy(http), "http://proxy.local:8080"; got != want {
+		t.Errorf("proxy = %q, want %q", got, want)
+	}
+}
+
+// A system proxy for HTTPS is a plain HTTP proxy: the word names the traffic that
+// goes through it, not how the proxy is spoken to. Asking Go to reach it over TLS
+// fails with "proxyconnect tcp: EOF", which is what every registry request did
+// while the value carried https://.
+func TestSystemProxyIsHTTPForHTTPSTraffic(t *testing.T) {
+	got := parseScutilProxy(scutilSample)
+	if len(got) < 7 || got[:7] != "http://" {
+		t.Fatalf("proxy = %q, want an http:// proxy", got)
 	}
 }
