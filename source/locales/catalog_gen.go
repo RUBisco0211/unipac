@@ -586,16 +586,6 @@ func (msgs Messages) SettingsProxy() string {
 	return Catalog.Format(msgs.locale, "settingsProxy", nil)
 }
 
-// SettingsProxyDesc says "The proxy every package manager’s tool goes through. Empty follows the environment UniPac was started with"
-// in the language the app shows.
-func SettingsProxyDesc() string { return In(i18n.Locale()).SettingsProxyDesc() }
-
-// SettingsProxyDesc says "The proxy every package manager’s tool goes through. Empty follows the environment UniPac was started with"
-// in the language of msgs.
-func (msgs Messages) SettingsProxyDesc() string {
-	return Catalog.Format(msgs.locale, "settingsProxyDesc", nil)
-}
-
 // SettingsProxyPlaceholder says "http://127.0.0.1:7890"
 // in the language the app shows.
 func SettingsProxyPlaceholder() string { return In(i18n.Locale()).SettingsProxyPlaceholder() }

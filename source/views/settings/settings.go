@@ -320,10 +320,9 @@ func (s *View) generalItems() []components.SettingsItem {
 			Build:       s.logLevelAction,
 		},
 		{
-			ID:          "proxy",
-			Title:       locales.SettingsProxy(),
-			Description: locales.SettingsProxyDesc(),
-			Keywords:    []string{"proxy", "network", "http", "socks", "mirror"},
+			ID:       "proxy",
+			Title:    locales.SettingsProxy(),
+			Keywords: []string{"proxy", "network", "http", "socks", "mirror"},
 			// A field and a button do not fit beside a title; stacked, both get
 			// the row's width.
 			Stacked: true,
