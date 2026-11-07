@@ -1548,16 +1548,6 @@ func (msgs Messages) SettingsNotifyMaster() string {
 	return Catalog.Format(msgs.locale, "settingsNotifyMaster", nil)
 }
 
-// SettingsNotifyMasterDesc says "Announce what the app finishes, and that updates are waiting, while it is not in front"
-// in the language the app shows.
-func SettingsNotifyMasterDesc() string { return In(i18n.Locale()).SettingsNotifyMasterDesc() }
-
-// SettingsNotifyMasterDesc says "Announce what the app finishes, and that updates are waiting, while it is not in front"
-// in the language of msgs.
-func (msgs Messages) SettingsNotifyMasterDesc() string {
-	return Catalog.Format(msgs.locale, "settingsNotifyMasterDesc", nil)
-}
-
 // SettingsNotifyMasterToggle says "Toggle system notifications"
 // in the language the app shows.
 func SettingsNotifyMasterToggle() string { return In(i18n.Locale()).SettingsNotifyMasterToggle() }

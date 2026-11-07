@@ -224,7 +224,6 @@
   "accentGraphite": "Graphite",
   "settingsNotifications": "Notifications",
   "settingsNotifyMaster": "System notifications",
-  "settingsNotifyMasterDesc": "Announce what the app finishes, and that updates are waiting, while it is not in front",
   "settingsNotifyMasterToggle": "Toggle system notifications",
   "settingsNotifyOutcome": "{operation}: {outcome}",
   "settingsNotifyOperations": "Finished operations",

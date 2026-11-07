@@ -326,10 +326,9 @@ func (s *View) notifyCategory(section string) components.SettingsCategory {
 			{
 				ID: "master",
 				Items: []components.SettingsItem{{
-					ID:          "enabled",
-					Title:       locales.SettingsNotifyMaster(),
-					Description: locales.SettingsNotifyMasterDesc(),
-					Keywords:    []string{"notifications", "system", "announce", "silence"},
+					ID:       "enabled",
+					Title:    locales.SettingsNotifyMaster(),
+					Keywords: []string{"notifications", "system", "announce", "silence"},
 					Build: func(c *ui.Context) {
 						s.switchAction(c, &s.notify.Enabled, locales.SettingsNotifyMasterToggle(), s.OnSetNotifyEnabled)
 					},

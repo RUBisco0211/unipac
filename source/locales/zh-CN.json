@@ -179,7 +179,6 @@
   "accentGraphite": "石墨灰",
   "settingsNotifications": "系统通知",
   "settingsNotifyMaster": "系统通知",
-  "settingsNotifyMasterDesc": "在窗口不在前面时，通知已完成的操作和待处理的更新",
   "settingsNotifyMasterToggle": "切换系统通知",
   "settingsNotifyOutcome": "{operation}：{outcome}",
   "settingsNotifyOperations": "已完成的操作",
