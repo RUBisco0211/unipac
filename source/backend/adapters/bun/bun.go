@@ -49,7 +49,6 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 				WithSearch(false).
 				// `bun info` answers both of these only from inside a project,
 				// which the app is not; see the package comment.
-				WithGetPackageInfo(false).
 				WithListVersions(false),
 		},
 	}
@@ -73,12 +72,6 @@ func (a *Adapter) Preflight() error {
 
 func (a *Adapter) Setup() error {
 	return nil
-}
-
-// GetPackageInfo is not offered: it needs a package.json in the working
-// directory.
-func (a *Adapter) GetPackageInfo(manager.Package) (string, error) {
-	return "", fmt.Errorf("package info not available for bun")
 }
 
 // ListInstalled reads the global dependency tree.

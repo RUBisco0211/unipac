@@ -127,7 +127,7 @@ func TestCapabilityBadges(t *testing.T) {
 // order, and says nothing when there are none.
 func TestUnsupportedCapabilities(t *testing.T) {
 	all := manager.Capabilities{
-		ListInstalled: true, ListOutdated: true, GetPackageInfo: true, Search: true,
+		ListInstalled: true, ListOutdated: true, Detail: true, Search: true,
 		Install: true, Uninstall: true, Update: true, ListVersions: true,
 	}
 	if got := UnsupportedCapabilities(all); got != "" {

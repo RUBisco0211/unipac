@@ -1,27 +1,27 @@
 package manager
 
 type Capabilities struct {
-	ListInstalled  bool `json:"list_installed,omitempty"`
-	ListOutdated   bool `json:"list_outdated,omitempty"`
-	GetPackageInfo bool `json:"get_package_info,omitempty"`
-	Search         bool `json:"search,omitempty"`
-	Install        bool `json:"install,omitempty"`
-	Uninstall      bool `json:"uninstall,omitempty"`
-	Update         bool `json:"update,omitempty"`
-	ListVersions   bool `json:"list_versions,omitempty"`
+	ListInstalled bool `json:"list_installed,omitempty"`
+	ListOutdated  bool `json:"list_outdated,omitempty"`
+	Detail        bool `json:"detail,omitempty"`
+	Search        bool `json:"search,omitempty"`
+	Install       bool `json:"install,omitempty"`
+	Uninstall     bool `json:"uninstall,omitempty"`
+	Update        bool `json:"update,omitempty"`
+	ListVersions  bool `json:"list_versions,omitempty"`
 }
 
 // DefaultCapabilities returns the default capabilities for a manager adapter (can be overridden by specific adapters)
 func DefaultCapabilities() *Capabilities {
 	return &Capabilities{
-		ListInstalled:  true,
-		ListOutdated:   false,
-		GetPackageInfo: true,
-		Search:         false,
-		Install:        true,
-		Uninstall:      true,
-		Update:         true,
-		ListVersions:   false,
+		ListInstalled: true,
+		ListOutdated:  false,
+		Detail:        true,
+		Search:        false,
+		Install:       true,
+		Uninstall:     true,
+		Update:        true,
+		ListVersions:  false,
 	}
 }
 
@@ -43,8 +43,8 @@ func (cap *Capabilities) WithListOutdated(val bool) *Capabilities {
 	return cap
 }
 
-func (cap *Capabilities) WithGetPackageInfo(val bool) *Capabilities {
-	cap.GetPackageInfo = val
+func (cap *Capabilities) WithDetail(val bool) *Capabilities {
+	cap.Detail = val
 	return cap
 }
 

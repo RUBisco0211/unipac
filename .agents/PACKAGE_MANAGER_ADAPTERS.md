@@ -98,22 +98,50 @@ For first-pass implementations, sequential execution is acceptable. If the actio
 
 Use conservative capabilities. Only advertise a capability when the implementation is reliable enough for UI exposure.
 
-| Manager | ListInstalled | ListOutdated | GetPackageInfo | Search | Install | Uninstall | Update | ListVersions |
+| Manager | ListInstalled | ListOutdated | Detail | Search | Install | Uninstall | Update | ListVersions |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | brew | yes | yes | yes | yes | yes | yes | yes | no |
-| bun | yes | yes | no | no | yes | yes | yes | no |
+| bun | yes | yes | yes | no | yes | yes | yes | no |
 | npm | yes | yes | yes | yes | yes | yes | yes | yes |
 | pip | yes | yes | yes | limited | yes | yes | yes | limited |
 | pipx | yes | limited | yes | no | yes | yes | yes | no |
-| cargo | yes | no | limited | yes | yes | yes | no | no |
+| cargo | yes | no | yes | yes | yes | yes | no | no |
 | uv-tool | yes | yes | yes | no | yes | yes | yes | no |
 
-bun's three `no` columns are one limitation: `bun info`, which would answer a
-package's details and its published versions, needs a `package.json` in the
-working directory, and the app runs its commands from its own. Its search is
-missing rather than limited — bun has no search command, and its packages are
-npm's, so a second search would list every result twice. The recorded outputs
-are on the branch that added the adapter; the decisions are the section below.
+`Detail` is what a package's own page shows, read when the page asks rather than
+while scanning. Two `no` columns remain below:
+
+bun has no search command, and its packages are npm's, so a second search would
+list every result twice; it also cannot answer `bun info` without a
+`package.json` in the working directory, which the app does not have — its
+package detail therefore comes from the npm registry, over HTTP, which is where
+npm's comes from too. cargo cannot list outdated packages or upgrade an
+installed binary; its detail comes from crates.io for the same reason it cannot
+answer locally: `cargo install --list` prints a name and a version and nothing
+else.
+
+### Package detail
+
+`Detail(pkg)` fills `manager.Detail`: name, installed and latest version,
+summary, homepage, publisher, license, and where the copy lives. Every field is
+optional, and a manager leaves empty what its own source does not say. The
+sources, verified against each tool on macOS:
+
+| Manager | Text facts | Latest version | Path |
+| --- | --- | --- | --- |
+| brew formula | `brew info --json=v2` (local) | `versions.stable` | `brew --prefix` |
+| brew cask | `brew info --json=v2` (local); no license in a cask | `version` | `brew --caskroom` |
+| npm | npm registry (HTTP) | `dist-tags.latest` | `npm root -g` |
+| bun | npm registry (HTTP) | `dist-tags.latest` | `~/.bun/install/global/node_modules` |
+| cargo | crates.io (HTTP), owners call for the publisher | `crate.max_version` | `$CARGO_HOME/bin/<binary>` |
+| pip | `pip show` (local) | PyPI when the scan did not know it | `Location` from `pip show` |
+| pipx | the environment's `dist-info/METADATA` (local) | PyPI when the scan did not know it | `pipx environment --value PIPX_LOCAL_VENVS` |
+| uv-tool | the tool environment's `dist-info/METADATA` (local) | PyPI when the scan did not know it | `uv tool dir` |
+
+What no manager answers: brew and cargo give no upstream release date (a
+formula's history is its tap's git log), and brew's publisher is the tap that
+ships the formula — Homebrew itself for its own taps — because a formula has no
+author field.
 
 Homebrew's `ListVersions` is `no` and stays there: `brew info --json=v2` reports
 one stable version and a head, and the versions a formula published before live

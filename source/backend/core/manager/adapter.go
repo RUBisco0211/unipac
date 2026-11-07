@@ -40,7 +40,7 @@ type Adapter interface {
 	Preflight() error
 	Setup() error
 
-	GetPackageInfo(pkg Package) (string, error)
+	Detail(pkg Package) (Detail, error)
 	ListInstalled() ([]Package, error)
 	ListOutdated() ([]Package, error)
 	Search(keyword string) ([]Package, error)

@@ -2,7 +2,6 @@ package uvtool
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -53,22 +52,6 @@ func (a *Adapter) Preflight() error {
 
 func (a *Adapter) Setup() error {
 	return nil
-}
-
-func (a *Adapter) GetPackageInfo(pkg manager.Package) (string, error) {
-	records, err := a.listToolRecords()
-	if err != nil {
-		return "", err
-	}
-	record, ok := findTool(records, pkg.Name)
-	if !ok {
-		return "", fmt.Errorf("uv tool package not found: %s", pkg.Name)
-	}
-	bytes, err := json.Marshal(record)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal uv tool package info: %w", err)
-	}
-	return string(bytes), nil
 }
 
 func (a *Adapter) ListInstalled() ([]manager.Package, error) {

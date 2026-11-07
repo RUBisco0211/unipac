@@ -285,7 +285,7 @@ func Capabilities(caps manager.Capabilities) []Capability {
 	return []Capability{
 		{locales.CapabilityInstalled(), caps.ListInstalled},
 		{locales.CapabilityOutdated(), caps.ListOutdated},
-		{locales.CapabilityPackageInfo(), caps.GetPackageInfo},
+		{locales.CapabilityPackageInfo(), caps.Detail},
 		{locales.CapabilitySearch(), caps.Search},
 		{locales.CapabilityInstall(), caps.Install},
 		{locales.CapabilityUninstall(), caps.Uninstall},

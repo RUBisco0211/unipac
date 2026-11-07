@@ -2,6 +2,7 @@ package cache_test
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -69,5 +70,104 @@ func TestRoundTrip(t *testing.T) {
 	}
 	if again, err := cache.Default.List(); err != nil || len(again) != 0 {
 		t.Fatalf("cache kept rows after an empty update: %d rows, err %v", len(again), err)
+	}
+}
+
+// A scan updates the rows it finds and drops the ones it does not, and a
+// package's page survives while its version does: the detail is what a page shows
+// and what a rescan must not throw away.
+func TestUpdateCacheKeepsDetailWhileTheVersionDoes(t *testing.T) {
+	ctx := context.Background()
+	util.AppRoot = t.TempDir()
+	if err := cache.Init(ctx, cache.DefaultConfig()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	t.Cleanup(func() { _ = cache.Default.Close() })
+
+	pkgs := []manager.Package{
+		{Name: "ripgrep", Version: "14.1.1", Manager: "brew", Installed: true},
+		{Name: "typescript", Version: "5.9.3", Manager: "npm", Installed: true},
+	}
+	if err := cache.Default.UpdateCache(pkgs); err != nil {
+		t.Fatalf("UpdateCache: %v", err)
+	}
+	detail := manager.Detail{Name: "ripgrep", Version: "14.1.1", Summary: "line-oriented search tool", Source: "brew"}
+	if err := cache.Default.SavePackageDetail("brew", "ripgrep", "14.1.1", detail); err != nil {
+		t.Fatalf("SavePackageDetail: %v", err)
+	}
+
+	// A scan that finds the same versions keeps the page.
+	if err := cache.Default.UpdateCache(pkgs); err != nil {
+		t.Fatalf("UpdateCache again: %v", err)
+	}
+	got, fresh, err := cache.Default.PackageDetail("brew", "ripgrep", "14.1.1")
+	if err != nil {
+		t.Fatalf("PackageDetail: %v", err)
+	}
+	if !fresh || got.Summary != "line-oriented search tool" {
+		t.Fatalf("detail = %+v fresh=%v, want the page kept", got, fresh)
+	}
+
+	// An upgrade of that package takes the old page with it, and one that is
+	// gone loses its row.
+	upgraded := []manager.Package{
+		{Name: "ripgrep", Version: "14.1.2", Manager: "brew", Installed: true},
+	}
+	if err := cache.Default.UpdateCache(upgraded); err != nil {
+		t.Fatalf("UpdateCache upgrade: %v", err)
+	}
+	if _, fresh, err := cache.Default.PackageDetail("brew", "ripgrep", "14.1.1"); err != nil || fresh {
+		t.Errorf("the old version's page survived: fresh=%v err=%v", fresh, err)
+	}
+	rows, err := cache.Default.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Name != "ripgrep" || rows[0].Version != "14.1.2" {
+		t.Fatalf("rows = %+v, want ripgrep 14.1.2 alone", rows)
+	}
+}
+
+// A database written before the package page existed gains its columns, and the
+// rows it already holds are read as pages that were never fetched.
+func TestOldDatabaseGainsTheDetailColumns(t *testing.T) {
+	ctx := context.Background()
+	util.AppRoot = t.TempDir()
+	path := filepath.Join(util.AppRoot, cache.DefaultConfig().Path)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	db, err := sqlx.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	_, err = db.Exec(`CREATE TABLE installed_package_cache (
+		name TEXT NOT NULL, fullname TEXT, version TEXT NOT NULL, latest_version TEXT,
+		manager TEXT NOT NULL, installed INTEGER NOT NULL DEFAULT 1,
+		outdated INTEGER NOT NULL DEFAULT 0, description TEXT, PRIMARY KEY(name, manager))`)
+	if err != nil {
+		t.Fatalf("create old table: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO installed_package_cache (name, version, manager, installed)
+		VALUES ('cowsay', '6.1', 'pipx', 1)`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	_ = db.Close()
+
+	if err := cache.Init(ctx, cache.DefaultConfig()); err != nil {
+		t.Fatalf("Init on an old database: %v", err)
+	}
+	t.Cleanup(func() { _ = cache.Default.Close() })
+
+	if _, fresh, err := cache.Default.PackageDetail("pipx", "cowsay", "6.1"); err != nil || fresh {
+		t.Errorf("old row read as a fetched page: fresh=%v err=%v", fresh, err)
+	}
+	if err := cache.Default.SavePackageDetail("pipx", "cowsay", "6.1",
+		manager.Detail{Name: "cowsay", Version: "6.1", Summary: "a cow says things"}); err != nil {
+		t.Fatalf("SavePackageDetail on a migrated table: %v", err)
+	}
+	if detail, fresh, err := cache.Default.PackageDetail("pipx", "cowsay", "6.1"); err != nil || !fresh || detail.Summary == "" {
+		t.Errorf("detail = %+v fresh=%v err=%v", detail, fresh, err)
 	}
 }

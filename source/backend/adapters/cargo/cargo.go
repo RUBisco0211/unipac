@@ -27,7 +27,6 @@ func NewAdapter(ctx context.Context) manager.Adapter {
 			Capabilities: *manager.
 				DefaultCapabilities().
 				WithSearch(true).
-				WithGetPackageInfo(false).
 				WithListOutdated(false).
 				WithUpdate(false).
 				WithListVersions(false),
@@ -53,10 +52,6 @@ func (a Adapter) Preflight() error {
 
 func (a Adapter) Setup() error {
 	return nil
-}
-
-func (a Adapter) GetPackageInfo(pkg manager.Package) (string, error) {
-	return "", fmt.Errorf("get package info not available for cargo")
 }
 
 func (a Adapter) ListInstalled() ([]manager.Package, error) {

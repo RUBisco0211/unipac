@@ -24,6 +24,9 @@ type fakeAdapter struct {
 	searches   int
 	searchHits []manager.Package
 	outdated   []manager.Package
+	// details counts how often the package's page was read, which is what a
+	// cache test watches.
+	details int
 }
 
 func (f *fakeAdapter) Info() *manager.Info { return f.info }
@@ -38,7 +41,10 @@ func (f *fakeAdapter) Preflight() error {
 
 func (f *fakeAdapter) Setup() error { return nil }
 
-func (f *fakeAdapter) GetPackageInfo(manager.Package) (string, error) { return "", nil }
+func (f *fakeAdapter) Detail(manager.Package) (manager.Detail, error) {
+	f.details++
+	return manager.Detail{Summary: "a package", Source: "fake"}, nil
+}
 
 func (f *fakeAdapter) ListInstalled() ([]manager.Package, error) { return f.packages, f.listErr }
 
@@ -86,7 +92,7 @@ func fake(available bool) *fakeAdapter {
 			ID:           "fake",
 			Name:         "Fake",
 			ExecName:     "fake",
-			Capabilities: manager.Capabilities{ListInstalled: true},
+			Capabilities: manager.Capabilities{ListInstalled: true, Detail: true},
 		},
 		available: available,
 	}

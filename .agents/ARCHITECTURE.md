@@ -452,6 +452,15 @@ capabilities. `Info.Available` says whether the executable answered;
 
 The old `frontend/src/lib/format.ts` `managerLabelMap` disappears with the frontend and must not be reintroduced in Go.
 
+A package's own page is `manager.Detail`, read on demand rather than during a
+scan (`Registry.PackageDetail`, `App.PackageDetail`): a scan covers hundreds of
+packages per manager, a page covers one. Its facts are kept in the cache row they
+describe — `installed_package_cache.detail`, JSON, with `detail_fetched_at` for a
+ten-minute freshness — and a scan updates rows in place rather than replacing the
+table, so the page survives the rescans that follow and an upgrade, which changes
+the version, clears it. The table is created without those two columns by earlier
+builds and gains them on open.
+
 ### Settings Window
 
 Settings live in a second window (`views/settings_window.go`), a `plain.NewShell`

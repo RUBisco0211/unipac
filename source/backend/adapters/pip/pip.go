@@ -51,14 +51,6 @@ func (a *Adapter) Setup() error {
 	return nil
 }
 
-func (a *Adapter) GetPackageInfo(pkg manager.Package) (string, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"show", pkg.Name}, nil)
-	if err != nil {
-		return "", err
-	}
-	return res.Stdout, nil
-}
-
 func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"list", "--format=json"}, nil)
 	if err != nil {

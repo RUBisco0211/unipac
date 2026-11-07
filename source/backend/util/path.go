@@ -70,3 +70,13 @@ func SafeJoin(basePath string, subPaths ...string) (string, error) {
 	dir := filepath.Dir(path)
 	return path, os.MkdirAll(dir, 0755)
 }
+
+// HomePath is a path under the user's home directory, or "" when the system does
+// not say where that is.
+func HomePath(parts ...string) string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(append([]string{home}, parts...)...)
+}

@@ -229,20 +229,23 @@ func TestCapabilities(t *testing.T) {
 	if !caps.Install || !caps.Update || !caps.Uninstall {
 		t.Errorf("capabilities = %+v, want the three actions", caps)
 	}
-	if caps.Search || caps.GetPackageInfo || caps.ListVersions {
-		t.Errorf("capabilities = %+v, want search, info and versions off", caps)
+	// A package's page is read from the npm registry, which answers without bun;
+	// search and a version list are what bun cannot offer.
+	if !caps.Detail {
+		t.Errorf("capabilities = %+v, want package detail on", caps)
+	}
+	if caps.Search || caps.ListVersions {
+		t.Errorf("capabilities = %+v, want search and versions off", caps)
 	}
 }
 
 // The capabilities the adapter does not advertise are not silently supported: a
-// caller that asks anyway gets an error rather than an empty answer.
+// caller that asks anyway gets an error rather than an empty answer. Package
+// detail is advertised, so it is not asked here — it would go to the registry.
 func TestUnadvertisedCapabilitiesSaySo(t *testing.T) {
 	a := NewAdapter(t.Context())
 	if _, err := a.Search("is-odd"); err == nil {
 		t.Error("search answered")
-	}
-	if _, err := a.GetPackageInfo(manager.Package{Name: "is-odd"}); err == nil {
-		t.Error("package info answered")
 	}
 	if _, err := a.ListVersions(manager.Package{Name: "is-odd"}); err == nil {
 		t.Error("a version list answered")

@@ -17,7 +17,7 @@ func (a *testAdapter) Preflight() error { return nil }
 
 func (a *testAdapter) Setup() error { return nil }
 
-func (a *testAdapter) GetPackageInfo(Package) (string, error) { return "", nil }
+func (a *testAdapter) Detail(Package) (Detail, error) { return Detail{}, nil }
 
 func (a *testAdapter) ListInstalled() ([]Package, error) { return nil, nil }
 

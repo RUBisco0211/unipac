@@ -27,6 +27,8 @@ type Service interface {
 	// ListPackageVersions is every version a manager published for a package,
 	// oldest first, for the managers that advertise ListVersions.
 	ListPackageVersions(managerID string, name string) ([]string, error)
+	// PackageDetail is what a package's own page says about it.
+	PackageDetail(managerID, name, version string) (manager.Detail, error)
 	InstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UpdatePackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)
 	UninstallPackage(pkg manager.Package, opt manager.ActionOptions) (manager.ActionResult, error)

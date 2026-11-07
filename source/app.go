@@ -512,14 +512,28 @@ func (a *App) SearchPackages(keyword string, managerIDs []string) (manager.Searc
 	return result, nil
 }
 
-func (a *App) GetPackageInfo(managerID string, name string) (string, error) {
-	slog.InfoContext(a.ctx, "getting package info", "manager", managerID, "package", name)
-	info, err := registry.Instance.GetPackageInfo(managerID, manager.Package{Name: name})
-	if err != nil {
-		slog.ErrorContext(a.ctx, "failed to get package info", "manager", managerID, "package", name, "error", err)
-		return "", err
+// PackageDetail is what a package's own page says about it: its description, page,
+// publisher, terms and where the copy lives. The facts are read when a page asks
+// for them, not while scanning, and kept in the cache beside the package: a scan
+// that finds the same version keeps them, and an upgrade replaces them.
+func (a *App) PackageDetail(managerID, name, version string) (manager.Detail, error) {
+	if cache.Default != nil {
+		if detail, fresh, err := cache.Default.PackageDetail(managerID, name, version); err == nil && fresh {
+			return detail, nil
+		}
 	}
-	return info, nil
+	slog.InfoContext(a.ctx, "reading package detail", "manager", managerID, "package", name, "version", version)
+	detail, err := registry.Instance.PackageDetail(managerID, manager.Package{Name: name, Version: version})
+	if err != nil {
+		slog.WarnContext(a.ctx, "package detail is incomplete", "manager", managerID, "package", name, "error", err)
+		return detail, err
+	}
+	if cache.Default != nil {
+		if saveErr := cache.Default.SavePackageDetail(managerID, name, version, detail); saveErr != nil {
+			slog.WarnContext(a.ctx, "could not keep the package detail", "manager", managerID, "package", name, "error", saveErr)
+		}
+	}
+	return detail, nil
 }
 
 func (a *App) ListPackageVersions(managerID string, name string) ([]string, error) {

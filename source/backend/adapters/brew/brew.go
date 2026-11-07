@@ -184,34 +184,6 @@ func (a *Adapter) ListOutdated() ([]manager.Package, error) {
 	return outdated, nil
 }
 
-// GetPackageInfo returns the package info for a given package using brew
-func (a *Adapter) GetPackageInfo(p manager.Package) (string, error) {
-	output, err := util.Exec(a.ctx,
-		a.info.ExecPath,
-		[]string{"info", p.Name, "--json=v2"},
-		nil)
-	if err != nil || strings.Contains(output, "Error") {
-		return "", fmt.Errorf("failed to get package info: %w", err)
-	}
-	// A cask and a formula are different things to Homebrew, and the answer says
-	// which one this name was.
-	var obj struct {
-		Formulae []json.RawMessage `json:"formulae"`
-		Casks    []json.RawMessage `json:"casks"`
-	}
-	if err := json.Unmarshal([]byte(output), &obj); err != nil {
-		return "", fmt.Errorf("failed to parse brew info output: %w", err)
-	}
-	switch {
-	case len(obj.Casks) > 0:
-		return string(obj.Casks[0]), nil
-	case len(obj.Formulae) > 0:
-		return string(obj.Formulae[0]), nil
-	default:
-		return "", fmt.Errorf("brew info %s returned nothing", p.Name)
-	}
-}
-
 // Search returns the list of packages matching the keyword for brew
 func (a *Adapter) Search(keyword string) ([]manager.Package, error) {
 	res, err := util.RunAllowExitCodes(a.ctx, a.info.ExecPath,

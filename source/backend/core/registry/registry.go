@@ -328,15 +328,18 @@ func (reg *Registry) SearchPackages(keyword string, managerIDs []string) (manage
 	return manager.SearchResult{Packages: pkgs, Truncated: truncated.Load()}, nil
 }
 
-func (reg *Registry) GetPackageInfo(managerID string, pkg manager.Package) (string, error) {
+// PackageDetail is what a package's own page says about it: the adapter reads it
+// from its tool and, where the tool has nothing, from the project's registry. The
+// caller keeps it; this routes the question and nothing else.
+func (reg *Registry) PackageDetail(managerID string, pkg manager.Package) (manager.Detail, error) {
 	adp, err := reg.requireCapability(managerID, func(cap manager.Capabilities) bool {
-		return cap.GetPackageInfo
-	}, "package info")
+		return cap.Detail
+	}, "package details")
 	if err != nil {
-		return "", err
+		return manager.Detail{Name: pkg.Name, Version: pkg.Version}, err
 	}
 	pkg.Manager = managerID
-	return adp.GetPackageInfo(pkg)
+	return adp.Detail(pkg)
 }
 
 func (reg *Registry) ListPackageVersions(managerID string, pkg manager.Package) ([]string, error) {

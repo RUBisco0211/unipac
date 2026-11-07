@@ -51,31 +51,6 @@ func (a Adapter) Setup() error {
 	return nil
 }
 
-func (a Adapter) GetPackageInfo(pkg manager.Package) (string, error) {
-	venvs, err := a.listVenvs()
-	if err != nil {
-		return "", err
-	}
-	venv, ok := venvs[pkg.Name]
-	if !ok {
-		for _, item := range venvs {
-			if item.Metadata.MainPackage.Package == pkg.Name {
-				venv = item
-				ok = true
-				break
-			}
-		}
-	}
-	if !ok {
-		return "", fmt.Errorf("pipx package not found: %s", pkg.Name)
-	}
-	bytes, err := json.Marshal(venv)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal pipx package info: %w", err)
-	}
-	return string(bytes), nil
-}
-
 func (a Adapter) ListInstalled() ([]manager.Package, error) {
 	venvs, err := a.listVenvs()
 	if err != nil {
