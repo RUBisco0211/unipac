@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/RUBisco0211/unipac/source/backend/adapters/pymeta"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
@@ -63,12 +64,18 @@ func (a Adapter) ListInstalled() ([]manager.Package, error) {
 		if name == "" {
 			name = venvName
 		}
-		pkgs = append(pkgs, manager.Package{
+		pkg := manager.Package{
 			Name:      name,
 			Version:   venv.Metadata.MainPackage.PackageVersion,
 			Manager:   a.Info().ID,
 			Installed: true,
-		})
+		}
+		// What the package is, from the metadata pipx installed with it: a file
+		// read, not a process, and the table shows it beside every row.
+		if detail, err := pymeta.FromVenv(a.venvsDir()+"/"+venvName, name); err == nil {
+			pkg.Description = detail.Summary
+		}
+		pkgs = append(pkgs, pkg)
 	}
 	return pkgs, nil
 }

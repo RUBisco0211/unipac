@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/RUBisco0211/unipac/source/backend/adapters/pymeta"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
@@ -59,7 +60,16 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 	if err != nil {
 		return nil, err
 	}
-	return normalizeInstalled(records), nil
+	pkgs := normalizeInstalled(records)
+	// What each tool is, from the metadata uv installed with it: a file read, not
+	// a process, and the table shows it beside every row.
+	dir := a.toolsDir()
+	for i := range pkgs {
+		if detail, err := pymeta.FromVenv(dir+"/"+pkgs[i].Name, pkgs[i].Name); err == nil {
+			pkgs[i].Description = detail.Summary
+		}
+	}
+	return pkgs, nil
 }
 
 func (a *Adapter) ListOutdated() ([]manager.Package, error) {

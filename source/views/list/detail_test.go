@@ -43,8 +43,8 @@ func TestRowClickOpensThePackagePage(t *testing.T) {
 	if len(asked) != 1 || asked[0].Name != "ripgrep" {
 		t.Fatalf("asked for %v, want ripgrep's page", asked)
 	}
-	if !l.Page.Open || !tt.HasText(locales.DetailLoading()) {
-		t.Errorf("the dialog does not say it is reading: %v", tt.Texts())
+	if !l.Page.Open {
+		t.Error("the dialog did not open")
 	}
 
 	// The answer arrives and the page shows it.
@@ -70,10 +70,12 @@ func TestRowClickOpensThePackagePage(t *testing.T) {
 	l.OnOpenURL = func(url string) { openedURL = url }
 	l.OnReveal = func(path string) { revealed = path }
 	tt.Frame()
-	if err := tt.Click(locales.DetailHomepageOpen()); err != nil {
+	// The address is the link itself, and the path asks the file manager to show
+	// the copy.
+	if err := tt.Click("https://github.com/BurntSushi/ripgrep"); err != nil {
 		t.Fatalf("open the homepage: %v", err)
 	}
-	if err := tt.Click(locales.DetailReveal()); err != nil {
+	if err := tt.Click("/opt/homebrew/opt/ripgrep"); err != nil {
 		t.Fatalf("reveal the path: %v", err)
 	}
 	if openedURL != "https://github.com/BurntSushi/ripgrep" {
@@ -121,8 +123,8 @@ func TestDetailForAnotherPackageIsDropped(t *testing.T) {
 	}
 }
 
-// A page that could not be read completely still shows what is known, and says
-// what is missing.
+// A page that could not be read completely still shows what is known, and stays
+// quiet about the rest.
 func TestDetailFailureStillShowsTheLocalFacts(t *testing.T) {
 	l := &View{Data: fixture(), AllowRemove: true, OnDetail: func(manager.Package) {}}
 	tt := render(t, l.Build, 1100, 620)
@@ -138,8 +140,10 @@ func TestDetailFailureStillShowsTheLocalFacts(t *testing.T) {
 	if !tt.HasText("/opt/homebrew/opt/ripgrep") {
 		t.Errorf("the local facts are missing: %v", tt.Texts())
 	}
-	if !tt.HasText("504") {
-		t.Errorf("the failure is not named: %v", tt.Texts())
+	// A field the registry did not answer is a dash, and the failure is the
+	// shell's to log: the page does not turn into an error message.
+	if tt.HasText("504") || tt.HasText("crates.io answered") {
+		t.Errorf("the page shows the reader an error: %v", tt.Texts())
 	}
 }
 

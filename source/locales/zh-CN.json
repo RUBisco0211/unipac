@@ -232,7 +232,6 @@
   "detailReveal": "显示",
   "detailSource": "来源",
   "detailClose": "关闭",
-  "detailIncomplete": "部分信息未能读取：{error}",
   "versionsTitle": "选择安装版本",
   "versionsFor": "选择 {name} 的版本（来自 {manager}）",
   "versionsSearch": "搜索版本",

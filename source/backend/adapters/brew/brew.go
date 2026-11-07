@@ -97,7 +97,51 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 		return formulas, nil
 	}
 
-	return util.CollectParallel(a.ctx, caskCollector, formulaCollector)
+	pkgs, err := util.CollectParallel(a.ctx, caskCollector, formulaCollector)
+	if err != nil {
+		return nil, err
+	}
+	a.addDescriptions(pkgs)
+	return pkgs, nil
+}
+
+// addDescriptions fills in what an installed formula or cask is. `brew list`
+// prints names and versions and nothing else, and the table shows a description
+// beside every package; one `brew info --installed` answers for all of them, from
+// the tap data Homebrew already keeps, with no network.
+func (a *Adapter) addDescriptions(pkgs []manager.Package) {
+	if len(pkgs) == 0 {
+		return
+	}
+	output, err := util.Exec(a.ctx, a.info.ExecPath,
+		[]string{"info", "--json=v2", "--installed"}, nil)
+	if err != nil {
+		return
+	}
+	var info brewInfo
+	if err := json.Unmarshal([]byte(output), &info); err != nil {
+		return
+	}
+	described := descriptions(info)
+	for i := range pkgs {
+		if pkgs[i].Description != "" {
+			continue
+		}
+		pkgs[i].Description = described[pkgs[i].Name]
+	}
+}
+
+// descriptions reads what each formula and cask is, by the name `brew list`
+// prints it under: a formula goes by its name, a cask by its token.
+func descriptions(info brewInfo) map[string]string {
+	described := make(map[string]string, len(info.Formulae)+len(info.Casks))
+	for _, f := range info.Formulae {
+		described[f.Name] = f.Desc
+	}
+	for _, c := range info.Casks {
+		described[c.Token] = c.Desc
+	}
+	return described
 }
 
 // listCasks lists the installed casks with their versions.

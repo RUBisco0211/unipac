@@ -2082,16 +2082,6 @@ func (msgs Messages) DetailClose() string {
 	return Catalog.Format(msgs.locale, "detailClose", nil)
 }
 
-// DetailIncomplete says "Not everything could be read: {error}"
-// in the language the app shows.
-func DetailIncomplete(error string) string { return In(i18n.Locale()).DetailIncomplete(error) }
-
-// DetailIncomplete says "Not everything could be read: {error}"
-// in the language of msgs.
-func (msgs Messages) DetailIncomplete(error string) string {
-	return Catalog.Format(msgs.locale, "detailIncomplete", map[string]any{"error": error})
-}
-
 // VersionsTitle says "Install a version"
 // in the language the app shows.
 func VersionsTitle() string { return In(i18n.Locale()).VersionsTitle() }

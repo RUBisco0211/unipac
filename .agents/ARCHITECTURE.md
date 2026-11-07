@@ -418,10 +418,21 @@ result and it stays marked.
 The page is read once per package (`App.PackageDetail`, off the UI thread), and an
 answer for a package the dialog has left behind is dropped by key. A search result
 is not installed, so its page comes from the registry rather than from a local
-copy: the python managers ask PyPI when there is no environment or site-packages
+copy — the python managers ask PyPI when there is no environment or site-packages
 to read, and brew answers for a formula that is not installed from its own tap
-data. Rows a manager cannot answer show a dash, and a registry that does not answer
-leaves the local facts in place with one line saying what could not be read.
+data — and it has no location row at all, since there is no copy here to show.
+
+While the facts are being read, each field keeps its shape: the summary is a
+`components.Skeleton`, and every value a dim bar where its text will arrive, so the
+dialog does not jump when the answer does. A row a manager cannot answer is a dash,
+and a read that failed is silent: the shell logs it, and a page that said "not
+found" under every field would read as an error the user has to fix.
+
+The tables also know what their packages are: brew fills the installed list's
+descriptions from one `brew info --json=v2 --installed` of its own tap data, and
+pipx and uv read the summary from the metadata of the environments they keep. npm,
+bun, cargo and pip have no local bulk source for one, so their rows say so until
+the page is opened.
 
 Switching pages plays a 200 ms fade and rise: the content area wraps the page in
 a box keyed by `Page`, and `ui.ElementTransition` animates it in. The page that

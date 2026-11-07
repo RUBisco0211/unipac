@@ -5,7 +5,6 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
-	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // PackagePage is one package's own page, shown in a dialog: the state a page
@@ -19,7 +18,6 @@ type PackagePage struct {
 	pkg     manager.Package
 	detail  manager.Detail
 	loading bool
-	err     string
 }
 
 // Show opens the page for pkg, dropping what the previous package answered: a
@@ -28,7 +26,6 @@ func (p *PackagePage) Show(pkg manager.Package) {
 	p.Open = true
 	p.pkg = pkg
 	p.detail = manager.Detail{}
-	p.err = ""
 	p.loading = false
 }
 
@@ -37,17 +34,16 @@ func (p *PackagePage) Show(pkg manager.Package) {
 func (p *PackagePage) Loading() { p.loading = true }
 
 // Apply installs what was read about pkg. An answer for another package is
-// dropped: the dialog has moved on since.
+// dropped: the dialog has moved on since. A read that failed is silent here — the
+// rows a manager did not answer show their dash, and the shell has logged why —
+// because a page that says "not found" under every field reads as an error the
+// user must fix.
 func (p *PackagePage) Apply(pkg manager.Package, detail manager.Detail, err error) {
 	if p.pkg.Manager != pkg.Manager || p.pkg.Name != pkg.Name {
 		return
 	}
 	p.loading = false
 	p.detail = detail
-	p.err = ""
-	if err != nil {
-		p.err = err.Error()
-	}
 }
 
 // Pkg is the package the page shows, and whether it shows one at all.
@@ -62,9 +58,12 @@ func (p *PackagePage) Pkg() (manager.Package, bool) {
 // decides.
 type PackagePageOptions struct {
 	// OnOpenURL opens a web address, and OnReveal shows a path in the file
-	// manager. Either may be nil, which hides its button.
+	// manager. Either may be nil, which makes the address plain text.
 	OnOpenURL func(string)
 	OnReveal  func(string)
+	// ShowLocation tells whether the page is about a copy on this machine: a
+	// search result is not installed here, so it has no location to show.
+	ShowLocation bool
 }
 
 // Build draws the dialog. Call it every frame from the page that owns the state.
@@ -76,23 +75,26 @@ func (p *PackagePage) Build(c *ui.Context, o PackagePageOptions) {
 	components.Dialog(c, &p.Open, components.DialogOptions{Label: p.pkg.Name}, func(panel ui.Element) {
 		panel.Width(t.Space(140)).Padding(t.Space(5)).Gap(t.Space(4)).Children(func() {
 			header(c, p)
-			summary(c, p)
+			summary(c, p, o)
 			ui.Column(c).FillWidth().Children(func() {
-				versionRow(c, p)
+				versionRow(c, p, o)
 				Divider(c)
-				valueRow(c, locales.DetailPublisher(), p.detail.Publisher, false)
+				textRow(c, locales.DetailPublisher(), p.detail.Publisher, p.loading)
 				Divider(c)
-				valueRow(c, locales.DetailLicense(), p.detail.License, false)
+				textRow(c, locales.DetailLicense(), p.detail.License, p.loading)
 				Divider(c)
-				valueRow(c, locales.DetailHomepage(), p.detail.Homepage, isURL(p.detail.Homepage))
-				Divider(c)
-				valueRow(c, locales.DetailLocation(), p.detail.Path, false)
+				homepageRow(c, p, o)
+				if o.ShowLocation {
+					Divider(c)
+					locationRow(c, p, o)
+				}
 			})
-			if p.err != "" {
-				components.Text(c, locales.DetailIncomplete(p.err)).
-					FontSize(11).TextColor(t.TextMuted).Wrap()
-			}
-			footer(c, p, o)
+			ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
+				close := components.Button(c, locales.DetailClose(), components.ButtonPrimary)
+				if close.Clicked() {
+					p.Open = false
+				}
+			})
 		})
 	})
 }
@@ -117,15 +119,13 @@ func header(c *ui.Context, p *PackagePage) {
 	})
 }
 
-// summary is the project's own line, and while the facts are being read, what the
-// table already knew.
-func summary(c *ui.Context, p *PackagePage) {
+// summary is the project's own line. While the facts are being read, the block
+// pulses in the shape the lines will take, so nothing jumps when they arrive.
+func summary(c *ui.Context, p *PackagePage, o PackagePageOptions) {
 	t := c.Theme()
-	if p.loading {
-		ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-			components.Spinner(c, components.SpinnerRing).Size(t.Space(3), t.Space(3))
-			components.Text(c, locales.DetailLoading()).FontSize(12).TextColor(t.TextMuted)
-		})
+	if p.loading && p.detail.Summary == "" && p.pkg.Description == "" {
+		components.Skeleton(c, components.SkeletonOptions{Lines: 2, Label: locales.DetailLoading()})
+		return
 	}
 	text := p.detail.Summary
 	if text == "" {
@@ -137,82 +137,93 @@ func summary(c *ui.Context, p *PackagePage) {
 }
 
 // versionRow is the installed version and, when the manager offers another, the
-// one it offers.
-func versionRow(c *ui.Context, p *PackagePage) {
-	installed := OrDash(p.detail.Version)
-	if installed == "-" {
-		installed = OrDash(p.pkg.Version)
+// one it offers. A search result is not installed here, so it shows the version it
+// can be installed at and no installed one.
+func versionRow(c *ui.Context, p *PackagePage, o PackagePageOptions) {
+	installed := p.detail.Version
+	if installed == "" {
+		installed = p.pkg.Version
 	}
 	latest := p.detail.Latest
 	if latest == "" {
 		latest = p.pkg.LatestVersion
 	}
-	valueRow(c, locales.DetailVersion(), installed, false)
-	if latest == "" || latest == installed || latest == "-" {
+	if o.ShowLocation {
+		textRow(c, locales.DetailVersion(), installed, p.loading)
+		if latest != "" && latest != installed {
+			textRow(c, locales.DetailLatest(), latest, p.loading)
+		}
 		return
 	}
-	valueRow(c, locales.DetailLatest(), latest, false)
+	textRow(c, locales.DetailLatest(), latest, p.loading)
 }
 
-// valueRow is one fact: what it is on the leading side, the answer across the
-// rest. An empty answer is a dash, so every package shows the same rows.
-func valueRow(c *ui.Context, label, value string, link bool) {
+// homepageRow is the project's page, which is the link itself: a reader clicks the
+// address, as on a web page, rather than a button beside it.
+func homepageRow(c *ui.Context, p *PackagePage, o PackagePageOptions) {
+	linkRow(c, locales.DetailHomepage(), p.detail.Homepage, p.loading, o.OnOpenURL)
+}
+
+// locationRow is the copy on this machine, which asks the file manager to show it.
+func locationRow(c *ui.Context, p *PackagePage, o PackagePageOptions) {
+	linkRow(c, locales.DetailLocation(), p.detail.Path, p.loading, o.OnReveal)
+}
+
+// textRow is one fact: what it is on the leading side, the answer across the rest.
+// An empty answer is a dash, so every package shows the same rows; while the facts
+// are still being read, the answer's own shape pulses in the space it will fill.
+func textRow(c *ui.Context, label, value string, loading bool) {
+	row(c, label, func(c *ui.Context) {
+		t := c.Theme()
+		if value != "" {
+			components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
+			return
+		}
+		if loading {
+			placeholder(c, t.Space(24))
+			return
+		}
+		components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+	})
+}
+
+// linkRow is a fact that is a place: the address itself is the control, styled as
+// a link, with a tooltip carrying the whole of it.
+func linkRow(c *ui.Context, label, value string, loading bool, open func(string)) {
+	row(c, label, func(c *ui.Context) {
+		t := c.Theme()
+		if value == "" {
+			if loading {
+				placeholder(c, t.Space(32))
+				return
+			}
+			components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
+			return
+		}
+		if open == nil {
+			components.Tooltip(c, components.Text(c, value).FontSize(12).SingleLine(), value)
+			return
+		}
+		link := components.Button(c, value, components.ButtonLink).Label(value)
+		if link.Clicked() {
+			open(value)
+		}
+	})
+}
+
+// row is one fact's line: its label on the leading side and the answer across the
+// rest, so a long path has room.
+func row(c *ui.Context, label string, value func(*ui.Context)) {
 	t := c.Theme()
 	ui.Row(c).FillWidth().MinWidth(0).Padding(t.Space(1.5), 0).Gap(t.Space(4)).AlignItems(ui.Center).Children(func() {
 		components.Text(c, label).FontSize(11.5).TextColor(t.TextMuted).Width(t.Space(22)).Shrink(0)
-		ui.Box(c).Grow(1).MinWidth(0).Children(func() {
-			if value == "" || value == "-" {
-				components.Text(c, "-").FontSize(12).TextColor(t.TextMuted)
-				return
-			}
-			text := components.Text(c, value).FontSize(12).SingleLine()
-			if link {
-				text.TextColor(t.Accent)
-			}
-			components.Tooltip(c, text, value)
-		})
+		ui.Box(c).Grow(1).MinWidth(0).Children(func() { value(c) })
 	})
 }
 
-// footer is the page's actions: the two places a fact can point at, and the way
-// back to the table.
-func footer(c *ui.Context, p *PackagePage, o PackagePageOptions) {
+// placeholder is the bar a value will arrive in: the field's own shape, so the
+// rows do not move when the answer does.
+func placeholder(c *ui.Context, width float32) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().Gap(t.Space(2)).Justify(ui.End).Children(func() {
-		if p.detail.Homepage != "" && o.OnOpenURL != nil {
-			open := glyphButton(c, locales.DetailHomepageOpen(), components.ButtonOutline, lucide.ExternalLink())
-			if open.Clicked() {
-				o.OnOpenURL(p.detail.Homepage)
-			}
-		}
-		if p.detail.Path != "" && o.OnReveal != nil {
-			reveal := glyphButton(c, locales.DetailReveal(), components.ButtonOutline, lucide.FolderOpen())
-			if reveal.Clicked() {
-				o.OnReveal(p.detail.Path)
-			}
-		}
-		close := components.Button(c, locales.DetailClose(), components.ButtonPrimary)
-		if close.Clicked() {
-			p.Open = false
-		}
-	})
-}
-
-// glyphButton is a button whose label has a glyph before it: Button appends its
-// children after the label without a gap of its own, so the label and the glyph
-// are one child row.
-func glyphButton(c *ui.Context, label string, variant components.ButtonVariant, glyph *ui.SVG) ui.Element {
-	button := components.Button(c, "", variant).Label(label)
-	button.Children(func() {
-		ui.Row(c).Gap(c.Theme().Space(1.5)).AlignItems(ui.Center).Children(func() {
-			components.Icon(c, glyph).Size(14, 14)
-			components.Text(c, label).SingleLine()
-		})
-	})
-	return button
-}
-
-// isURL reports whether a value is a web address rather than a local path.
-func isURL(value string) bool {
-	return len(value) > 8 && (value[:7] == "http://" || value[:8] == "https://")
+	ui.Box(c).Height(t.Space(2.5)).Width(width).Radius(t.Space(1)).Background(t.Text.Alpha(.07))
 }

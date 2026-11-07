@@ -126,7 +126,7 @@ func (l *View) Build(c *ui.Context) {
 	})
 	l.uninstallDialog(c)
 	l.bulkDialog(c)
-	l.Page.Build(c, parts.PackagePageOptions{OnOpenURL: l.OnOpenURL, OnReveal: l.OnReveal})
+	l.Page.Build(c, parts.PackagePageOptions{OnOpenURL: l.OnOpenURL, OnReveal: l.OnReveal, ShowLocation: true})
 }
 
 // sync rebuilds the filtered rows when the inventory or a filter changed. It is

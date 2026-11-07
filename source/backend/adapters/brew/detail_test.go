@@ -64,3 +64,19 @@ func TestLicenseText(t *testing.T) {
 		t.Errorf("missing license = %q", got)
 	}
 }
+
+// The installed list's descriptions come from one `brew info --installed`: a
+// formula by its name and a cask by its token, which is what `brew list` prints.
+func TestDescriptionsForTheInstalledList(t *testing.T) {
+	var info brewInfo
+	info.Formulae = []formula{{Name: "wget", Desc: "Internet file retriever"}}
+	info.Casks = []cask{{Token: "android-platform-tools", Desc: "Android SDK component"}}
+
+	described := descriptions(info)
+	if described["wget"] != "Internet file retriever" {
+		t.Errorf("formula description = %q", described["wget"])
+	}
+	if described["android-platform-tools"] != "Android SDK component" {
+		t.Errorf("cask description = %q", described["android-platform-tools"])
+	}
+}

@@ -291,7 +291,6 @@
   "detailReveal": "Show",
   "detailSource": "Source",
   "detailClose": "Close",
-  "detailIncomplete": "Not everything could be read: {error}",
   "versionsTitle": "Install a version",
   "versionsFor": "Choose a version of {name} from {manager}",
   "@versionsFor": {

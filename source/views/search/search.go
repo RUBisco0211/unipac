@@ -103,6 +103,7 @@ func (s *View) Build(c *ui.Context) {
 		}
 	})
 	s.versionDialog(c)
+	// A result is not installed here, so the page shows no location.
 	s.Page.Build(c, parts.PackagePageOptions{OnOpenURL: s.OnOpenURL, OnReveal: s.OnReveal})
 }
 
