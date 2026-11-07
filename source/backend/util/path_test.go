@@ -88,3 +88,23 @@ func TestMigrateAppRootOnAFirstRun(t *testing.T) {
 		t.Error("a first run moved something")
 	}
 }
+
+// A folder under the home directory is shown with ~ in its place, and one
+// elsewhere is shown as it is.
+func TestShortPath(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("no home directory to compare with")
+	}
+	for _, tc := range []struct{ in, want string }{
+		{home, "~"},
+		{filepath.Join(home, "Library", "Application Support", "app"), "~/Library/Application Support/app"},
+		{"/opt/homebrew/opt/ripgrep", "/opt/homebrew/opt/ripgrep"},
+		{home + "x/y", home + "x/y"}, // not under home, however alike the prefix
+		{"", ""},
+	} {
+		if got := ShortPath(tc.in); got != tc.want {
+			t.Errorf("ShortPath(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

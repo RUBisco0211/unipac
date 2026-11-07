@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
+	"github.com/RUBisco0211/unipac/source/backend/util"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/parts"
@@ -686,7 +687,7 @@ func (s *View) clearHistoryAction(c *ui.Context) {
 // about, and it stops growing back the moment the app runs again.
 func (s *View) clearDialog(c *ui.Context) {
 	t := c.Theme()
-	components.Dialog(c, &s.clearOpen, components.DialogOptions{Label: locales.SettingsClearHistory()}, func(panel ui.Element) {
+	parts.Dialog(c, &s.clearOpen, components.DialogOptions{Label: locales.SettingsClearHistory()}, func(panel ui.Element) {
 		panel.Width(420).Padding(20).Children(func() {
 			ui.Column(c).Gap(12).Children(func() {
 				components.Text(c, locales.SettingsClearHistory()).FontSize(16).Bold()
@@ -784,7 +785,9 @@ func (s *View) dataDirLink(c *ui.Context) {
 		return
 	}
 	path := s.about.DataDir
-	link := components.Button(c, path, components.ButtonLink)
+	// The row shows the folder under ~, so the address has room; the tooltip and
+	// the click carry the whole of it.
+	link := components.Button(c, util.ShortPath(path), components.ButtonLink).SingleLine()
 	components.Tooltip(c, link, locales.AboutOpen(locales.AboutDataDir()))
 	if link.Clicked() {
 		s.OnOpenPath(path)
@@ -798,7 +801,7 @@ func (s *View) repositoryLink(c *ui.Context) {
 		return
 	}
 	url := s.about.Repository
-	link := components.Button(c, url, components.ButtonLink)
+	link := components.Button(c, url, components.ButtonLink).SingleLine()
 	components.Tooltip(c, link, locales.AboutRepositoryOpen())
 	if link.Clicked() {
 		s.OnOpenURL(url)

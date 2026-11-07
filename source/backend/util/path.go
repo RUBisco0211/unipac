@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/samber/lo"
 )
@@ -79,4 +80,23 @@ func HomePath(parts ...string) string {
 		return ""
 	}
 	return filepath.Join(append([]string{home}, parts...)...)
+}
+
+// ShortPath writes a path under the user's home directory with ~ in its place,
+// which is how a settings row shows a folder: the address stays readable and
+// leaves the row some room, while the whole of it is what a click opens. A path
+// elsewhere, or one the system gives no home to compare with, is returned as it is.
+func ShortPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" || home == "/" {
+		return path
+	}
+	switch {
+	case path == home:
+		return "~"
+	case strings.HasPrefix(path, home+string(filepath.Separator)):
+		return "~" + path[len(home):]
+	default:
+		return path
+	}
 }

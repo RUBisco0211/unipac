@@ -9,6 +9,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
@@ -179,7 +180,7 @@ func (s *View) shownVersions() (shown []string, cut bool) {
 // repaints the window.
 func (s *View) versionDialog(c *ui.Context) {
 	t := c.Theme()
-	components.Dialog(c, &s.picker.open, components.DialogOptions{Label: locales.VersionsTitle()}, func(panel ui.Element) {
+	parts.Dialog(c, &s.picker.open, components.DialogOptions{Label: locales.VersionsTitle()}, func(panel ui.Element) {
 		pkg := s.picker.pkg
 		state := s.versions[s.picker.key]
 		loading := state == nil || state.loading

@@ -824,7 +824,7 @@ func (u *UI) askToQuit(win *mygo.Window, pending int) {
 // the tasks be marked cancelled.
 func (u *UI) quitDialog(c *ui.Context) {
 	t := c.Theme()
-	components.Dialog(c, &u.quitOpen, components.DialogOptions{Label: locales.TasksQuitTitle()}, func(panel ui.Element) {
+	parts.Dialog(c, &u.quitOpen, components.DialogOptions{Label: locales.TasksQuitTitle()}, func(panel ui.Element) {
 		pending := u.quitPending
 		panel.Width(420).Padding(20).Children(func() {
 			ui.Column(c).Gap(12).Children(func() {

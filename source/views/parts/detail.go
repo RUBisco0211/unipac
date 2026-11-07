@@ -73,7 +73,7 @@ func (p *PackagePage) Build(c *ui.Context, o PackagePageOptions) {
 		return
 	}
 	t := c.Theme()
-	components.Dialog(c, &p.Open, components.DialogOptions{Label: p.pkg.Name}, func(panel ui.Element) {
+	Dialog(c, &p.Open, components.DialogOptions{Label: p.pkg.Name}, func(panel ui.Element) {
 		panel.Width(t.Space(140)).Padding(t.Space(5)).Gap(t.Space(4)).Children(func() {
 			header(c, p)
 			summary(c, p, o)

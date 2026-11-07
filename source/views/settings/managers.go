@@ -209,7 +209,7 @@ func (s *View) managerInfoItems(row *managerRow) []components.SettingsItem {
 				}
 				// A link is a text node: its visible words are its address.
 				url := info.Website
-				link := components.Button(c, url, components.ButtonLink)
+				link := components.Button(c, url, components.ButtonLink).SingleLine()
 				components.Tooltip(c, link, locales.SettingsManagerWebsiteOpen())
 				if link.Clicked() {
 					s.OnOpenURL(url)

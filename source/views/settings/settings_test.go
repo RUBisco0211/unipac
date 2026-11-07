@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
+	"github.com/RUBisco0211/unipac/source/backend/util"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
@@ -386,8 +387,8 @@ func TestAboutOpensItsPlaces(t *testing.T) {
 
 	tt := render(t, s.Build, 1200, 900)
 	choose(t, tt, locales.SettingsAbout())
-	// The folder's path is the link itself.
-	if err := tt.Click(s.about.DataDir); err != nil {
+	// The folder's path is the link itself, shown under ~ and opened whole.
+	if err := tt.Click(util.ShortPath(s.about.DataDir)); err != nil {
 		t.Fatalf("open the data folder: %v", err)
 	}
 	if len(opened) != 1 || opened[0] != s.about.DataDir {
@@ -596,7 +597,7 @@ func TestLinkRowsAnswerOnTheTrailingEdge(t *testing.T) {
 	if !ok {
 		t.Fatal("the version's answer is missing")
 	}
-	link, ok := tt.Find(s.about.DataDir)
+	link, ok := tt.Find(util.ShortPath(s.about.DataDir))
 	if !ok {
 		t.Fatal("the data folder's link is missing")
 	}

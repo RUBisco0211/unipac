@@ -736,7 +736,7 @@ func (l *View) holdsToConfirm() bool {
 }
 
 func (l *View) uninstallDialog(c *ui.Context) {
-	components.Dialog(c, &l.uninstallOpen, components.DialogOptions{Label: locales.UninstallTitle()}, func(panel ui.Element) {
+	parts.Dialog(c, &l.uninstallOpen, components.DialogOptions{Label: locales.UninstallTitle()}, func(panel ui.Element) {
 		pkg := l.uninstallTarget
 		t := c.Theme()
 		panel.Width(420).Padding(20).Children(func() {
@@ -778,7 +778,7 @@ func (l *View) uninstallDialog(c *ui.Context) {
 }
 
 func (l *View) bulkDialog(c *ui.Context) {
-	components.Dialog(c, &l.bulkOpen, components.DialogOptions{Label: locales.UninstallBulkTitle()}, func(panel ui.Element) {
+	parts.Dialog(c, &l.bulkOpen, components.DialogOptions{Label: locales.UninstallBulkTitle()}, func(panel ui.Element) {
 		targets := l.bulkTargets
 		t := c.Theme()
 		panel.Width(440).Padding(20).Children(func() {
