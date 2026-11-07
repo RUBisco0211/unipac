@@ -46,6 +46,9 @@ Load both before writing or reviewing UI code.
   `ui.Handle`, never an element.
 - Prefer Onevra controls. Use MyGo's styled widgets only where Onevra has no
   equivalent.
+- The settings page is one Onevra `components.Settings` surface. Do not wrap it
+  to animate a category switch, and do not hand-build its sidebar: the element
+  that switches is Onevra's, and the snap stays until it offers the option.
 - All user-visible text goes through the catalogs in `locales/`.
 - Tests live in the package they test. Use `package foo_test` when the test only
   touches exported API; do not add a cross-package test directory.

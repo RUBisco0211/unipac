@@ -455,7 +455,8 @@ keep its width in that copy, so the old page flashed with a narrower table as it
 went. MyGo's router avoids the same thing by fading only the page coming in. The
 transition animates colors alone, so the box takes the width the layout gives it
 in the frame it gets it instead of growing into it, as the table would on the
-frame after a switch.
+frame after a switch. Only these pages animate: a settings category snaps
+instead, for the reason its own section gives.
 
 Rules that replace the Vue ones:
 
@@ -539,6 +540,19 @@ and a narrow layout that swaps the sidebar for a selector and stacks each row.
 Onevra decides that layout; the page supplies the catalog. Do not hand-build a
 sidebar or a search field again — the reason the app has no managers page is that
 this surface searches settings and manager overrides together.
+
+A category switch snaps; it does not play the main window's fade and rise. The
+element that changes identity on a switch is Onevra's: the content column keyed
+on `SettingsState.Category`, inside the surface's own scroll view.
+`SettingsOptions` has no option for a transition there, and MyGo attaches one to
+an element's own builder, so there is no hook that could give it one from here.
+The two ways to fake it are worse than the snap: a keyed box around the whole
+surface rebuilds the category sidebar and the search field on every switch, so
+the fade would cover the navigation too, and `HideSidebar` with a one-category
+catalog means hand-building the sidebar this page must not have. If Onevra ever
+takes a content transition, this page only has to pass it: a field on
+`settings.View` that the shell fills with the transition the main window's pages
+use.
 
 A place on the About category and a manager's website are links, not addresses
 with a button beside them: the address itself is the control, in the accent color,
@@ -991,6 +1005,11 @@ Task UI:
 
 Kept so nobody re-opens them:
 
+- The settings window does not animate a category switch. The element that
+  changes identity is Onevra's content column and `SettingsOptions` has no
+  transition option for it, so its categories keep snapping rather than rebuild
+  the surface or hand-build its navigation to fake the effect; the fix belongs
+  upstream.
 - `manager.ErrorResult` returns `Success: false`.
 - `GetInstalledPackages` pins the loop adapter before appending its collector.
 - `logging.Init` creates its log directory and returns the real `OpenFile`
