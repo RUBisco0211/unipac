@@ -28,10 +28,6 @@ webview, no JavaScript.
   version dialog, newest first, filtered as you type.
 - Records every install, update and uninstall as a task with its console —
   cancellable, retriable, reopened from a notification, and clearable.
-- Configures appearance (light, dark or system), the theme color, notifications,
-  language and each manager's executable in one searchable settings window
-  (Cmd+,), where every manager's version, state and capabilities are a category
-  of their own.
 
 ## Supported Package Managers
 
