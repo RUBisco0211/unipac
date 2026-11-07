@@ -158,15 +158,19 @@ func (m *Cache) PackageDetail(managerID, name, version string) (manager.Detail, 
 }
 
 // SavePackageDetail keeps a package's page, which survives the scans that follow
-// while the version is the same.
+// while the version is the same. The page's summary also becomes the row's
+// description when the listing that wrote the row had none: npm, bun, cargo and
+// pip print names and versions, so their rows are described from the page.
 func (m *Cache) SavePackageDetail(managerID, name, version string, detail manager.Detail) error {
 	data, err := json.Marshal(detail)
 	if err != nil {
 		return err
 	}
-	_, err = m.db.ExecContext(m.ctx, `UPDATE installed_package_cache SET detail = ?, detail_fetched_at = ?
+	_, err = m.db.ExecContext(m.ctx, `UPDATE installed_package_cache SET
+			detail = ?, detail_fetched_at = ?,
+			description = CASE WHEN description IS NULL OR description = '' THEN ? ELSE description END
 		WHERE name = ? AND manager = ? AND version = ?`,
-		string(data), time.Now().Unix(), name, managerID, version)
+		string(data), time.Now().Unix(), detail.Summary, name, managerID, version)
 	return err
 }
 

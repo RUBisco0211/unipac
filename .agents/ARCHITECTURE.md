@@ -436,10 +436,16 @@ and a read that failed is silent: the shell logs it, and a page that said "not
 found" under every field would read as an error the user has to fix.
 
 The tables also know what their packages are: brew fills the installed list's
-descriptions from one `brew info --json=v2 --installed` of its own tap data, and
-pipx and uv read the summary from the metadata of the environments they keep. npm,
-bun, cargo and pip have no local bulk source for one, so their rows say so until
-the page is opened.
+descriptions from one `brew info --json=v2 --installed` of its own tap data, npm
+from `ls --long`, bun from the package.json beside each global, pip from the
+metadata its `list --verbose` locates, and pipx and uv from the environments they
+keep. cargo's listing prints names and versions only, so its rows are described
+when a page is read.
+
+Reading a page also describes its row: `Data.Describe` fills a row whose listing
+said nothing, and the cache keeps the same text in `description` beside the page,
+so the next launch's table has it without a visit. A row that already says what it
+is keeps the words the scan gave it.
 
 Switching pages plays a 200 ms fade and rise: the content area wraps the page in
 a box keyed by `Page`, and `ui.ElementTransition` animates it in. The page that

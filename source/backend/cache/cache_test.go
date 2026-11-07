@@ -171,3 +171,48 @@ func TestOldDatabaseGainsTheDetailColumns(t *testing.T) {
 		t.Errorf("detail = %+v fresh=%v err=%v", detail, fresh, err)
 	}
 }
+
+// A page's summary becomes the row's description when the listing had none, and a
+// row that already says what it is keeps its own words.
+func TestSavePackageDetailDescribesTheRow(t *testing.T) {
+	ctx := context.Background()
+	util.AppRoot = t.TempDir()
+	if err := cache.Init(ctx, cache.DefaultConfig()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	t.Cleanup(func() { _ = cache.Default.Close() })
+
+	pkgs := []manager.Package{
+		{Name: "typescript", Version: "5.9.3", Manager: "npm", Installed: true},
+		{Name: "ripgrep", Version: "14.1.1", Manager: "brew", Installed: true, Description: "from the scan"},
+	}
+	if err := cache.Default.UpdateCache(pkgs); err != nil {
+		t.Fatalf("UpdateCache: %v", err)
+	}
+
+	if err := cache.Default.SavePackageDetail("npm", "typescript", "5.9.3",
+		manager.Detail{Name: "typescript", Version: "5.9.3", Summary: "a language"}); err != nil {
+		t.Fatalf("SavePackageDetail: %v", err)
+	}
+	if err := cache.Default.SavePackageDetail("brew", "ripgrep", "14.1.1",
+		manager.Detail{Name: "ripgrep", Version: "14.1.1", Summary: "a search tool"}); err != nil {
+		t.Fatalf("SavePackageDetail: %v", err)
+	}
+
+	rows, err := cache.Default.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, row := range rows {
+		switch row.Name {
+		case "typescript":
+			if row.Description != "a language" {
+				t.Errorf("typescript description = %q, want the page's", row.Description)
+			}
+		case "ripgrep":
+			if row.Description != "from the scan" {
+				t.Errorf("ripgrep description = %q, want the scan's own", row.Description)
+			}
+		}
+	}
+}

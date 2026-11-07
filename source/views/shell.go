@@ -359,6 +359,9 @@ func (u *UI) PackageDetail(pkg manager.Package) {
 	go func() {
 		detail, err := u.svc.PackageDetail(pkg.Manager, pkg.Name, pkg.Version)
 		win.Update(func() {
+			// A manager whose listing prints no description gets one here, so
+			// the table says what the package is from now on.
+			u.data.Describe(pkg, detail.Summary)
 			// The answer goes to every page that could have asked; a page whose
 			// dialog is about another package drops it.
 			u.installed.SetDetail(pkg, detail, err)

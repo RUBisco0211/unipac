@@ -220,6 +220,26 @@ func (d *Data) applyRefresh(rows []manager.Package, refreshErr, loadErr error) {
 	d.Version++
 }
 
+// Describe fills in what a package is, for a row whose manager's listing did not
+// say: npm, bun, cargo and pip print names and versions, so their rows have no
+// description until the package's page is read. The answer is kept in the row, and
+// the version moves so a table built from the old rows shows it. A row that already
+// says what it is keeps its own words, which came from the same source.
+func (d *Data) Describe(pkg manager.Package, description string) {
+	if description == "" {
+		return
+	}
+	key := Key(pkg)
+	for i := range d.Rows {
+		if Key(d.Rows[i]) != key || d.Rows[i].Description != "" {
+			continue
+		}
+		d.Rows[i].Description = description
+		d.Version++
+		return
+	}
+}
+
 // InstalledVersion is the version the inventory holds for a package, and false
 // when it holds none. A search result is not installed by definition, so the
 // search page asks this instead.

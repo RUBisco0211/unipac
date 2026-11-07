@@ -176,3 +176,23 @@ func TestPackagePageFollowsTheRow(t *testing.T) {
 		t.Fatalf("the second package was read %d times, want once", asked)
 	}
 }
+
+// A manager whose listing prints no description has its rows described once a
+// page is read, so the table says what the package is from then on.
+func TestReadingAPageDescribesItsRow(t *testing.T) {
+	l := &View{Data: fixture(), AllowRemove: true, OnDetail: func(manager.Package) {}}
+	tt := render(t, l.Build, 1100, 620)
+	if err := tt.Click("5.9.3"); err != nil {
+		t.Fatalf("click the row with no description: %v", err)
+	}
+	tt.Frame()
+
+	l.Data.Describe(openedPkg(t, l), "TypeScript is a language for application scale JavaScript")
+	l.SetDetail(openedPkg(t, l), manager.Detail{
+		Name: "typescript", Version: "5.9.3", Summary: "TypeScript is a language for application scale JavaScript",
+	}, nil)
+	tt.Frame()
+	if !tt.HasText("TypeScript is a language for application scale JavaScript") {
+		t.Errorf("the row is not described: %v", tt.Texts())
+	}
+}
