@@ -1962,6 +1962,136 @@ func (msgs Messages) CapabilityVersions() string {
 	return Catalog.Format(msgs.locale, "capabilityVersions", nil)
 }
 
+// DetailLoading says "Reading the package’s page…"
+// in the language the app shows.
+func DetailLoading() string { return In(i18n.Locale()).DetailLoading() }
+
+// DetailLoading says "Reading the package’s page…"
+// in the language of msgs.
+func (msgs Messages) DetailLoading() string {
+	return Catalog.Format(msgs.locale, "detailLoading", nil)
+}
+
+// DetailNone says "Choose a package to see its page"
+// in the language the app shows.
+func DetailNone() string { return In(i18n.Locale()).DetailNone() }
+
+// DetailNone says "Choose a package to see its page"
+// in the language of msgs.
+func (msgs Messages) DetailNone() string {
+	return Catalog.Format(msgs.locale, "detailNone", nil)
+}
+
+// DetailVersion says "Version"
+// in the language the app shows.
+func DetailVersion() string { return In(i18n.Locale()).DetailVersion() }
+
+// DetailVersion says "Version"
+// in the language of msgs.
+func (msgs Messages) DetailVersion() string {
+	return Catalog.Format(msgs.locale, "detailVersion", nil)
+}
+
+// DetailLatest says "Latest"
+// in the language the app shows.
+func DetailLatest() string { return In(i18n.Locale()).DetailLatest() }
+
+// DetailLatest says "Latest"
+// in the language of msgs.
+func (msgs Messages) DetailLatest() string {
+	return Catalog.Format(msgs.locale, "detailLatest", nil)
+}
+
+// DetailHomepage says "Homepage"
+// in the language the app shows.
+func DetailHomepage() string { return In(i18n.Locale()).DetailHomepage() }
+
+// DetailHomepage says "Homepage"
+// in the language of msgs.
+func (msgs Messages) DetailHomepage() string {
+	return Catalog.Format(msgs.locale, "detailHomepage", nil)
+}
+
+// DetailHomepageOpen says "Open"
+// in the language the app shows.
+func DetailHomepageOpen() string { return In(i18n.Locale()).DetailHomepageOpen() }
+
+// DetailHomepageOpen says "Open"
+// in the language of msgs.
+func (msgs Messages) DetailHomepageOpen() string {
+	return Catalog.Format(msgs.locale, "detailHomepageOpen", nil)
+}
+
+// DetailPublisher says "Publisher"
+// in the language the app shows.
+func DetailPublisher() string { return In(i18n.Locale()).DetailPublisher() }
+
+// DetailPublisher says "Publisher"
+// in the language of msgs.
+func (msgs Messages) DetailPublisher() string {
+	return Catalog.Format(msgs.locale, "detailPublisher", nil)
+}
+
+// DetailLicense says "License"
+// in the language the app shows.
+func DetailLicense() string { return In(i18n.Locale()).DetailLicense() }
+
+// DetailLicense says "License"
+// in the language of msgs.
+func (msgs Messages) DetailLicense() string {
+	return Catalog.Format(msgs.locale, "detailLicense", nil)
+}
+
+// DetailLocation says "Location"
+// in the language the app shows.
+func DetailLocation() string { return In(i18n.Locale()).DetailLocation() }
+
+// DetailLocation says "Location"
+// in the language of msgs.
+func (msgs Messages) DetailLocation() string {
+	return Catalog.Format(msgs.locale, "detailLocation", nil)
+}
+
+// DetailReveal says "Show"
+// in the language the app shows.
+func DetailReveal() string { return In(i18n.Locale()).DetailReveal() }
+
+// DetailReveal says "Show"
+// in the language of msgs.
+func (msgs Messages) DetailReveal() string {
+	return Catalog.Format(msgs.locale, "detailReveal", nil)
+}
+
+// DetailSource says "Source"
+// in the language the app shows.
+func DetailSource() string { return In(i18n.Locale()).DetailSource() }
+
+// DetailSource says "Source"
+// in the language of msgs.
+func (msgs Messages) DetailSource() string {
+	return Catalog.Format(msgs.locale, "detailSource", nil)
+}
+
+// DetailClose says "Close the details"
+// in the language the app shows.
+func DetailClose() string { return In(i18n.Locale()).DetailClose() }
+
+// DetailClose says "Close the details"
+// in the language of msgs.
+func (msgs Messages) DetailClose() string {
+	return Catalog.Format(msgs.locale, "detailClose", nil)
+}
+
+// DetailIncomplete says "Not everything could be read: {error}"
+// in the language the app shows.
+func DetailIncomplete(error string) string { return In(i18n.Locale()).DetailIncomplete(error) }
+
+// DetailIncomplete says "Not everything could be read: {error}"
+// in the language of msgs.
+func (msgs Messages) DetailIncomplete(error string) string {
+	return Catalog.Format(msgs.locale, "detailIncomplete", map[string]any{"error": error})
+}
+
 // VersionsTitle says "Install a version"
 // in the language the app shows.
 func VersionsTitle() string { return In(i18n.Locale()).VersionsTitle() }

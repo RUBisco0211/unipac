@@ -370,7 +370,7 @@ together, and nothing has to be found across a 900-line file:
 | `views/uiassets` | the views' own embedded assets: the colored brand marks the interface shows beside a manager's name, in the settings sidebar and in the tables, one file per manager ID, decoded once and read by name | — |
 | `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
-| `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions | `inventory`, `parts`, `flight` |
+| `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions, and the package page in a `panel` opened by a row click | `inventory`, `parts`, `panel`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update | `inventory`, `parts`, `flight` |
 | `views/settings` | the settings page: one `components.Settings` surface with the app's settings as categories (appearance, language, startup behavior, log level, the task history clear behind its dialog, About) and one category per registered manager, its facts, its path field, the capability badges, the re-probe section action, and the save state machine | `inventory`, `parts` |
 | `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
@@ -403,6 +403,16 @@ fixture instead, because anything it imported would have to import it back.
 
 The installed and outdated pages are the same `list.View` with `OutdatedOnly`
 set, so a change to the table applies to both.
+
+A row click opens the package's own page in the side panel (`views/panel`, the
+same one the tasks page uses). The checkboxes own the selection the bulk actions
+act on, so a plain click is otherwise inert — which is what leaves it free for
+this: the table's cursor is the row last chosen, the panel follows it, and
+`List.OnSubmit` (Enter or a double click) opens the row the keyboard is on. The
+page is read once per package (`App.PackageDetail`, off the UI thread), and an
+answer for a package the user has since left is dropped by key. Rows a manager
+cannot answer show a dash, and a registry that does not answer leaves the local
+facts in place with one line saying what could not be read.
 
 Switching pages plays a 200 ms fade and rise: the content area wraps the page in
 a box keyed by `Page`, and `ui.ElementTransition` animates it in. The page that

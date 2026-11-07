@@ -148,14 +148,22 @@ func New(service inventory.Service) *UI {
 		OnRemove:     u.Remove,
 		OnBulkUpdate: u.BulkUpdate,
 		OnBulkRemove: u.BulkRemove,
+		OnDetail:     u.PackageDetail,
+		OnOpenURL:    u.OpenURL,
+		OnReveal:     u.RevealPath,
 	}
+	u.installed.Panel.Width = 380
 	u.outdated = &list.View{
 		Data:         u.data,
 		OutdatedOnly: true,
 		OnRefresh:    u.Refresh,
 		OnUpdate:     u.Update,
 		OnBulkUpdate: u.BulkUpdate,
+		OnDetail:     u.PackageDetail,
+		OnOpenURL:    u.OpenURL,
+		OnReveal:     u.RevealPath,
 	}
+	u.outdated.Panel.Width = 380
 	u.search = &search.View{
 		Data:             u.data,
 		Submit:           u.Search,
@@ -336,6 +344,36 @@ func (u *UI) InstallVersion(pkg manager.Package, version string, at flight.Origi
 	u.runTask("install", []manager.Package{pkg}, at, func() (manager.ActionResult, error) {
 		return u.svc.InstallPackage(pkg, manager.ActionOptions{Version: version})
 	})
+}
+
+// PackageDetail reads a package's own page, off the UI thread, and hands it to the
+// page that asked: the list pages show it in the panel beside their table. A
+// failure comes back with the local facts that were read, so the panel shows what
+// is known and one line about the rest.
+func (u *UI) PackageDetail(pkg manager.Package) {
+	if u.shell == nil || u.svc == nil {
+		return
+	}
+	win := u.shell.Window()
+	go func() {
+		detail, err := u.svc.PackageDetail(pkg.Manager, pkg.Name, pkg.Version)
+		win.Update(func() {
+			if u.page == PageOutdated {
+				u.outdated.SetDetail(pkg, detail, err)
+				return
+			}
+			u.installed.SetDetail(pkg, detail, err)
+		})
+	}()
+}
+
+// RevealPath shows a path in the file manager, which is how a package's page opens
+// the folder its copy lives in.
+func (u *UI) RevealPath(path string) {
+	if path == "" {
+		return
+	}
+	go mygo.Shell.ShowItemInFolder(path)
 }
 
 // Versions looks up the versions a package can be installed at, off the UI

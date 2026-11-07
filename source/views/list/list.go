@@ -3,6 +3,7 @@
 package list
 
 import (
+	"cmp"
 	"slices"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
+	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
@@ -40,6 +42,16 @@ type View struct {
 	// HoldsToConfirm reports whether answering a destructive confirmation is a
 	// hold rather than a click; nil means a hold.
 	HoldsToConfirm func() bool
+	// OnDetail asks for a package's own page: its description, page, publisher
+	// and location, read from the manager's tool and its registry. The answer
+	// comes back through SetDetail.
+	OnDetail func(manager.Package)
+	// OnOpenURL opens a web address in the browser, and OnReveal shows a path in
+	// the file manager.
+	OnOpenURL func(string)
+	OnReveal  func(string)
+	// Panel is the details panel beside the table.
+	Panel panel.State
 
 	query    string
 	managers map[string]bool
@@ -73,6 +85,19 @@ type View struct {
 		managers int
 		query    string
 	}
+
+	// cursor is the row last chosen, which a plain click sets: the panel follows
+	// what the user clicked last, while the checkboxes stay in charge of the
+	// selection the bulk actions act on.
+	cursor int
+	// opened is the package whose page the panel shows, and detail the page
+	// itself once it has been read. seq drops an answer that arrives after the
+	// user opened another package.
+	opened        *manager.Package
+	detail        manager.Detail
+	detailLoading bool
+	detailErr     string
+	seq           int
 
 	rows    []manager.Package
 	applied struct {
@@ -532,6 +557,11 @@ func (l *View) toggleAll() {
 }
 
 func (l *View) body(c *ui.Context) {
+	// The panel shows one package, so it stays away until a row is opened: a
+	// page built without one shows the table across its whole width.
+	if l.opened == nil {
+		l.Panel.Closed = true
+	}
 	switch {
 	case l.Data.LoadErr != nil:
 		parts.Placeholder(c, locales.PackagesLoadError(l.Data.LoadErr.Error()))
@@ -550,7 +580,12 @@ func (l *View) body(c *ui.Context) {
 		l.table.Sort = &l.sortOrder
 		l.table.OnSort = func() { l.applySort() }
 		l.table.List.Selection = &l.selection
-		l.table.List.OnChange = l.syncSelection
+		// A plain click is inert for the selection — the checkboxes are in
+		// charge of that — so it is what opens a package's page: the cursor is
+		// the row last chosen, and the keys move it too.
+		l.table.List.Selected = &l.cursor
+		l.table.List.OnChange = l.rowChosen
+		l.table.List.OnSubmit = func(row int) { l.open(row) }
 		l.table.List.Key = func(row int) any { return inventory.Key(l.rows[row]) }
 		// Rows move when a column sorts them. Keeping the offset, rather than
 		// the item at the top, is what stops the table from scrolling along
@@ -560,33 +595,99 @@ func (l *View) body(c *ui.Context) {
 		// Space(2) either side of the table: Onevra gives a header cell and a row
 		// cell the same padding and has no per-column inset, so the table's own
 		// edge is where the first cell's padding, header included, goes.
-		ui.Column(c).Fill().Padding(0, t.Space(2), 0, t.Space(2)).Children(func() {
-			components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
-				l.cell(c, row, col)
-			}).Fill()
-			// The table header only takes text, so the select-all control is
-			// laid over the first header cell, on the same padding the cells use.
-			ui.Row(c).Absolute().Top(0).Left(firstCellInset(t)).Height(t.Space(8)).
-				AlignItems(ui.Center).Children(func() {
-				all := l.allSelected()
-				box := components.Checkbox(c, &all, "").Label(locales.PackagesSelectAll())
-				if box.Changed() {
-					l.toggleAll()
+		panel.View(c, &l.Panel, func(c *ui.Context) {
+			ui.Column(c).Fill().Padding(0, t.Space(2), 0, t.Space(2)).Children(func() {
+				components.TableVirtualized(c, &l.table, l.columns(), len(l.rows), func(row, col int) {
+					l.cell(c, row, col)
+				}).Fill()
+				// The table header only takes text, so the select-all control is
+				// laid over the first header cell, on the same padding the cells use.
+				ui.Row(c).Absolute().Top(0).Left(firstCellInset(t)).Height(t.Space(8)).
+					AlignItems(ui.Center).Children(func() {
+					all := l.allSelected()
+					box := components.Checkbox(c, &all, "").Label(locales.PackagesSelectAll())
+					if box.Changed() {
+						l.toggleAll()
+					}
+				})
+				if len(l.chosen) > 0 {
+					titleWidth, _ := c.MeasureText(0, ui.Span{Text: locales.TablePackage(), Weight: 600})
+					left := firstCellInset(t) + selectColumnWidth + titleWidth + t.Space(2)
+					ui.Row(c).Absolute().Top(0).Left(left).Height(t.Space(8)).
+						AlignItems(ui.Center).Children(func() {
+						// Badge pins itself to the cross-start; centre it on the
+						// header's title line instead.
+						components.Badge(c, locales.CommonSelectionCount(len(l.chosen), len(l.rows))).
+							AlignSelf(ui.Center)
+					})
 				}
 			})
-			if len(l.chosen) > 0 {
-				titleWidth, _ := c.MeasureText(0, ui.Span{Text: locales.TablePackage(), Weight: 600})
-				left := firstCellInset(t) + selectColumnWidth + titleWidth + t.Space(2)
-				ui.Row(c).Absolute().Top(0).Left(left).Height(t.Space(8)).
-					AlignItems(ui.Center).Children(func() {
-					// Badge pins itself to the cross-start; centre it on the
-					// header's title line instead.
-					components.Badge(c, locales.CommonSelectionCount(len(l.chosen), len(l.rows))).
-						AlignSelf(ui.Center)
-				})
-			}
-		})
+		}, l.panelSide)
 	}
+}
+
+// rowChosen runs when the table's cursor moved: the checkboxes own the selection,
+// so the click's own choice is undone, and the package it landed on opens.
+func (l *View) rowChosen() {
+	l.syncSelection()
+	l.open(l.cursor)
+}
+
+// open shows one package's page in the panel and asks for its facts. Opening the
+// package already showing reads nothing again.
+func (l *View) open(row int) {
+	if row < 0 || row >= len(l.rows) {
+		return
+	}
+	pkg := l.rows[row]
+	if l.opened != nil && inventory.Key(*l.opened) == inventory.Key(pkg) {
+		l.Panel.Show()
+		return
+	}
+	l.opened = &pkg
+	l.detail = manager.Detail{}
+	l.detailErr = ""
+	l.detailLoading = l.OnDetail != nil
+	l.seq++
+	l.Panel.Show()
+	if l.OnDetail != nil {
+		l.OnDetail(pkg)
+	}
+}
+
+// SetDetail installs what was read about a package. An answer for a package the
+// user has left behind is dropped: only the page showing takes an answer.
+func (l *View) SetDetail(pkg manager.Package, detail manager.Detail, err error) {
+	if l.opened == nil || inventory.Key(*l.opened) != inventory.Key(pkg) {
+		return
+	}
+	l.detailLoading = false
+	l.detail = detail
+	l.detailErr = ""
+	if err != nil {
+		l.detailErr = err.Error()
+	}
+}
+
+// panelSide is the panel's content: the package's page, or a line saying nothing is
+// open yet.
+func (l *View) panelSide(c *ui.Context) {
+	if l.opened == nil {
+		parts.Placeholder(c, locales.DetailNone())
+		return
+	}
+	summary := l.detail
+	summary.Version = cmp.Or(summary.Version, l.opened.Version)
+	summary.Latest = cmp.Or(summary.Latest, l.opened.LatestVersion)
+	parts.DetailPanel(c, parts.DetailPanelOptions{
+		Package:   *l.opened,
+		Detail:    summary,
+		Loading:   l.detailLoading,
+		Err:       l.detailErr,
+		OnOpenURL: l.OnOpenURL,
+		OnReveal:  l.OnReveal,
+		OnClose:   func() { l.Panel.Closed = true },
+	})
 }
 
 func (l *View) cell(c *ui.Context, row, col int) {
