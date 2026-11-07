@@ -739,40 +739,8 @@ func (s *View) aboutItems() []components.SettingsItem {
 		})
 	}
 	return append(items,
-		components.SettingsItem{
-			ID:          "data",
-			Title:       locales.AboutDataDir(),
-			Description: s.about.DataDir,
-			Keywords:    []string{"data", "folder", "path", "storage"},
-			Build: func(c *ui.Context) {
-				if s.about.DataDir == "" || s.OnOpenPath == nil {
-					return
-				}
-				path := s.about.DataDir
-				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost).Shrink(0)
-				open.Label(locales.AboutOpen(locales.AboutDataDir()))
-				if open.Clicked() {
-					s.OnOpenPath(path)
-				}
-			},
-		},
-		components.SettingsItem{
-			ID:          "repository",
-			Title:       locales.AboutRepository(),
-			Description: s.about.Repository,
-			Keywords:    []string{"github", "repository", "source", "browser"},
-			Build: func(c *ui.Context) {
-				if s.about.Repository == "" || s.OnOpenURL == nil {
-					return
-				}
-				url := s.about.Repository
-				open := components.Button(c, locales.AboutOpenAction(), components.ButtonGhost).Shrink(0)
-				open.Label(locales.AboutRepositoryOpen())
-				if open.Clicked() {
-					s.OnOpenURL(url)
-				}
-			},
-		},
+		linkItem("data", locales.AboutDataDir(), []string{"data", "folder", "path", "storage"}, s.dataDirLink),
+		linkItem("repository", locales.AboutRepository(), []string{"github", "repository", "source", "browser"}, s.repositoryLink),
 		// The report is the one thing here that is done rather than read, so it
 		// is the last row of the category, drawn as its own button.
 		components.SettingsItem{
@@ -787,6 +755,50 @@ func (s *View) aboutItems() []components.SettingsItem {
 // factValue is a read-only answer in a row's trailing slot: one line, and its own
 // width, so the title beside it gives way instead of squeezing the answer into an
 // ellipsis.
+// linkItem is a fact the user can act on, drawn as the address itself: a link to
+// click in place, as on a web page, rather than a button beside it. It shares the
+// fact rows' label column, so the About category reads as one list.
+func linkItem(id, title string, keywords []string, link func(*ui.Context)) components.SettingsItem {
+	return components.SettingsItem{
+		ID:       id,
+		Title:    title,
+		Keywords: keywords,
+		Content: func(c *ui.Context) {
+			t := c.Theme()
+			ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(4)).AlignItems(ui.Center).Children(func() {
+				components.Text(c, title).FontSize(12).TextColor(t.TextMuted).Width(t.Space(25)).Shrink(0)
+				ui.Box(c).Grow(1).MinWidth(0).Children(func() { link(c) })
+			})
+		},
+	}
+}
+
+// dataDirLink is the folder the app writes to, which the file manager opens.
+func (s *View) dataDirLink(c *ui.Context) {
+	if s.about.DataDir == "" || s.OnOpenPath == nil {
+		components.Text(c, parts.OrDash(s.about.DataDir)).FontSize(12).TextColor(c.Theme().TextMuted)
+		return
+	}
+	path := s.about.DataDir
+	link := components.Button(c, path, components.ButtonLink).Label(locales.AboutOpen(locales.AboutDataDir()))
+	if link.Clicked() {
+		s.OnOpenPath(path)
+	}
+}
+
+// repositoryLink is where the source lives, which the browser opens.
+func (s *View) repositoryLink(c *ui.Context) {
+	if s.about.Repository == "" || s.OnOpenURL == nil {
+		components.Text(c, parts.OrDash(s.about.Repository)).FontSize(12).TextColor(c.Theme().TextMuted)
+		return
+	}
+	url := s.about.Repository
+	link := components.Button(c, url, components.ButtonLink).Label(locales.AboutRepositoryOpen())
+	if link.Clicked() {
+		s.OnOpenURL(url)
+	}
+}
+
 func factValue(c *ui.Context, value string) ui.Element {
 	return components.Text(c, value).SingleLine().Shrink(0)
 }

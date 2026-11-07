@@ -334,6 +334,5 @@
   "settingsClearHistoryMessage": "The tasks that finished will be removed with their console output; a task still running keeps its record.",
   "settingsClearHistoryConfirm": "Clear",
   "settingsStartupScanToggle": "Toggle scanning on launch",
-  "settingsHoldToConfirmToggle": "Toggle hold to confirm",
-  "detailSourceLine": "Details from {source}"
+  "settingsHoldToConfirmToggle": "Toggle hold to confirm"
 }

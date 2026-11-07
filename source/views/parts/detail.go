@@ -5,6 +5,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
+	"github.com/oneo-me/onevra/source/icons/lucide"
 )
 
 // PackagePage is one package's own page, shown in a dialog: the state a page
@@ -89,20 +90,15 @@ func (p *PackagePage) Build(c *ui.Context, o PackagePageOptions) {
 					locationRow(c, p, o)
 				}
 			})
-			ui.Row(c).FillWidth().Justify(ui.End).Children(func() {
-				close := components.Button(c, locales.DetailClose(), components.ButtonPrimary)
-				if close.Clicked() {
-					p.Open = false
-				}
-			})
 		})
 	})
 }
 
-// header is the package the page is about and the manager it came from.
+// header is the package the page is about, the manager it came from, and the way
+// out: a close button at the trailing edge, where a dialog's is.
 func header(c *ui.Context, p *PackagePage) {
 	t := c.Theme()
-	ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(3)).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).FillWidth().MinWidth(0).Gap(t.Space(3)).AlignItems(ui.Start).Children(func() {
 		ui.Image(c, ManagerLogo(p.pkg.Manager)).Size(t.Space(5), t.Space(5)).Fit(ui.Contain).Radius(t.Space(1)).Shrink(0)
 		ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
 			components.Tooltip(c, components.Text(c, p.pkg.Name).FontSize(15).Bold().SingleLine(), p.pkg.Name)
@@ -111,11 +107,11 @@ func header(c *ui.Context, p *PackagePage) {
 			if full := p.detail.Name; full != "" && full != p.pkg.Name {
 				components.Text(c, full).FontSize(11.5).TextColor(t.TextMuted).SingleLine()
 			}
-			if p.detail.Source != "" {
-				components.Text(c, locales.DetailSourceLine(p.detail.Source)).
-					FontSize(11).TextColor(t.TextMuted).SingleLine()
-			}
 		})
+		close := components.IconButton(c, lucide.X(), locales.DetailClose(), components.IconButtonPlain).Shrink(0)
+		if close.Clicked() {
+			p.Open = false
+		}
 	})
 }
 

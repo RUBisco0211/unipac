@@ -258,6 +258,5 @@
   "settingsClearHistoryMessage": "将删除已结束的任务及其控制台输出，正在运行的任务不受影响。",
   "settingsClearHistoryConfirm": "清空",
   "settingsStartupScanToggle": "切换启动时扫描开关",
-  "settingsHoldToConfirmToggle": "切换长按确认开关",
-  "detailSourceLine": "详情来自 {source}"
+  "settingsHoldToConfirmToggle": "切换长按确认开关"
 }

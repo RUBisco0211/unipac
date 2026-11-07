@@ -19,7 +19,9 @@ const UserAgent = "UniPac (+https://github.com/RUBisco0211/unipac)"
 const httpTimeout = 10 * time.Second
 
 // maxBody caps what a registry answer may read, so a wrong address cannot stream
-// the app out of memory.
+// the app out of memory. It is generous because some registries answer with a
+// whole version history; a reader that only needs one version asks for it
+// (npmregistry does) rather than raising this.
 const maxBody = 8 << 20
 
 // HTTPClient is the client the app reads registries with: it goes through the

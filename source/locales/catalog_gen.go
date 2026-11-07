@@ -2353,13 +2353,3 @@ func SettingsHoldToConfirmToggle() string { return In(i18n.Locale()).SettingsHol
 func (msgs Messages) SettingsHoldToConfirmToggle() string {
 	return Catalog.Format(msgs.locale, "settingsHoldToConfirmToggle", nil)
 }
-
-// DetailSourceLine says "Details from {source}"
-// in the language the app shows.
-func DetailSourceLine(source string) string { return In(i18n.Locale()).DetailSourceLine(source) }
-
-// DetailSourceLine says "Details from {source}"
-// in the language of msgs.
-func (msgs Messages) DetailSourceLine(source string) string {
-	return Catalog.Format(msgs.locale, "detailSourceLine", map[string]any{"source": source})
-}

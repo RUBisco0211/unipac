@@ -23,6 +23,13 @@ func FromVenv(venvDir, project string) (manager.Detail, error) {
 	if err != nil || len(sitePackages) == 0 {
 		return manager.Detail{Name: project}, os.ErrNotExist
 	}
+	return FromSitePackages(sitePackages, project)
+}
+
+// FromSitePackages reads the metadata of project in one of the directories its
+// distributions are installed into, which is where pip keeps them for the
+// interpreter it runs under.
+func FromSitePackages(sitePackages []string, project string) (manager.Detail, error) {
 	want := normalize(project)
 	for _, dir := range sitePackages {
 		matches, err := filepath.Glob(filepath.Join(dir, "*.dist-info"))

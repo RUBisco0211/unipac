@@ -131,8 +131,8 @@ sources, verified against each tool on macOS:
 | --- | --- | --- | --- |
 | brew formula | `brew info --json=v2` (local) | `versions.stable` | `brew --prefix` |
 | brew cask | `brew info --json=v2` (local); no license in a cask | `version` | `brew --caskroom` |
-| npm | npm registry (HTTP) | `dist-tags.latest` | `npm root -g` |
-| bun | npm registry (HTTP) | `dist-tags.latest` | `~/.bun/install/global/node_modules` |
+| npm | npm registry, one version's entry (HTTP) | the same entry | `npm root -g` |
+| bun | npm registry, one version's entry (HTTP) | the same entry | `~/.bun/install/global/node_modules` |
 | cargo | crates.io (HTTP), owners call for the publisher | `crate.max_version` | `$CARGO_HOME/bin/<binary>` |
 | pip | `pip show` (local) | PyPI when the scan did not know it | `Location` from `pip show` |
 | pipx | the environment's `dist-info/METADATA` (local) | PyPI when the scan did not know it | `pipx environment --value PIPX_LOCAL_VENVS` |
@@ -142,6 +142,15 @@ What no manager answers: brew and cargo give no upstream release date (a
 formula's history is its tap's git log), and brew's publisher is the tap that
 ships the formula — Homebrew itself for its own taps — because a formula has no
 author field.
+
+The npm registry answers two documents for a package: the whole package, every
+version ever published with each one's README, and one version's entry at
+`<name>/latest` or `<name>/<version>`. The whole one reaches tens of megabytes for
+a package with a long history — typescript's is 16 MB — so the reader asks for the
+version's entry instead, and a second one for the installed version when it is not
+the newest. Both are about 5 KB, and the abbreviated `install-v1` document is not
+the answer either: it is still 8 MB for the same package and drops the description,
+the page and the author.
 
 Detail is also asked for packages that are not installed: the search page opens
 the same page for a result. A local source answers when there is one — brew's

@@ -56,8 +56,7 @@ func TestRowClickOpensThePackagePage(t *testing.T) {
 	tt.Frame()
 	for _, want := range []string{
 		"line-oriented search tool", "https://github.com/BurntSushi/ripgrep",
-		"Andrew Gallant", "MIT", "/opt/homebrew/opt/ripgrep",
-		locales.DetailSourceLine("brew"), "15.0.0",
+		"Andrew Gallant", "MIT", "/opt/homebrew/opt/ripgrep", "15.0.0",
 		locales.DetailPublisher(), locales.DetailLicense(), locales.DetailLocation(),
 	} {
 		if !tt.HasText(want) {

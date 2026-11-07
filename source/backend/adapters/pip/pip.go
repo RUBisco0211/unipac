@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/RUBisco0211/unipac/source/backend/adapters/pymeta"
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
@@ -52,14 +53,18 @@ func (a *Adapter) Setup() error {
 }
 
 func (a *Adapter) ListInstalled() ([]manager.Package, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"list", "--format=json"}, nil)
+	// --verbose is what makes pip print each package's location: the
+	// site-packages directory it is installed into, where its metadata sits. That
+	// is where the table's descriptions come from, without a request per package.
+	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"list", "--format=json", "--verbose"}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var items []struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
+		Name     string `json:"name"`
+		Version  string `json:"version"`
+		Location string `json:"location"`
 	}
 	if err := json.Unmarshal([]byte(res.Stdout), &items); err != nil {
 		return nil, fmt.Errorf("failed to parse pip installed output: %w", err)
@@ -67,12 +72,18 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 
 	pkgs := make([]manager.Package, 0, len(items))
 	for _, item := range items {
-		pkgs = append(pkgs, manager.Package{
+		pkg := manager.Package{
 			Name:      item.Name,
 			Version:   item.Version,
 			Manager:   a.Info().ID,
 			Installed: true,
-		})
+		}
+		if item.Location != "" {
+			if detail, err := pymeta.FromSitePackages([]string{item.Location}, item.Name); err == nil {
+				pkg.Description = detail.Summary
+			}
+		}
+		pkgs = append(pkgs, pkg)
 	}
 	return pkgs, nil
 }

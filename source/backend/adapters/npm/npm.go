@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/util"
@@ -53,15 +54,19 @@ func (a *Adapter) Setup() error {
 }
 
 func (a *Adapter) ListInstalled() ([]manager.Package, error) {
-	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"ls", "-g", "--depth=0", "--json"}, nil)
+	// --long is what makes npm print each package's own fields, the description
+	// among them: it reads them from the package.json npm installed, so the table
+	// has a description for every row without a registry request.
+	res, err := util.Run(a.ctx, a.info.ExecPath, []string{"ls", "-g", "--depth=0", "--json", "--long"}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var obj struct {
 		Dependencies map[string]struct {
-			Version    string `json:"version"`
-			Overridden bool   `json:"overridden"`
+			Version     string `json:"version"`
+			Description string `json:"description"`
+			Overridden  bool   `json:"overridden"`
 		} `json:"dependencies"`
 	}
 	if err := json.Unmarshal([]byte(res.Stdout), &obj); err != nil {
@@ -74,10 +79,11 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 			continue
 		}
 		pkgs = append(pkgs, manager.Package{
-			Name:      name,
-			Version:   dep.Version,
-			Manager:   a.Info().ID,
-			Installed: true,
+			Name:        name,
+			Version:     dep.Version,
+			Manager:     a.Info().ID,
+			Installed:   true,
+			Description: strings.TrimSpace(dep.Description),
 		})
 	}
 	return pkgs, nil

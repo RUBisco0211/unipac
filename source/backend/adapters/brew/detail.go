@@ -62,12 +62,39 @@ func (a *Adapter) Detail(pkg manager.Package) (manager.Detail, error) {
 	}
 	switch {
 	case len(info.Casks) > 0:
-		return caskDetail(info.Casks[0], pkg), nil
+		detail := caskDetail(info.Casks[0], pkg)
+		detail.Path = a.caskRoom(info.Casks[0].Token)
+		return detail, nil
 	case len(info.Formulae) > 0:
-		return formulaDetail(info.Formulae[0], pkg), nil
+		detail := formulaDetail(info.Formulae[0], pkg)
+		detail.Path = a.prefixOf(pkg.Name)
+		return detail, nil
 	default:
 		return empty, fmt.Errorf("brew info %s returned nothing", pkg.Name)
 	}
+}
+
+// prefixOf is where Homebrew installed a formula: its own `--prefix`, which
+// answers without a network for anything it has.
+func (a *Adapter) prefixOf(name string) string {
+	out, err := util.Exec(a.ctx, a.info.ExecPath, []string{"--prefix", name}, nil)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
+}
+
+// caskRoom is where a cask was unpacked, under Homebrew's cask room.
+func (a *Adapter) caskRoom(token string) string {
+	out, err := util.Exec(a.ctx, a.info.ExecPath, []string{"--caskroom"}, nil)
+	if err != nil {
+		return ""
+	}
+	room := strings.TrimSpace(out)
+	if room == "" || token == "" {
+		return ""
+	}
+	return room + "/" + token
 }
 
 // formulaDetail reads one formula: the versions sit with the formula, and the

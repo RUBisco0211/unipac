@@ -11,7 +11,9 @@ package bun
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
@@ -83,7 +85,36 @@ func (a *Adapter) ListInstalled() ([]manager.Package, error) {
 	case none:
 		return []manager.Package{}, nil
 	}
-	return parseGlobalTree(a.Info().ID, out), nil
+	pkgs := parseGlobalTree(a.Info().ID, out)
+	a.addDescriptions(pkgs)
+	return pkgs, nil
+}
+
+// addDescriptions reads what each global package is from the package.json bun
+// installed beside it: bun's listing prints names and versions, and the table
+// shows a description for every row. It is a file read per package, and bun keeps
+// its own tree, so this is where only bun's globals live.
+func (a *Adapter) addDescriptions(pkgs []manager.Package) {
+	root := util.HomePath(".bun", "install", "global", "node_modules")
+	if root == "" {
+		return
+	}
+	for i := range pkgs {
+		if pkgs[i].Description != "" {
+			continue
+		}
+		data, err := os.ReadFile(root + "/" + pkgs[i].Name + "/package.json")
+		if err != nil {
+			continue
+		}
+		var manifest struct {
+			Description string `json:"description"`
+		}
+		if err := json.Unmarshal(data, &manifest); err != nil {
+			continue
+		}
+		pkgs[i].Description = strings.TrimSpace(manifest.Description)
+	}
 }
 
 // ListOutdated reads bun's table of outdated global packages.

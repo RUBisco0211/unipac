@@ -4,33 +4,45 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/RUBisco0211/unipac/source/backend/util"
 )
 
-// document is a registry answer for one package, trimmed to what the app reads.
-const document = `{
+// latest is one version's registry entry, the shape <name>/latest answers with.
+const latest = `{
   "name": "typescript",
+  "version": "7.0.2",
   "description": "TypeScript is a language for application scale JavaScript development",
   "homepage": "https://www.typescriptlang.org/",
   "license": "Apache-2.0",
   "author": "Microsoft Corp.",
-  "maintainers": [{"name": "typescript-bot", "email": "typescript@microsoft.com"}],
-  "dist-tags": {"latest": "7.0.2"},
-  "versions": {"6.0.0": {}, "7.0.2": {}},
-  "time": {
-    "created": "2022-01-26T13:10:59.042Z",
-    "modified": "2026-11-06T09:46:44.664Z",
-    "6.0.0": "2025-01-02T00:00:00.000Z",
-    "7.0.2": "2026-10-01T00:00:00.000Z"
-  }
+  "maintainers": [{"name": "typescript-bot", "email": "typescript@microsoft.com"}]
 }`
 
-func serve(t *testing.T, body string) {
+// older is the same package at an older version, which keeps its own terms.
+const older = `{
+  "name": "typescript",
+  "version": "6.0.0",
+  "license": "Apache-2.0",
+  "author": {"name": "Someone Else"},
+  "maintainers": [{"name": "someone"}]
+}`
+
+// serve answers /latest with latest and /<version> with older, recording the paths
+// it was asked for.
+func serve(t *testing.T, asked *[]string) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(body))
+		if asked != nil {
+			*asked = append(*asked, r.URL.Path)
+		}
+		if strings.HasSuffix(r.URL.Path, "/latest") {
+			w.Write([]byte(latest))
+			return
+		}
+		w.Write([]byte(older))
 	}))
 	t.Cleanup(server.Close)
 	old := Base
@@ -38,10 +50,23 @@ func serve(t *testing.T, body string) {
 	t.Cleanup(func() { Base = old })
 }
 
-// The registry's document becomes the page's fields, with the release date of the
-// version installed rather than of the newest one.
+// failure answers every request with 404.
+func failure(t *testing.T) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "not found", http.StatusNotFound)
+	}))
+	t.Cleanup(server.Close)
+	old := Base
+	Base = server.URL
+	t.Cleanup(func() { Base = old })
+}
+
+// One version's entry becomes the page's fields; the installed version adds its
+// own terms, and the newest version is what the page offers.
 func TestDetailFromTheRegistry(t *testing.T) {
-	serve(t, document)
+	var asked []string
+	serve(t, &asked)
 
 	detail, err := Detail(context.Background(), "typescript", "6.0.0")
 	if err != nil {
@@ -53,18 +78,40 @@ func TestDetailFromTheRegistry(t *testing.T) {
 	if detail.Summary == "" || detail.Homepage != "https://www.typescriptlang.org/" || detail.License != "Apache-2.0" {
 		t.Errorf("facts = %+v", detail)
 	}
-	// The first maintainer is the account the package belongs to.
+	// The installed copy's own entry names who publishes that version.
+	if detail.Publisher != "someone" {
+		t.Errorf("publisher = %q", detail.Publisher)
+	}
+	// Two small documents, never the whole package's history.
+	if len(asked) != 2 || asked[0] != "/typescript/latest" || asked[1] != "/typescript/6.0.0" {
+		t.Errorf("asked for %v", asked)
+	}
+}
+
+// With the newest version installed, one request is enough, and the publisher is
+// the newest version's.
+func TestDetailAtTheNewestVersionAsksOnce(t *testing.T) {
+	var asked []string
+	serve(t, &asked)
+
+	detail, err := Detail(context.Background(), "typescript", "7.0.2")
+	if err != nil {
+		t.Fatalf("detail: %v", err)
+	}
 	if detail.Publisher != "typescript-bot" {
 		t.Errorf("publisher = %q", detail.Publisher)
+	}
+	if len(asked) != 1 {
+		t.Errorf("asked for %v, want one request", asked)
 	}
 }
 
 // A scoped name keeps its slash, and a package the registry does not have is an
 // error rather than an empty answer with a made-up name.
 func TestDetailRequestsTheScopedPath(t *testing.T) {
-	var asked string
+	var asked []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		asked = r.URL.Path
+		asked = append(asked, r.URL.Path)
 		http.Error(w, "not found", http.StatusNotFound)
 	}))
 	defer server.Close()
@@ -75,31 +122,31 @@ func TestDetailRequestsTheScopedPath(t *testing.T) {
 	if _, err := Detail(context.Background(), "@scope/tool", "1.0.0"); err == nil {
 		t.Fatal("a missing package read as an answer")
 	}
-	if want := "/@scope/tool"; asked != want {
-		t.Errorf("asked %q, want %q", asked, want)
+	if want := "/@scope/tool/latest"; len(asked) == 0 || asked[0] != want {
+		t.Errorf("asked %v, want %q first", asked, want)
 	}
 }
 
-// The version list is newest first, and the document's own bookkeeping is not a
-// version.
-func TestVersionsNewestFirst(t *testing.T) {
-	serve(t, document)
-
-	versions, err := Versions(context.Background(), "typescript")
-	if err != nil {
-		t.Fatalf("versions: %v", err)
-	}
-	if len(versions) != 2 || versions[0] != "7.0.2" || versions[1] != "6.0.0" {
-		t.Fatalf("versions = %v, want [7.0.2 6.0.0]", versions)
+// A package whose page it does not declare still has one: its repository, in git
+// or npm's shorthand.
+func TestPageFromRepository(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"git+https://github.com/a/b.git", "https://github.com/a/b"},
+		{"git://github.com/a/b.git", "https://github.com/a/b"},
+		{"github:a/b", "https://github.com/a/b"},
+		{"https://github.com/a/b", "https://github.com/a/b"},
+		{"", ""},
+	} {
+		if got := pageFromRepository(tc.in); got != tc.want {
+			t.Errorf("pageFromRepository(%q) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }
 
 // A registry that is not reachable leaves the caller with the name and version it
 // asked about, so a page shows what it knew.
 func TestDetailWhenTheRegistryIsUnreachable(t *testing.T) {
-	old := Base
-	Base = "http://127.0.0.1:1"
-	t.Cleanup(func() { Base = old })
+	failure(t)
 	util.SetProxy("")
 	t.Cleanup(func() { util.SetProxy("") })
 
