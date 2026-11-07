@@ -48,6 +48,7 @@ type View struct {
 	OnSetLanguage      func(tag string)
 	OnSetTheme         func(value string)
 	OnSetAccent        func(value string)
+	OnSetProxy         func(value string)
 	OnSetHold          func(on bool)
 	OnSetNotifyEnabled func(on bool)
 	OnSetNotify        func(kind tasks.Kind, succeeded, on bool)
@@ -80,6 +81,14 @@ type View struct {
 	language    string
 	languages   []string
 	theme       string
+	// proxy is the proxy every manager's tool and the app's own requests go
+	// through, and proxyDraft the address being typed into the field; empty
+	// follows the environment the app was started with.
+	proxy      string
+	proxyDraft string
+	// systemProxy is what the desktop is configured with, offered when the
+	// environment has nothing.
+	systemProxy string
 	// accent is the theme color, and accents the ones the backend offers, in the
 	// order the choice shows them.
 	accent  string
@@ -122,6 +131,9 @@ func New(service inventory.Service, d *inventory.Data) *View {
 		language:      service.Language(),
 		languages:     service.Languages(),
 		theme:         service.Theme(),
+		proxy:         service.Proxy(),
+		proxyDraft:    service.Proxy(),
+		systemProxy:   service.SystemProxy(),
 		accent:        service.Accent(),
 		accents:       service.Accents(),
 		about:         service.About(),
@@ -136,6 +148,7 @@ type Snapshot struct {
 	Language      string
 	Theme         string
 	Accent        string
+	Proxy         string
 	HoldToConfirm bool
 	// Notify is which finished operations are announced.
 	Notify Notify
@@ -158,6 +171,8 @@ func (s *View) Revert(saved Snapshot) {
 	s.language = saved.Language
 	s.theme = saved.Theme
 	s.accent = saved.Accent
+	s.proxy = saved.Proxy
+	s.proxyDraft = saved.Proxy
 	s.HoldToConfirm = saved.HoldToConfirm
 	s.notify = saved.Notify
 	s.managers.invalidate()
@@ -303,6 +318,16 @@ func (s *View) generalItems() []components.SettingsItem {
 			Description: locales.SettingsLogLevelDesc(),
 			Keywords:    []string{"log", "level", "debug", "verbose"},
 			Build:       s.logLevelAction,
+		},
+		{
+			ID:          "proxy",
+			Title:       locales.SettingsProxy(),
+			Description: locales.SettingsProxyDesc(),
+			Keywords:    []string{"proxy", "network", "http", "socks", "mirror"},
+			// A field and a button do not fit beside a title; stacked, both get
+			// the row's width.
+			Stacked: true,
+			Build:   s.proxyAction,
 		},
 	}
 }
@@ -557,6 +582,53 @@ func accentChoice(c *ui.Context, value string) {
 		ui.Box(c).Width(10).Height(10).Radius(5).Shrink(0).Background(dot)
 		components.Text(c, accentLabel(value)).SingleLine()
 	})
+}
+
+// proxyAction is the proxy every manager's tool and the app's own requests go
+// through. Empty follows the environment the app was started with, which is what
+// a user who configured one there expects. The field is a draft like a manager's
+// path: Enter or Apply sends it, and a write that answers with another value puts
+// the field back. The button fills in the desktop's own proxy, for the case where
+// System Settings has one and the environment the app inherited does not.
+func (s *View) proxyAction(c *ui.Context) {
+	t := c.Theme()
+	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+		box := components.TextBox(c, &s.proxyDraft, components.TextBoxOptions{}).
+			Label(locales.SettingsProxy()).
+			Placeholder(locales.SettingsProxyPlaceholder()).
+			PlaceholderColor(t.TextMuted).
+			Grow(1).MinWidth(0)
+		if box.Submitted() {
+			s.applyProxy()
+		}
+		use := components.Button(c, locales.SettingsProxyUseSystem(), components.ButtonGhost).Shrink(0)
+		if s.systemProxy != "" {
+			// The button says what it will fill in, not just that it exists.
+			use.Label(locales.SettingsProxyUseSystem() + ": " + s.systemProxy)
+		}
+		use.Disabled(s.systemProxy == "" || strings.TrimSpace(s.proxyDraft) == s.systemProxy)
+		if use.Clicked() {
+			s.proxyDraft = s.systemProxy
+			s.applyProxy()
+		}
+		apply := components.Button(c, locales.SettingsApply(), components.ButtonGhost).Shrink(0)
+		apply.Label(locales.SettingsProxyApply())
+		apply.Disabled(strings.TrimSpace(s.proxyDraft) == s.proxy)
+		if apply.Clicked() {
+			s.applyProxy()
+		}
+	})
+}
+
+// applyProxy sends the draft when it differs from what the backend reports. The
+// value is checked by the backend, which rejects an address it cannot use and
+// says so above the surface.
+func (s *View) applyProxy() {
+	value := strings.TrimSpace(s.proxyDraft)
+	if value == s.proxy || s.OnSetProxy == nil {
+		return
+	}
+	s.OnSetProxy(value)
 }
 
 func (s *View) logLevelAction(c *ui.Context) {

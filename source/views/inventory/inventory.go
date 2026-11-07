@@ -40,6 +40,11 @@ type Service interface {
 	Languages() []string
 	Theme() string
 	SetTheme(value string) error
+	// Proxy is the saved proxy address, "" to follow the environment;
+	// SystemProxy is what the desktop is configured with, empty when it has none.
+	Proxy() string
+	SetProxy(value string) error
+	SystemProxy() string
 	// Accent is the saved theme color, one of Accents; "" keeps the toolkit's.
 	Accent() string
 	Accents() []string

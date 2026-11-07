@@ -509,3 +509,74 @@ func TestRevertRestoresTheSavedState(t *testing.T) {
 		t.Fatalf("controls = notifications %v theme %q, want the snapshot's", s.notify.Enabled, s.theme)
 	}
 }
+
+// The proxy is a draft: typing does not send it, Apply and Enter do, and a write
+// that answers with another value puts the field back.
+func TestSettingsProxyIsADraft(t *testing.T) {
+	s := settingsFixture()
+	var got []string
+	s.OnSetProxy = func(value string) { got = append(got, value); s.proxy = value; s.proxyDraft = value }
+
+	tt := render(t, s.Build, 1200, 900)
+	if !tt.HasText(locales.SettingsProxy()) {
+		t.Fatalf("the proxy row is missing: %v", tt.Texts())
+	}
+	if _, ok := tt.Find(locales.SettingsApply()); !ok {
+		t.Errorf("the field has no apply button: %v", tt.Texts())
+	}
+
+	// Typing alone sends nothing.
+	s.proxyDraft = "http://127.0.0.1:7890"
+	tt.Frame()
+	if len(got) != 0 {
+		t.Fatalf("typing sent %v", got)
+	}
+
+	// Apply sends the draft.
+	if err := tt.Click(locales.SettingsApply()); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	tt.Frame()
+	if len(got) != 1 || got[0] != "http://127.0.0.1:7890" {
+		t.Fatalf("sent %v, want the drafted proxy", got)
+	}
+
+	// A write that answers with another value puts the field back.
+	s.EndSave(nil, Snapshot{Proxy: ""})
+	if s.proxyDraft != "" || s.proxy != "" {
+		t.Errorf("field = %q saved = %q, want both empty", s.proxyDraft, s.proxy)
+	}
+}
+
+// The desktop's own proxy is offered when the environment has none, and one
+// click fills the field and sends it.
+func TestSettingsProxyOffersTheSystems(t *testing.T) {
+	s := settingsFixture()
+	s.systemProxy = "http://127.0.0.1:7890"
+	var got string
+	s.OnSetProxy = func(value string) { got = value }
+
+	tt := render(t, s.Build, 1200, 900)
+	if err := tt.Click(locales.SettingsProxyUseSystem()); err != nil {
+		t.Fatalf("click: %v", err)
+	}
+	tt.Frame()
+	if got != "http://127.0.0.1:7890" {
+		t.Fatalf("sent %q, want the system proxy", got)
+	}
+}
+
+// Without a system proxy the button would offer nothing, so it is disabled.
+func TestSettingsProxyWithoutASystemOne(t *testing.T) {
+	s := settingsFixture()
+	s.systemProxy = ""
+	var got string
+	s.OnSetProxy = func(value string) { got = value }
+
+	tt := render(t, s.Build, 1200, 900)
+	if err := tt.Click(locales.SettingsProxyUseSystem()); err == nil {
+		if got != "" {
+			t.Fatalf("a button with nothing to offer sent %q", got)
+		}
+	}
+}

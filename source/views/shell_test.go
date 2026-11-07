@@ -638,6 +638,9 @@ func (wiredService) Languages() []string                           { return nil 
 func (wiredService) Theme() string                                 { return "" }
 func (wiredService) Accent() string                                { return "" }
 func (wiredService) Accents() []string                             { return nil }
+func (wiredService) Proxy() string                                 { return "" }
+func (wiredService) SetProxy(string) error                         { return nil }
+func (wiredService) SystemProxy() string                           { return "" }
 func (wiredService) NotificationsEnabled() bool                    { return true }
 func (wiredService) Notifications(tasks.Kind, bool) bool           { return true }
 func (wiredService) NotificationKinds() []tasks.Kind {

@@ -422,3 +422,39 @@ func TestThemeAndNotificationsDefaultOnOldConfigs(t *testing.T) {
 		t.Errorf("theme = %q, want the empty system default", loaded.Theme)
 	}
 }
+
+// The proxy is saved as given and survives a reload; an address that is not a
+// proxy is rejected rather than saved, and the empty value follows the
+// environment.
+func TestSetProxyRoundTrip(t *testing.T) {
+	useTempRoot(t)
+
+	for _, value := range []string{"http://127.0.0.1:7890", "socks5://127.0.0.1:1080", "https://proxy.example:3128"} {
+		if err := SetProxy(value); err != nil {
+			t.Fatalf("proxy %q: %v", value, err)
+		}
+		loaded, err := Load()
+		if err != nil {
+			t.Fatalf("reload: %v", err)
+		}
+		if loaded.Proxy != value {
+			t.Fatalf("proxy = %q, want %q", loaded.Proxy, value)
+		}
+	}
+
+	for _, bad := range []string{"127.0.0.1:7890", "ftp://proxy:21", "http://", "not a proxy", "://x:1"} {
+		if err := SetProxy(bad); err == nil {
+			t.Errorf("proxy %q was saved", bad)
+		}
+	}
+	if Instance.Proxy != "https://proxy.example:3128" {
+		t.Errorf("a rejected proxy replaced the running one: %q", Instance.Proxy)
+	}
+
+	if err := SetProxy(""); err != nil {
+		t.Fatalf("clearing: %v", err)
+	}
+	if Instance.Proxy != "" {
+		t.Errorf("proxy = %q, want the empty environment value", Instance.Proxy)
+	}
+}

@@ -113,6 +113,19 @@ Background Work.
 - `SearchResult` and `MaxSearchResults`: what one search returned, and whether a
   manager had more than the 200 it may contribute.
 
+A proxy set in Settings reaches the managers' tools through the command runner
+(`util.SetProxy`, `proxyEnvs`): every command runs with the upper- and lower-case
+HTTP variables, npm's own pair and cargo's, because the tools disagree about the
+names — npm reads the lower-case ones only, pip and uv the upper-case ones, cargo
+needs its own. Setting them all is what lets one setting reach every manager
+without each adapter carrying its own spelling, and a tool ignores the names it
+does not read. An entry the environment already has is replaced rather than
+duplicated, since a duplicated variable resolves to the first of the two. The
+empty value leaves the environment untouched, which is what a user who set a
+proxy there expects; the settings row offers the desktop's own proxy
+(`util.SystemProxy`, `scutil --proxy`) for the case where System Settings has one
+and the app's environment does not.
+
 The backend manager registry is the source of truth for which package managers exist. The views must not maintain a parallel list of managers such as `brew`, `npm`, `pip`, or `cargo`.
 
 ### Registry
@@ -285,7 +298,9 @@ file keeps scanning), `hold_to_confirm` (nil means on: a destructive
 confirmation holds rather than clicks), `language` (the tag chosen in Settings,
 absent or empty to follow the system), `theme` (`light`, `dark`, or absent to
 follow the system), `accent` (a theme color from `config.Accents()`, absent or
-empty for the toolkit's own), `notify` (what a system notification says: the
+empty for the toolkit's own), `proxy` (the address every command and registry
+request goes through, absent or empty to follow the environment), `notify` (what
+a system notification says: the
 master `enabled`, each finished operation's `success` and `failure`, and whether
 `updates` waiting are announced; a nil field follows the single `notifications`
 switch an older file carries, which settles into the per-outcome switches on the
@@ -481,7 +496,7 @@ The catalog is two sidebar sections. The first is the app's settings:
   offers),
   the language (the app's languages plus System, named in their own language),
   startup behavior (scanning on launch, and whether a destructive confirmation is
-  a hold or a click), and the log level.
+  a hold or a click), the log level, and the proxy.
 - Notifications — the master switch (off silences everything below without
   forgetting it), then Finished operations with a Success and a Failure checkbox
   per operation, then the updates switch. Every switch here is about system

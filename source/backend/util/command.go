@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -43,9 +44,7 @@ func Run(ctx context.Context, bin string, args []string, envs []string) (ExecRes
 
 func RunAllowExitCodes(ctx context.Context, bin string, args []string, envs []string, allowedExitCodes ...int) (ExecResult, error) {
 	cmd := exec.CommandContext(ctx, bin, args...)
-	if len(envs) > 0 {
-		cmd.Env = append(cmd.Environ(), envs...)
-	}
+	cmd.Env = environ(envs)
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -230,4 +229,79 @@ var versionPattern = regexp.MustCompile(`[0-9]+\.[0-9]+(?:\.[0-9]+)*`)
 // output names none: a tool that answers something else is not a version.
 func VersionToken(output string) string {
 	return versionPattern.FindString(output)
+}
+
+// proxy is the proxy every command runs behind, "" to inherit the user's
+// environment. SetProxy sets it; the tools read it under names of their own,
+// which ProxyEnvs lists.
+var (
+	proxyMu sync.RWMutex
+	proxy   string
+)
+
+// SetProxy sets the proxy the commands this package runs go through, "" to
+// inherit the environment the app was started with. It takes effect for the next
+// command; nothing is restarted.
+func SetProxy(value string) {
+	proxyMu.Lock()
+	proxy = value
+	proxyMu.Unlock()
+}
+
+// Proxy reports the proxy commands run behind.
+func Proxy() string {
+	proxyMu.RLock()
+	defer proxyMu.RUnlock()
+	return proxy
+}
+
+// proxyEnvs are the environment variables a configured proxy sets, one per name
+// the package managers' tools read: the upper- and lower-case HTTP variables
+// curl, pip and uv use, npm's own pair (npm reads the lower-case ones only),
+// and cargo's. A tool ignores the names it does not read, so setting them all is
+// how one proxy reaches every manager without each adapter carrying its own
+// spelling.
+func proxyEnvs(value string) []string {
+	if value == "" {
+		return nil
+	}
+	return []string{
+		"http_proxy=" + value,
+		"https_proxy=" + value,
+		"HTTP_PROXY=" + value,
+		"HTTPS_PROXY=" + value,
+		"ALL_PROXY=" + value,
+		"all_proxy=" + value,
+		"npm_config_proxy=" + value,
+		"npm_config_https_proxy=" + value,
+		"CARGO_HTTP_PROXY=" + value,
+	}
+}
+
+// environ is the environment of a command: what the app was started with, the
+// call's own variables, and the proxy's, with an entry that a later one repeats
+// removed rather than left twice — a duplicated variable resolves to the first
+// of the two, which would leave the configured proxy unread.
+func environ(envs []string) []string {
+	base := os.Environ()
+	injected := append(append([]string{}, envs...), proxyEnvs(Proxy())...)
+	if len(injected) == 0 {
+		return base
+	}
+	names := make(map[string]struct{}, len(injected))
+	for _, kv := range injected {
+		if name, _, ok := strings.Cut(kv, "="); ok {
+			names[name] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(base)+len(injected))
+	for _, kv := range base {
+		if name, _, ok := strings.Cut(kv, "="); ok {
+			if _, replaced := names[name]; replaced {
+				continue
+			}
+		}
+		out = append(out, kv)
+	}
+	return append(out, injected...)
 }

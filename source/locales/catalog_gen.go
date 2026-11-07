@@ -576,6 +576,56 @@ func (msgs Messages) SettingsLogLevelDesc() string {
 	return Catalog.Format(msgs.locale, "settingsLogLevelDesc", nil)
 }
 
+// SettingsProxy says "Proxy"
+// in the language the app shows.
+func SettingsProxy() string { return In(i18n.Locale()).SettingsProxy() }
+
+// SettingsProxy says "Proxy"
+// in the language of msgs.
+func (msgs Messages) SettingsProxy() string {
+	return Catalog.Format(msgs.locale, "settingsProxy", nil)
+}
+
+// SettingsProxyDesc says "The proxy every package manager’s tool goes through. Empty follows the environment UniPac was started with"
+// in the language the app shows.
+func SettingsProxyDesc() string { return In(i18n.Locale()).SettingsProxyDesc() }
+
+// SettingsProxyDesc says "The proxy every package manager’s tool goes through. Empty follows the environment UniPac was started with"
+// in the language of msgs.
+func (msgs Messages) SettingsProxyDesc() string {
+	return Catalog.Format(msgs.locale, "settingsProxyDesc", nil)
+}
+
+// SettingsProxyPlaceholder says "http://127.0.0.1:7890"
+// in the language the app shows.
+func SettingsProxyPlaceholder() string { return In(i18n.Locale()).SettingsProxyPlaceholder() }
+
+// SettingsProxyPlaceholder says "http://127.0.0.1:7890"
+// in the language of msgs.
+func (msgs Messages) SettingsProxyPlaceholder() string {
+	return Catalog.Format(msgs.locale, "settingsProxyPlaceholder", nil)
+}
+
+// SettingsProxyUseSystem says "Use system proxy"
+// in the language the app shows.
+func SettingsProxyUseSystem() string { return In(i18n.Locale()).SettingsProxyUseSystem() }
+
+// SettingsProxyUseSystem says "Use system proxy"
+// in the language of msgs.
+func (msgs Messages) SettingsProxyUseSystem() string {
+	return Catalog.Format(msgs.locale, "settingsProxyUseSystem", nil)
+}
+
+// SettingsProxyApply says "Apply the proxy"
+// in the language the app shows.
+func SettingsProxyApply() string { return In(i18n.Locale()).SettingsProxyApply() }
+
+// SettingsProxyApply says "Apply the proxy"
+// in the language of msgs.
+func (msgs Messages) SettingsProxyApply() string {
+	return Catalog.Format(msgs.locale, "settingsProxyApply", nil)
+}
+
 // SettingsLanguage says "Language"
 // in the language the app shows.
 func SettingsLanguage() string { return In(i18n.Locale()).SettingsLanguage() }

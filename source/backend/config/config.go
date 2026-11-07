@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,6 +32,10 @@ type Config struct {
 	// Accent is the theme color chosen in Settings, one of Accents; "" keeps the
 	// toolkit's own accent.
 	Accent string `json:"accent,omitempty"`
+	// Proxy is the proxy every command and registry request goes through, such
+	// as "http://127.0.0.1:7890"; "" follows the environment the app was started
+	// with.
+	Proxy string `json:"proxy,omitempty"`
 	// HoldToConfirm is nil in a config written before the setting existed, which
 	// behaves like true: the destructive confirmations hold rather than click.
 	HoldToConfirm *bool `json:"hold_to_confirm,omitempty"`
@@ -429,6 +434,40 @@ func SetTheme(value string) error {
 	}
 	cfg := Instance
 	cfg.Theme = value
+	if err := Save(cfg); err != nil {
+		return err
+	}
+	Instance = cfg
+	return nil
+}
+
+// ProxySchemes are the proxies a user can configure.
+var ProxySchemes = []string{"http", "https", "socks5", "socks5h"}
+
+// ProxyValid reports whether value is a proxy address this build can use: a URL
+// with one of ProxySchemes and a host, or "" to follow the environment.
+func ProxyValid(value string) bool {
+	if value == "" {
+		return true
+	}
+	u, err := url.Parse(value)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return slices.Contains(ProxySchemes, u.Scheme)
+}
+
+// SetProxy saves the proxy address, "" to follow the environment. Applying it to
+// the commands the app runs is the caller's job. A value that is not a proxy
+// address is rejected rather than saved, so a hand edit or a stale client cannot
+// leave one the app cannot use.
+func SetProxy(value string) error {
+	value = strings.TrimSpace(value)
+	if !ProxyValid(value) {
+		return fmt.Errorf("unknown proxy: %q", value)
+	}
+	cfg := Instance
+	cfg.Proxy = value
 	if err := Save(cfg); err != nil {
 		return err
 	}

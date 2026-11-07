@@ -184,6 +184,7 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetNotify = u.SetNotifications
 	u.settings.OnSetNotifyUpdates = u.SetNotifyUpdates
 	u.settings.OnSetAccent = u.SetAccent
+	u.settings.OnSetProxy = u.SetProxy
 	u.settings.OnSetManagerEnabled = u.SetManagerEnabled
 	u.settings.OnSetManagerPath = u.SetManagerExecPath
 	u.settings.OnReloadManagers = u.ReloadManagers
@@ -1261,6 +1262,15 @@ func (u *UI) SetAccent(value string) {
 	})
 }
 
+// SetProxy saves the proxy every command and registry request goes through. The
+// backend installs it for the next command, so the scans and actions that follow
+// use it.
+func (u *UI) SetProxy(value string) {
+	u.saveSettings(false, func() error {
+		return u.svc.SetProxy(value)
+	})
+}
+
 func (u *UI) SetLanguage(tag string) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetLanguage(tag)
@@ -1306,6 +1316,7 @@ func (u *UI) saveSettings(rescan bool, fn func() error) {
 			Language:      u.svc.Language(),
 			Theme:         u.svc.Theme(),
 			Accent:        u.svc.Accent(),
+			Proxy:         u.svc.Proxy(),
 			HoldToConfirm: u.svc.HoldToConfirm(),
 			Notify:        settings.NotifyFrom(u.svc),
 		}

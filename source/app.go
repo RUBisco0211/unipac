@@ -95,6 +95,7 @@ func (a *App) Startup(ctx context.Context) error {
 	// The appearance is settled before the window exists, so it does not open in
 	// the system's and change under the user.
 	applyTheme(config.Instance.Theme)
+	util.SetProxy(config.Instance.Proxy)
 
 	if err := logging.Init(config.Instance.Log); err != nil {
 		return a.fail("init logging", err)
@@ -355,6 +356,30 @@ func applyTheme(value string) {
 	default:
 		mygo.Theme.SetSource(mygo.ThemeSystem)
 	}
+}
+
+// Proxy is the saved proxy address, "" to follow the environment.
+func (a *App) Proxy() string {
+	return config.Instance.Proxy
+}
+
+// SetProxy saves the proxy every command and registry request goes through. Each
+// manager's tool reads it under a name of its own, which the command runner sets;
+// nothing needs restarting, as the next command picks it up.
+func (a *App) SetProxy(value string) error {
+	slog.InfoContext(a.ctx, "changing proxy", "proxy", value)
+	if err := config.SetProxy(value); err != nil {
+		slog.ErrorContext(a.ctx, "failed to save the proxy", "error", err)
+		return err
+	}
+	util.SetProxy(config.Instance.Proxy)
+	return nil
+}
+
+// SystemProxy is the proxy the desktop is configured with, for the settings page
+// to offer when the user set one in System Settings and not in the environment.
+func (a *App) SystemProxy() string {
+	return util.SystemProxy(a.ctx)
 }
 
 // SetLanguage saves the chosen language and applies it at once. An empty tag
