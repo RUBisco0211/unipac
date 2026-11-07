@@ -186,9 +186,16 @@ func TestPackageNames(t *testing.T) {
 // failure: the inventory is simply empty. Each listing words the rest its own
 // way, so only the shared phrase is matched.
 func TestEmptyGlobalsAreNotAFailure(t *testing.T) {
+	// bun has two ways of saying it has no global packages: a missing lockfile,
+	// and a global directory with no package.json at all — which its listing and
+	// its table word differently. Neither is a failure.
 	for _, out := range []string{
 		"error: missing lockfile, nothing to list\nnote: run 'bun install' first\n",
 		"bun outdated v1.4.2 (744846f84)\nerror: missing lockfile, nothing outdated\nnote: run 'bun install' first\n",
+		// A global directory with no package.json at all: the listing and the
+		// table word it differently, and this machine prints these.
+		"error: No package.json was found for directory \"/Users/me/.bun/install/global\"\nnote: Run \"bun init\" to initialize a project",
+		"bun outdated v1.4.2 (744846f84)\nerror: missing package.json, nothing outdated\nerror: failed to initialize bun install: MissingPackageJSON",
 	} {
 		res := util.ExecResult{Stdout: out, ExitCode: 1}
 		none, err := globalsState(res)

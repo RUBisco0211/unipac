@@ -22,10 +22,14 @@ import (
 
 const managerID = "bun"
 
-// missingLockfile is what bun says when it has never installed a package
-// globally: `bun pm ls -g` and `bun outdated -g` both fail with exit code 1 and a
-// line carrying this. It is an empty inventory, not a failure.
-const missingLockfile = "missing lockfile"
+// emptyPhrases are what bun says when it has never installed a package globally,
+// and they differ by how far it got: "missing lockfile" when the global directory
+// has a package.json but nothing installed, and a missing package.json when the
+// directory is empty of everything — "No package.json was found for directory" for
+// the listing, "MissingPackageJSON" for the table. Both are an empty inventory, not
+// a failure, and each is matched in lower case because bun words them differently
+// per command.
+var emptyPhrases = []string{"missing lockfile", "no package.json was found", "missingpackagejson"}
 
 // colorEnv asks bun for the colors the task console renders. It is set for the
 // commands whose output the user reads, and never for the ones the adapter
@@ -152,7 +156,7 @@ func globalsState(res util.ExecResult) (none bool, err error) {
 	if res.ExitCode == 0 {
 		return false, nil
 	}
-	if strings.Contains(util.StripANSI(res.Output()), missingLockfile) {
+	if saysNothingInstalled(util.StripANSI(res.Output())) {
 		return true, nil
 	}
 	message := strings.TrimSpace(res.Output())
@@ -160,6 +164,18 @@ func globalsState(res util.ExecResult) (none bool, err error) {
 		message = fmt.Sprintf("bun exited with status %d", res.ExitCode)
 	}
 	return false, fmt.Errorf("bun: %s", message)
+}
+
+// saysNothingInstalled reports whether a listing's output is one of bun's ways of
+// saying it has no global packages.
+func saysNothingInstalled(output string) bool {
+	lower := strings.ToLower(output)
+	for _, phrase := range emptyPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 // Search is not offered: bun has no search command, and its packages are npm's,
