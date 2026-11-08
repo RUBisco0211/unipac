@@ -3,7 +3,7 @@ module github.com/RUBisco0211/unipac
 go 1.27.3
 
 require (
-	github.com/egoist/mygo v0.8.1
+	github.com/egoist/mygo v0.8.3
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/oneo-me/onevra/source v0.2026.18
 	github.com/samber/lo v1.53.0
