@@ -1083,6 +1083,12 @@ func (u *UI) content(c *ui.Context) {
 	// OnShortcut would be scoped to this content column and stay silent while the
 	// sidebar or nothing at all has the focus. ui.Cmd is Control where there is no
 	// Cmd.
+	//
+	// Shortcut matches a key by exact equality, so a KeyUnknown event — a
+	// modifier pressed on its own, Caps Lock, a key the layout types nothing
+	// for — never fires it. Should shortcut interception grow into handling raw
+	// InputKeyDown (HandleInput), filter these out explicitly: taking an
+	// unknown key would keep it from the system, and Alt from the menu bar.
 	if c.Shortcut(ui.Cmd, ui.KeyComma) && u.openSettings != nil {
 		u.openSettings()
 	}
