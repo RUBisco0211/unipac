@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/egoist/mygo v0.8.1
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/oneo-me/onevra/source v0.2026.16
+	github.com/oneo-me/onevra/source v0.2026.18
 	github.com/samber/lo v1.53.0
 	modernc.org/sqlite v1.61.1
 )

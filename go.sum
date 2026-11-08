@@ -29,8 +29,8 @@ github.com/mattn/go-sqlite3 v1.14.37 h1:3DOZp4cXis1cUIpCfXLtmlGolNLp2VEqhiB/PARN
 github.com/mattn/go-sqlite3 v1.14.37/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/ncruces/go-strftime v1.1.0 h1:vtPmPWMkb539RGV9WpWT9EwJGvrOCKvMNI4obWL47Hk=
 github.com/ncruces/go-strftime v1.1.0/go.mod h1:yVaq7iwCN09vHRrKBrrflXT0M9tTMG2KmZ9Fj7xeG/g=
-github.com/oneo-me/onevra/source v0.2026.16 h1:/B9c7wBlVSmod47vOd81NMB3axG9WnEWcEoXA4d13II=
-github.com/oneo-me/onevra/source v0.2026.16/go.mod h1:iHmNFIkclcFXIq0cf5cbnzaN0dFTYtvE1EzbeQzM9TA=
+github.com/oneo-me/onevra/source v0.2026.18 h1:XayEPjX17ytyMoBJDQs1MyfSIuzE+jCaaeDEhS9l4ZM=
+github.com/oneo-me/onevra/source v0.2026.18/go.mod h1:/+3SV9M2gM5Gq4ljua6afXcp+s4+3Lk/5wWSOg/qSAA=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
