@@ -970,6 +970,32 @@ Task UI:
 5. `tasks.View` renders the snapshots, the chosen task's console, and a retry for
    a failure. Retrying calls the same `App` method, which creates a new task.
 
+## Packaging
+
+`mygo.json` is the only packaging manifest. The icon is drawn once, in
+`assets/icon.png`, and that drawing is what Windows and Linux ship.
+
+macOS takes a different route: `macos.icon` names `assets/Assets.car`, the asset
+catalog that `actool` compiles from `assets/AppIcon.icon`, an Icon Composer
+document. The document holds the package alone, `Assets/package.png`, on
+transparency, and `icon.json` paints the background: cream in the light
+appearance, warm near-black in the dark one. So macOS 26's dark and tinted icon
+styles get a variant of their own instead of a treated flattened PNG, and the
+`AppIcon.icns` beside it in the bundle, which older macOS reads, is MyGo's
+rendering of `assets/icon.png` at all eight sizes — a Mac on macOS 12 to 25 sees
+the icon it always did.
+
+`scripts/macos-icon.sh` regenerates both artifacts from `assets/icon.png`:
+`scripts/icongen/main.go` cuts the artwork out of the flat drawing, which has its
+background baked in, and `actool` compiles the document. Run it after redrawing
+the icon, and commit the results. The `.car` is committed rather than compiled at
+build time so that a build needs no Xcode: `actool` would otherwise compile the
+`.icon` only on a Mac with Xcode 26 or later, and `mygo build` elsewhere keeps
+the `.icns` of the PNG and ships no dark icon, with a warning nobody reads.
+
+One consequence: `mygo dev` shows the `.icns` of the PNG. The dark variant
+appears in a `mygo build` bundle only.
+
 ## Design Rules Going Forward
 
 1. `unipac` is the maintained project. Do not modify the old Tauri project unless the user explicitly asks.
