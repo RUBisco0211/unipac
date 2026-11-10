@@ -31,6 +31,11 @@ Load both before writing or reviewing UI code.
   `go.mod`, `go.sum`, `mygo.json`, `assets/` and `dist/` sit there. The app's Go
   packages are under `source/`. Run every Go and MyGo command from the root.
 - Build with `CGO_ENABLED=0`; every platform builds from any machine.
+- The macOS icon is generated, never edited in place. `scripts/macos-icon.sh`
+  makes `assets/AppIcon.icon/Assets/package.png` from `assets/icon.png` and
+  compiles `assets/Assets.car` from the document, and both are committed. Run it
+  after changing the drawing or the document, and commit what it writes: the
+  build only copies the catalog, so a stale one ships without a word.
 - The backend registry is the source of truth for managers. Never hardcode a
   manager list, label, icon or command in the UI.
 - Views call `App` methods. Never call adapters, the registry or the cache
