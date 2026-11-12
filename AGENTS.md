@@ -54,6 +54,12 @@ Load both before writing or reviewing UI code.
 - The settings page is one Onevra `components.Settings` surface. Do not wrap it
   to animate a category switch, and do not hand-build its sidebar: the element
   that switches is Onevra's, and the snap stays until it offers the option.
+- The app updates itself from signed releases. The signing key is made once with
+  `go tool mygo keygen` and never regenerated: installed copies accept only
+  updates signed with it, so the secret half lives in the repository secret
+  `MYGO_UPDATER_PRIVATE_KEY` and nowhere in the tree. A release's notes are its
+  section of `CHANGELOG.md`, so a version without one cannot be built for
+  release.
 - All user-visible text goes through the catalogs in `locales/`.
 - Tests live in the package they test. Use `package foo_test` when the test only
   touches exported API; do not add a cross-package test directory.

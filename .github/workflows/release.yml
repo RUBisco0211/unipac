@@ -1,11 +1,13 @@
 name: Release
 
-# Packaging pipeline: builds the macOS arm64 disk image, runs the checks, and
-# publishes it as a GitHub release for the pushed tag.
+# Packaging pipeline: builds the macOS arm64 disk image and the signed update
+# that installed copies download, runs the checks, and publishes them as a
+# GitHub release for the pushed tag.
 #
-#   git tag v0.2.0 && git push origin v0.2.0
+#   git tag v0.4.0 && git push origin v0.4.0
 #
-# The tag must match "version" in mygo.json; the first step fails otherwise.
+# The tag must match "version" in mygo.json; the first step fails otherwise, and
+# the release notes are that version's section of CHANGELOG.md.
 # Run the workflow from the Actions tab to build without releasing.
 
 on:
@@ -14,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # create the release and upload the disk image to it
+  contents: write # create the release and upload the build to it
 
 concurrency:
   group: release-${{ github.ref }}
@@ -51,48 +53,65 @@ jobs:
           CGO_ENABLED: 0
         run: go test ./...
 
-      # No Developer ID certificate is configured, so mygo build signs ad hoc:
-      # the app runs, but Gatekeeper blocks it on other Macs until the user
-      # allows it. To ship a signed, notarized build, import the certificate
-      # into a keychain before this step and set macos.signingIdentity and
-      # macos.notarize in mygo.json; see "Signing and notarizing macOS apps"
-      # in MyGo's docs/github-actions.md.
-      - name: Build the disk image
+      # The build is ad hoc signed, so Gatekeeper asks before the first launch
+      # of a copy installed from the disk image. Updates are unaffected: they
+      # are verified against the key of `go tool mygo keygen`, and the files the
+      # app writes itself carry no quarantine. To ship a build that opens without
+      # that question, import a Developer ID certificate before this step and set
+      # macos.signingIdentity and macos.notarize in mygo.json; see "Signing and
+      # notarizing macOS apps" in MyGo's docs/github-actions.md.
+
+      # A release without a signed manifest is one installed apps cannot update
+      # to, so the build refuses to publish without the key: it is the secret key
+      # of `go tool mygo keygen`, kept in the repository's secrets. Losing it
+      # strands every installed copy, and anyone who has it can ship code to
+      # them.
+      - name: Check the update signing key
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MYGO_UPDATER_PRIVATE_KEY" ]; then
+            echo "::error::MYGO_UPDATER_PRIVATE_KEY is not set: run 'go tool mygo keygen' once, keep the secret key, and add it as a repository secret."
+            exit 1
+          fi
+
+      # The disk image is what a new user installs; the archive, the delta
+      # updates and update-darwin-arm64.json are what an installed app updates
+      # from, and -upload puts them in the draft release of the tag. mygo creates
+      # that draft, so nothing else may create it first.
+      - name: Build and upload the update
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          CGO_ENABLED: 0
+          GH_TOKEN: ${{ github.token }}
+          MYGO_UPDATER_PRIVATE_KEY: ${{ secrets.MYGO_UPDATER_PRIVATE_KEY }}
+        run: go tool mygo build -platform darwin/arm64 -upload
+
+      # Run from the Actions tab there is no release to upload to: build what
+      # this version would ship and leave publishing to a tag.
+      - name: Build
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         env:
           CGO_ENABLED: 0
         run: go tool mygo build -platform darwin/arm64
-
-      - name: Write checksums
-        run: |
-          cd dist/darwin-arm64
-          shasum -a 256 ./*.dmg > checksums.txt
-          cat checksums.txt
 
       - uses: actions/upload-artifact@v7
         with:
           name: unipac-macos-arm64
           path: |
             dist/darwin-arm64/*.dmg
-            dist/darwin-arm64/checksums.txt
+            dist/darwin-arm64/*.tar.gz
+            dist/darwin-arm64/update-*.json
+            dist/darwin-arm64/install.sh
+            dist/darwin-arm64/SHA256SUMS
           if-no-files-found: error
 
-      # The draft exists before the upload, so a rerun replaces its files
-      # instead of creating a second release. It is published only once the
-      # disk image and the checksums are attached.
+      # The draft is the release the build uploaded to. Publishing it makes it
+      # the latest, which is the release installed apps read: until then they
+      # see the version before.
       - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" \
-              --repo "$GITHUB_REPOSITORY" \
-              --draft --verify-tag \
-              --title "UniPac $GITHUB_REF_NAME" \
-              --generate-notes
-          fi
-          gh release upload "$GITHUB_REF_NAME" \
-            --repo "$GITHUB_REPOSITORY" --clobber \
-            dist/darwin-arm64/*.dmg dist/darwin-arm64/checksums.txt
-          gh release edit "$GITHUB_REF_NAME" \
-            --repo "$GITHUB_REPOSITORY" --draft=false
+        run: gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

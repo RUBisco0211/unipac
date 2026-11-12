@@ -7,6 +7,10 @@
     "icon": "assets/Assets.car"
   },
   "out": "dist",
+  "updates": {
+    "publicKey": "XK73E2lEcyRiq/vztaomYnQxC+dKxA2iEAdpinyHE+4=",
+    "github": "RUBisco0211/unipac"
+  },
   "i18n": {
     "dir": "source/locales",
     "source": "en"

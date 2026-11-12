@@ -996,6 +996,57 @@ the `.icns` of the PNG and ships no dark icon, with a warning nobody reads.
 One consequence: `mygo dev` shows the `.icns` of the PNG. The dark variant
 appears in a `mygo build` bundle only.
 
+### Updates
+
+`mygo.Updater` installs new versions. `mygo build` signs an archive of the app,
+a delta from each of the last three published versions, and a manifest per
+platform with the Ed25519 key of `go tool mygo keygen`; the app checks the
+manifest and every file it names against the public key in `mygo.json` before it
+replaces itself. The trust is that key, not Apple: an update needs no
+notarization, and the files the app writes carry no quarantine, so the Gatekeeper
+question is one a new user answers once, for the disk image. Deltas are why the
+download stays small — a Go binary mostly moves code around, and bsdiff
+describes that in a fraction of the archive.
+
+`main.go` uses `plugins/updater/native`, the update window in native UI, so the
+app still needs no webview. It checks ten seconds after launch, then once a day,
+and its "Check for Updates…" item sits after About in a menu bar the app builds
+itself: MyGo installs its default menu only when the app sets none, so one item
+of the app's own means spelling the rest out. Release notes are the version's
+section of `CHANGELOG.md`, which is why a version without one cannot be released.
+
+The window is the plugin's, not Onevra's, and that is a deliberate first step:
+its texts come from the plugin's own translations rather than `locales/`, and its
+choices live in `updater.json` beside `config.json`. The settled direction is to
+call `mygo.Updater` from `App` methods and draw the rows in Settings with Onevra,
+where the search field and the app's language already reach them;
+`updater.AvailableVersion` and `updater.OnChange` are what such a page reads.
+
+Two things this path does not share with the rest of the backend. Its proxy is
+the system's, not the one in Settings: `util.SetProxy` builds the environment of
+each manager's command and nothing else, so an update check goes through
+MyGo's proxy resolution — the system's settings, or `HTTPS_PROXY` when the
+environment has it. That separation is deliberate. The proxy in Settings exists
+because a package manager's tool needs it spelled in its own variable names, and
+a user who points Homebrew at a mirror has not thereby chosen where the app's own
+release comes from; the app follows the desktop, as a browser does. Do not bridge
+the two by setting `HTTPS_PROXY` from the config: it would hand every manager's
+child process the app's network choice, and it would make a release check fail
+where the desktop is configured correctly and the setting is stale.
+
+And it is the only part of the app that replaces its own bundle, so it runs only
+from a writable install: `/Applications` for an administrator, `~/Applications`
+otherwise. `Updater.Enabled` is false in a development build, in a copy run from
+the disk image, and in a package-manager install.
+
+Without a Developer ID, the friction is the first install rather than the
+updates: a copy dragged out of the disk image is quarantined and ad hoc signed,
+so Gatekeeper asks once. `mygo build` therefore writes an `install.sh` for macOS,
+which `-upload` publishes beside the manifest, and the README leads with it:
+`curl` sets no quarantine flag, and the script checks the archive's size and
+Ed25519 signature as the app does, then replaces the bundle in `/Applications`.
+The disk image stays as the fallback, not the front door.
+
 ## Design Rules Going Forward
 
 1. `unipac` is the maintained project. Do not modify the old Tauri project unless the user explicitly asks.
@@ -1016,6 +1067,9 @@ appears in a `mygo build` bundle only.
 
 ## Suggested Near-Term Cleanup
 
+- The update window is MyGo's plugin, so its texts bypass `locales/` and its
+  choices live in a second file, `updater.json`. Moving it to Onevra rows in
+  Settings, over `mygo.Updater` and `App` methods, is the settled direction.
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.
