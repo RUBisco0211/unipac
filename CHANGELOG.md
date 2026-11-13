@@ -4,6 +4,15 @@ The section of a version is the release notes of its GitHub release, which the
 update window shows: `mygo build` reads it when it publishes an update, so a
 version without a section cannot be released.
 
+## 0.4.1
+
+- Settings › About now carries the app's own updater, beside the version it
+  changes: **Check now**, which opens the update window without waiting for the
+  background check, and the two switches that decide whether UniPac checks in the
+  background and whether it installs what it finds without asking.
+- Both switches were previously reachable only from the update window itself, so
+  the choice to install without asking could be turned on and not off.
+
 ## 0.4.0
 
 - UniPac updates itself: ten seconds after launch, then once a day, it asks the
