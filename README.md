@@ -130,9 +130,12 @@ users on other Macs to allow the app once.
 An installed copy updates itself: ten seconds after launch, then once a day, it
 asks the release feed for a version newer than its own, verifies the manifest and
 the files against the Ed25519 key in `mygo.json`, and offers to install it.
-**Check for Updates…** in the app menu checks at once. Installing downloads a
-delta from the running version when the release has one, and the whole archive
-otherwise; the new version runs after a restart, or at the next launch.
+**Check for updates** in Settings › About asks at once, and so does the same item
+in the app menu; both open the update window. Installing downloads a delta from
+the running version when the release has one, and the whole archive otherwise;
+the new version runs after a restart, or at the next launch. The two switches
+beside the button decide whether the app checks in the background and whether a
+version it finds there installs without asking.
 
 The key is made once, with `go tool mygo keygen`, and its secret half must be the
 repository secret `MYGO_UPDATER_PRIVATE_KEY`. It is never regenerated: installed

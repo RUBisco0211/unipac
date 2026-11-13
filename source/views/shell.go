@@ -200,6 +200,9 @@ func New(service inventory.Service) *UI {
 	u.settings.OnOpenPath = u.OpenPath
 	u.settings.OnOpenURL = u.OpenURL
 	u.settings.OnClearHistory = u.ClearTaskHistory
+	u.settings.OnSetAutoCheck = u.SetAutoCheckUpdates
+	u.settings.OnSetAutoDownload = u.SetAutoDownloadUpdates
+	u.settings.OnCheckUpdates = u.CheckForUpdates
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
@@ -1165,6 +1168,27 @@ func (u *UI) SetHoldToConfirm(on bool) {
 	u.saveSettings(false, func() error {
 		return u.svc.SetHoldToConfirm(on)
 	})
+}
+
+// SetAutoCheckUpdates saves whether the app asks the release feed for a newer
+// version in the background. The updater keeps that choice in its own file, so
+// there is no config write to queue and nothing to report back: the switch shows
+// what the user just chose.
+func (u *UI) SetAutoCheckUpdates(on bool) {
+	u.svc.SetAutoCheckUpdates(on)
+}
+
+// SetAutoDownloadUpdates saves whether a version found in the background installs
+// without asking.
+func (u *UI) SetAutoDownloadUpdates(on bool) {
+	u.svc.SetAutoDownloadUpdates(on)
+}
+
+// CheckForUpdates opens the update window now, which is what the menu item and
+// the About row both do; the window answers with what it found, or with why this
+// build cannot update itself.
+func (u *UI) CheckForUpdates() {
+	u.svc.CheckForUpdates()
 }
 
 // OpenPath opens a file or folder in the desktop's own application, which is how

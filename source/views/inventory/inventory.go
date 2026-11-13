@@ -66,6 +66,19 @@ type Service interface {
 	SetAutoScanOnLaunch(on bool) error
 	HoldToConfirm() bool
 	SetHoldToConfirm(on bool) error
+	// UpdatesEnabled reports whether this build can update itself: a development
+	// build, a copy run from the disk image and a package-manager install cannot.
+	UpdatesEnabled() bool
+	// AutoCheckUpdates and AutoDownloadUpdates are the updater's preferences:
+	// whether it checks in the background, and whether a version it finds there
+	// installs without asking. They live in the updater's own file rather than in
+	// the config, because its window changes them too.
+	AutoCheckUpdates() bool
+	AutoDownloadUpdates() bool
+	SetAutoCheckUpdates(on bool)
+	SetAutoDownloadUpdates(on bool)
+	// CheckForUpdates opens the update window, as the app menu's item does.
+	CheckForUpdates()
 	LogLevel() string
 	LogLevels() []string
 	SetLogLevel(level string) error

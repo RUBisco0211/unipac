@@ -21,6 +21,7 @@ import (
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/plugins/updater"
 	"github.com/samber/lo"
 )
 
@@ -411,6 +412,48 @@ func (a *App) SetHoldToConfirm(on bool) error {
 		return err
 	}
 	return nil
+}
+
+// UpdatesEnabled reports whether this build can update itself: it was built with
+// the release feed and can write where it is installed. A development build, a
+// copy run from the disk image and a package-manager install cannot.
+func (a *App) UpdatesEnabled() bool {
+	return mygo.Updater.Enabled()
+}
+
+// AutoCheckUpdates reports whether the app asks the release feed for a newer
+// version in the background.
+func (a *App) AutoCheckUpdates() bool {
+	return updater.AutomaticChecks()
+}
+
+// AutoDownloadUpdates reports whether a version found in the background installs
+// without asking, to run at the next launch.
+func (a *App) AutoDownloadUpdates() bool {
+	return updater.AutomaticDownloads()
+}
+
+// SetAutoCheckUpdates turns background checks on or off. The choice is the
+// updater's own, kept beside the config rather than in it: its window offers the
+// same switch, and one of the two would otherwise overwrite the other.
+func (a *App) SetAutoCheckUpdates(on bool) {
+	slog.InfoContext(a.ctx, "changing automatic update checks", "on", on)
+	updater.SetAutomaticChecks(on)
+}
+
+// SetAutoDownloadUpdates turns installing a background update without asking on
+// or off; see SetAutoCheckUpdates for why the choice is not in the config.
+func (a *App) SetAutoDownloadUpdates(on bool) {
+	slog.InfoContext(a.ctx, "changing automatic update installs", "on", on)
+	updater.SetAutomaticDownloads(on)
+}
+
+// CheckForUpdates opens the update window now, as the app menu's item does. A
+// build that cannot update itself says so in that window rather than staying
+// silent, which is why this is not guarded by UpdatesEnabled.
+func (a *App) CheckForUpdates() {
+	slog.InfoContext(a.ctx, "checking for updates")
+	updater.CheckForUpdates()
 }
 
 func (a *App) AutoScanOnLaunch() bool {

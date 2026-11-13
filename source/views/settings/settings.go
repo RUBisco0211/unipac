@@ -54,6 +54,11 @@ type View struct {
 	OnSetNotifyEnabled func(on bool)
 	OnSetNotify        func(kind tasks.Kind, succeeded, on bool)
 	OnSetNotifyUpdates func(on bool)
+	// OnSetAutoCheck and OnSetAutoDownload save the updater's own preferences,
+	// and OnCheckUpdates asks for a check now, which opens the update window.
+	OnSetAutoCheck    func(on bool)
+	OnSetAutoDownload func(on bool)
+	OnCheckUpdates    func()
 	// OnOpenPath opens a file or folder in the desktop's own application.
 	OnOpenPath func(path string)
 	// OnOpenURL opens a web address in the browser.
@@ -98,6 +103,14 @@ type View struct {
 	// about is what the build is and where it keeps its files, loaded once when
 	// the page is built.
 	about inventory.About
+	// updatesEnabled is whether this build can update itself. A build that cannot
+	// offers no switch: the updater would never check, so the rows would answer a
+	// question that does not arise.
+	updatesEnabled bool
+	// autoCheck and autoDownload are the updater's preferences, which live in its
+	// own file rather than in the config: its window offers the same switches.
+	autoCheck    bool
+	autoDownload bool
 	// TopInset is the chrome the window draws over this page's top, which is the
 	// window's drag strip when content runs behind it. The page pads its error
 	// line by it; zero is a window that insets the page instead.
@@ -122,22 +135,25 @@ type View struct {
 // New builds the page from the values the app started with.
 func New(service inventory.Service, d *inventory.Data) *View {
 	return &View{
-		Data:          d,
-		AutoScan:      service.AutoScanOnLaunch(),
-		HoldToConfirm: service.HoldToConfirm(),
-		notify:        NotifyFrom(service),
-		notifyKinds:   service.NotificationKinds(),
-		logLevel:      service.LogLevel(),
-		levels:        service.LogLevels(),
-		language:      service.Language(),
-		languages:     service.Languages(),
-		theme:         service.Theme(),
-		proxy:         service.Proxy(),
-		proxyDraft:    service.Proxy(),
-		systemProxy:   service.SystemProxy(),
-		accent:        service.Accent(),
-		accents:       service.Accents(),
-		about:         service.About(),
+		Data:           d,
+		AutoScan:       service.AutoScanOnLaunch(),
+		HoldToConfirm:  service.HoldToConfirm(),
+		notify:         NotifyFrom(service),
+		notifyKinds:    service.NotificationKinds(),
+		logLevel:       service.LogLevel(),
+		levels:         service.LogLevels(),
+		language:       service.Language(),
+		languages:      service.Languages(),
+		theme:          service.Theme(),
+		proxy:          service.Proxy(),
+		proxyDraft:     service.Proxy(),
+		systemProxy:    service.SystemProxy(),
+		accent:         service.Accent(),
+		accents:        service.Accents(),
+		about:          service.About(),
+		updatesEnabled: service.UpdatesEnabled(),
+		autoCheck:      service.AutoCheckUpdates(),
+		autoDownload:   service.AutoDownloadUpdates(),
 	}
 }
 
@@ -723,13 +739,16 @@ func (s *View) aboutItems() []components.SettingsItem {
 			Keywords: []string{"version", "build"},
 			Build:    func(c *ui.Context) { factValue(c, parts.OrDash(s.about.Version)) },
 		},
-		{
-			ID:       "runtime",
-			Title:    locales.AboutRuntime(),
-			Keywords: []string{"go", "runtime", "built"},
-			Build:    func(c *ui.Context) { factValue(c, parts.OrDash(s.about.Go)) },
-		},
 	}
+	// The updater follows the version it changes: it is the one thing in this
+	// category that is done rather than read.
+	items = append(items, s.updateItems()...)
+	items = append(items, components.SettingsItem{
+		ID:       "runtime",
+		Title:    locales.AboutRuntime(),
+		Keywords: []string{"go", "runtime", "built"},
+		Build:    func(c *ui.Context) { factValue(c, parts.OrDash(s.about.Go)) },
+	})
 	for _, module := range s.about.Modules {
 		name, version, _ := strings.Cut(module, " ")
 		items = append(items, components.SettingsItem{
@@ -753,9 +772,63 @@ func (s *View) aboutItems() []components.SettingsItem {
 	)
 }
 
-// factValue is a read-only answer in a row's trailing slot: one line, and its own
-// width, so the title beside it gives way instead of squeezing the answer into an
-// ellipsis.
+// updateItems is the app's own updater, beside the version it changes: the way to
+// ask now, and the two preferences the update window offers too. A build that
+// cannot replace itself gets the button alone — the updater would never check, so
+// its switches would answer a question that does not arise — and the window says
+// why when the button is pressed.
+func (s *View) updateItems() []components.SettingsItem {
+	items := []components.SettingsItem{{
+		ID:          "updates",
+		Title:       locales.AboutCheckUpdates(),
+		Description: s.updatesDescription(),
+		Keywords:    []string{"update", "upgrade", "newer", "latest", "version"},
+		Build:       s.checkUpdatesAction,
+	}}
+	if !s.updatesEnabled {
+		return items
+	}
+	return append(items,
+		components.SettingsItem{
+			ID:          "auto-check",
+			Title:       locales.AboutAutoCheck(),
+			Description: locales.AboutAutoCheckDesc(),
+			Keywords:    []string{"update", "automatic", "background", "check", "daily"},
+			Build: func(c *ui.Context) {
+				s.switchAction(c, &s.autoCheck, locales.AboutAutoCheckToggle(), s.OnSetAutoCheck)
+			},
+		},
+		components.SettingsItem{
+			ID:          "auto-download",
+			Title:       locales.AboutAutoDownload(),
+			Description: locales.AboutAutoDownloadDesc(),
+			Keywords:    []string{"update", "automatic", "install", "quiet", "restart"},
+			Build: func(c *ui.Context) {
+				s.switchAction(c, &s.autoDownload, locales.AboutAutoDownloadToggle(), s.OnSetAutoDownload)
+			},
+		},
+	)
+}
+
+// updatesDescription says why the update rows are only partly there: a build that
+// cannot replace itself has no background check to switch.
+func (s *View) updatesDescription() string {
+	if s.updatesEnabled {
+		return ""
+	}
+	return locales.AboutUpdatesUnavailable()
+}
+
+// checkUpdatesAction asks now instead of waiting for the background check. The
+// row's title names the action and the button is its short verb, on the row's
+// trailing edge where every other control in this category is.
+func (s *View) checkUpdatesAction(c *ui.Context) {
+	check := components.Button(c, locales.AboutCheckNow(), components.ButtonOutline)
+	if check.Clicked() && s.OnCheckUpdates != nil {
+		s.OnCheckUpdates()
+	}
+}
+
 // linkItem is a fact the user can act on, drawn as the address itself: a link to
 // click in place, as on a web page, rather than a button beside it. It shares the
 // fact rows' label column, so the About category reads as one list.
@@ -808,6 +881,9 @@ func (s *View) repositoryLink(c *ui.Context) {
 	}
 }
 
+// factValue is a read-only answer in a row's trailing slot: one line, and its own
+// width, so the title beside it gives way instead of squeezing the answer into an
+// ellipsis.
 func factValue(c *ui.Context, value string) ui.Element {
 	return components.Text(c, value).SingleLine().Shrink(0)
 }

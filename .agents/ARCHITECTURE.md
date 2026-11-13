@@ -1015,12 +1015,15 @@ itself: MyGo installs its default menu only when the app sets none, so one item
 of the app's own means spelling the rest out. Release notes are the version's
 section of `CHANGELOG.md`, which is why a version without one cannot be released.
 
-The window is the plugin's, not Onevra's, and that is a deliberate first step:
-its texts come from the plugin's own translations rather than `locales/`, and its
-choices live in `updater.json` beside `config.json`. The settled direction is to
-call `mygo.Updater` from `App` methods and draw the rows in Settings with Onevra,
-where the search field and the app's language already reach them;
-`updater.AvailableVersion` and `updater.OnChange` are what such a page reads.
+The update window is still the plugin's, so its texts come from the plugin's
+translations rather than `locales/`, and its choices live in `updater.json`
+beside `config.json`. What the app owns is in Settings › About: the two
+preferences as Onevra switches, and a button that opens that window now. They
+read and write `updater.AutomaticChecks`, `AutomaticDownloads` and
+`CheckForUpdates` through `App`, so the page keeps no copy of the state — but the
+rows are read once, when the shell is built, so a choice made in the update window
+shows there only at the next launch. A build that cannot replace itself shows the
+button without the switches, and the window says why when it is pressed.
 
 Two things this path does not share with the rest of the backend. Its proxy is
 the system's, not the one in Settings: `util.SetProxy` builds the environment of
@@ -1067,9 +1070,12 @@ The disk image stays as the fallback, not the front door.
 
 ## Suggested Near-Term Cleanup
 
-- The update window is MyGo's plugin, so its texts bypass `locales/` and its
-  choices live in a second file, `updater.json`. Moving it to Onevra rows in
-  Settings, over `mygo.Updater` and `App` methods, is the settled direction.
+- The update window is MyGo's plugin: its texts bypass `locales/`, and the About
+  rows read the updater's preferences once, when the shell is built, so a choice
+  made in that window disagrees with them until the app restarts. Replacing the
+  window with Onevra rows over `mygo.Updater` — release notes, progress, restart —
+  removes both, and is the settled direction; `updater.AvailableVersion` and
+  `updater.OnChange` are what such a page reads.
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.

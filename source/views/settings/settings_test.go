@@ -39,6 +39,9 @@ func settingsFixture() *View {
 			Updates:   true,
 		},
 		notifyKinds: []tasks.Kind{tasks.KindInstall, tasks.KindUpdate, tasks.KindUninstall},
+		// The updater's rows, as an installed copy reports them.
+		updatesEnabled: true,
+		autoCheck:      true,
 		about: inventory.About{
 			Version:    "0.2.0",
 			Go:         "go1.27.3",
@@ -435,6 +438,66 @@ func TestAboutCopiesDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(diagnostics, locales.SettingsPackageCount(1)) {
 		t.Errorf("diagnostics do not say what a manager holds:\n%s", diagnostics)
+	}
+}
+
+// The updater sits in About beside the version it changes: the way to ask now,
+// and the two preferences its own window offers too, which is why the page reads
+// them from the updater rather than from the config.
+func TestAboutChecksForUpdates(t *testing.T) {
+	s := settingsFixture()
+	checks := 0
+	autoCheck := true
+	s.OnCheckUpdates = func() { checks++ }
+	s.OnSetAutoCheck = func(on bool) { autoCheck = on }
+
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
+	for _, want := range []string{
+		locales.AboutCheckUpdates(), locales.AboutAutoCheck(), locales.AboutAutoDownload(),
+	} {
+		if !tt.HasText(want) {
+			t.Fatalf("missing %q in About: %v", want, tt.Texts())
+		}
+	}
+
+	if err := tt.Click(locales.AboutCheckNow()); err != nil {
+		t.Fatalf("click check now: %v", err)
+	}
+	tt.Frame()
+	if checks != 1 {
+		t.Errorf("the button asked %d times, want once", checks)
+	}
+
+	// A switch reports the value it moved to, which arrives in the next build.
+	if err := tt.Click(locales.AboutAutoCheckToggle()); err != nil {
+		t.Fatalf("click the check switch: %v", err)
+	}
+	tt.Frame()
+	if autoCheck {
+		t.Error("the switch sent on, want off")
+	}
+}
+
+// A build that cannot replace itself — a development build, a copy run from the
+// disk image — keeps the button, whose window says why, and offers no switch: the
+// updater would never check, so the switches would answer nothing.
+func TestAboutWithoutUpdates(t *testing.T) {
+	s := settingsFixture()
+	s.updatesEnabled = false
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
+
+	if !tt.HasText(locales.AboutCheckUpdates()) {
+		t.Errorf("the update row is missing: %v", tt.Texts())
+	}
+	if !tt.HasText(locales.AboutUpdatesUnavailable()) {
+		t.Errorf("the row does not say why: %v", tt.Texts())
+	}
+	for _, gone := range []string{locales.AboutAutoCheck(), locales.AboutAutoDownload()} {
+		if tt.HasText(gone) {
+			t.Errorf("%q is offered in a build that cannot update", gone)
+		}
 	}
 }
 

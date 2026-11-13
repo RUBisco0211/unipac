@@ -1842,6 +1842,96 @@ func (msgs Messages) AboutCopy() string {
 	return Catalog.Format(msgs.locale, "aboutCopy", nil)
 }
 
+// AboutCheckUpdates says "Check for updates"
+// in the language the app shows.
+func AboutCheckUpdates() string { return In(i18n.Locale()).AboutCheckUpdates() }
+
+// AboutCheckUpdates says "Check for updates"
+// in the language of msgs.
+func (msgs Messages) AboutCheckUpdates() string {
+	return Catalog.Format(msgs.locale, "aboutCheckUpdates", nil)
+}
+
+// AboutCheckNow says "Check now"
+// in the language the app shows.
+func AboutCheckNow() string { return In(i18n.Locale()).AboutCheckNow() }
+
+// AboutCheckNow says "Check now"
+// in the language of msgs.
+func (msgs Messages) AboutCheckNow() string {
+	return Catalog.Format(msgs.locale, "aboutCheckNow", nil)
+}
+
+// AboutUpdatesUnavailable says "This copy cannot update itself: install UniPac in Applications to receive updates."
+// in the language the app shows.
+func AboutUpdatesUnavailable() string { return In(i18n.Locale()).AboutUpdatesUnavailable() }
+
+// AboutUpdatesUnavailable says "This copy cannot update itself: install UniPac in Applications to receive updates."
+// in the language of msgs.
+func (msgs Messages) AboutUpdatesUnavailable() string {
+	return Catalog.Format(msgs.locale, "aboutUpdatesUnavailable", nil)
+}
+
+// AboutAutoCheck says "Check automatically"
+// in the language the app shows.
+func AboutAutoCheck() string { return In(i18n.Locale()).AboutAutoCheck() }
+
+// AboutAutoCheck says "Check automatically"
+// in the language of msgs.
+func (msgs Messages) AboutAutoCheck() string {
+	return Catalog.Format(msgs.locale, "aboutAutoCheck", nil)
+}
+
+// AboutAutoCheckDesc says "Ask the release feed for a newer version after launch, then once a day"
+// in the language the app shows.
+func AboutAutoCheckDesc() string { return In(i18n.Locale()).AboutAutoCheckDesc() }
+
+// AboutAutoCheckDesc says "Ask the release feed for a newer version after launch, then once a day"
+// in the language of msgs.
+func (msgs Messages) AboutAutoCheckDesc() string {
+	return Catalog.Format(msgs.locale, "aboutAutoCheckDesc", nil)
+}
+
+// AboutAutoCheckToggle says "Toggle automatic update checks"
+// in the language the app shows.
+func AboutAutoCheckToggle() string { return In(i18n.Locale()).AboutAutoCheckToggle() }
+
+// AboutAutoCheckToggle says "Toggle automatic update checks"
+// in the language of msgs.
+func (msgs Messages) AboutAutoCheckToggle() string {
+	return Catalog.Format(msgs.locale, "aboutAutoCheckToggle", nil)
+}
+
+// AboutAutoDownload says "Install automatically"
+// in the language the app shows.
+func AboutAutoDownload() string { return In(i18n.Locale()).AboutAutoDownload() }
+
+// AboutAutoDownload says "Install automatically"
+// in the language of msgs.
+func (msgs Messages) AboutAutoDownload() string {
+	return Catalog.Format(msgs.locale, "aboutAutoDownload", nil)
+}
+
+// AboutAutoDownloadDesc says "Install a version found in the background without asking; it runs at the next launch"
+// in the language the app shows.
+func AboutAutoDownloadDesc() string { return In(i18n.Locale()).AboutAutoDownloadDesc() }
+
+// AboutAutoDownloadDesc says "Install a version found in the background without asking; it runs at the next launch"
+// in the language of msgs.
+func (msgs Messages) AboutAutoDownloadDesc() string {
+	return Catalog.Format(msgs.locale, "aboutAutoDownloadDesc", nil)
+}
+
+// AboutAutoDownloadToggle says "Toggle automatic update installs"
+// in the language the app shows.
+func AboutAutoDownloadToggle() string { return In(i18n.Locale()).AboutAutoDownloadToggle() }
+
+// AboutAutoDownloadToggle says "Toggle automatic update installs"
+// in the language of msgs.
+func (msgs Messages) AboutAutoDownloadToggle() string {
+	return Catalog.Format(msgs.locale, "aboutAutoDownloadToggle", nil)
+}
+
 // ToastDiagnosticsCopied says "Diagnostics copied"
 // in the language the app shows.
 func ToastDiagnosticsCopied() string { return In(i18n.Locale()).ToastDiagnosticsCopied() }
