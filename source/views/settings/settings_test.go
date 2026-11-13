@@ -479,6 +479,29 @@ func TestAboutChecksForUpdates(t *testing.T) {
 	}
 }
 
+// The update window offers the same two switches, so a change there arrives at
+// the page instead of waiting for the next launch.
+func TestAboutTakesTheUpdatersPreferences(t *testing.T) {
+	s := settingsFixture()
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
+
+	if s.SetUpdatePreferences(true, false) {
+		t.Error("the same answer asked for a frame")
+	}
+	if !s.SetUpdatePreferences(false, true) {
+		t.Fatal("a changed answer did not ask for a frame")
+	}
+	if s.autoCheck || !s.autoDownload {
+		t.Errorf("the rows hold %v/%v, want false/true", s.autoCheck, s.autoDownload)
+	}
+	// The page draws what it was told, not what it was built with.
+	tt.Frame()
+	if !tt.HasText(locales.AboutAutoDownloadToggle()) {
+		t.Errorf("the switch is gone after the change: %v", tt.Texts())
+	}
+}
+
 // A build that cannot replace itself — a development build, a copy run from the
 // disk image — keeps the button, whose window says why, and offers no switch: the
 // updater would never check, so the switches would answer nothing.

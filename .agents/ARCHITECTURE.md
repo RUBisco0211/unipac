@@ -996,6 +996,11 @@ the `.icns` of the PNG and ships no dark icon, with a warning nobody reads.
 One consequence: `mygo dev` shows the `.icns` of the PNG. The dark variant
 appears in a `mygo build` bundle only.
 
+`resources` copies `assets/icon.png` into the bundle as `Contents/Resources/icon.png`
+as well. Nothing reads it but the update window, whose icon is a PNG among the
+app's resources: the asset catalog the app itself shows is not a file it can
+load, and a window with no icon is what a build without this line ships.
+
 ### Updates
 
 `mygo.Updater` installs new versions. `mygo build` signs an archive of the app,
@@ -1020,10 +1025,10 @@ translations rather than `locales/`, and its choices live in `updater.json`
 beside `config.json`. What the app owns is in Settings › About: the two
 preferences as Onevra switches, and a button that opens that window now. They
 read and write `updater.AutomaticChecks`, `AutomaticDownloads` and
-`CheckForUpdates` through `App`, so the page keeps no copy of the state — but the
-rows are read once, when the shell is built, so a choice made in the update window
-shows there only at the next launch. A build that cannot replace itself shows the
-button without the switches, and the window says why when it is pressed.
+`CheckForUpdates` through `App`, so the page keeps no copy of the state, and
+`updater.OnChange` tells the page when the window changes one of them: two
+surfaces, one source. A build that cannot replace itself shows the button without
+the switches, and the window says why when it is pressed.
 
 Two things this path does not share with the rest of the backend. Its proxy is
 the system's, not the one in Settings: `util.SetProxy` builds the environment of
@@ -1070,12 +1075,10 @@ The disk image stays as the fallback, not the front door.
 
 ## Suggested Near-Term Cleanup
 
-- The update window is MyGo's plugin: its texts bypass `locales/`, and the About
-  rows read the updater's preferences once, when the shell is built, so a choice
-  made in that window disagrees with them until the app restarts. Replacing the
-  window with Onevra rows over `mygo.Updater` — release notes, progress, restart —
-  removes both, and is the settled direction; `updater.AvailableVersion` and
-  `updater.OnChange` are what such a page reads.
+- The update window is MyGo's plugin, so its texts come from the plugin's
+  translations rather than `locales/`. Replacing it with Onevra rows over
+  `mygo.Updater` — release notes, progress, restart — removes that, and is the
+  settled direction; `updater.AvailableVersion` is what such a page reads.
 - The console's width lives in the page's memory: it goes back to 380 on the next
   launch, where a setting would keep the size the user gave it.
 - `assets/screenshot.png` still shows the old interface.

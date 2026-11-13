@@ -651,12 +651,13 @@ func (wiredService) About() inventory.About { return inventory.About{} }
 
 // The updater's own state: a fake that cannot update keeps the About rows to the
 // ones a build without updates shows.
-func (wiredService) UpdatesEnabled() bool        { return true }
-func (wiredService) AutoCheckUpdates() bool      { return true }
-func (wiredService) AutoDownloadUpdates() bool   { return false }
-func (wiredService) SetAutoCheckUpdates(bool)    {}
-func (wiredService) SetAutoDownloadUpdates(bool) {}
-func (wiredService) CheckForUpdates()            {}
+func (wiredService) UpdatesEnabled() bool               { return true }
+func (wiredService) AutoCheckUpdates() bool             { return true }
+func (wiredService) AutoDownloadUpdates() bool          { return false }
+func (wiredService) SetAutoCheckUpdates(bool)           {}
+func (wiredService) SetAutoDownloadUpdates(bool)        {}
+func (wiredService) CheckForUpdates()                   {}
+func (wiredService) SetUpdateListener(func(bool, bool)) {}
 
 // The search page's version picker is the shell's to answer. A page that lost
 // the wiring would quietly install the newest version instead of asking, which

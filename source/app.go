@@ -41,6 +41,10 @@ type App struct {
 	// locks arbitrates package-manager commands: a task waits for its manager's
 	// slot, and a cache scan waits for every enabled manager's slot.
 	locks *command.Limiter
+	// updateListener is the page that shows the updater's choices, told when they
+	// change; see SetUpdateListener.
+	updateMu       sync.Mutex
+	updateListener func(autoCheck, autoDownload bool)
 }
 
 // App is the only implementation of the port the views declare. The build fails
@@ -120,6 +124,10 @@ func (a *App) Startup(ctx context.Context) error {
 	slog.InfoContext(a.ctx, "initializing manager registry")
 	registry.Init(a.ctx, config.ManagerSettings())
 	slog.InfoContext(a.ctx, "manager registry initialized")
+
+	// The update window offers the same two choices as the About rows, so the
+	// page is told when they change rather than reading them once at launch.
+	updater.OnChange(a.notifyUpdatePreferences)
 
 	return nil
 }
@@ -454,6 +462,28 @@ func (a *App) SetAutoDownloadUpdates(on bool) {
 func (a *App) CheckForUpdates() {
 	slog.InfoContext(a.ctx, "checking for updates")
 	updater.CheckForUpdates()
+}
+
+// SetUpdateListener registers the function told when the updater's choices
+// change, in the update window as well as in Settings, and called on the UI
+// thread. The page that shows them cannot own them: two surfaces write the same
+// two switches, and the updater's own file is what both read.
+func (a *App) SetUpdateListener(fn func(autoCheck, autoDownload bool)) {
+	a.updateMu.Lock()
+	a.updateListener = fn
+	a.updateMu.Unlock()
+}
+
+// notifyUpdatePreferences is what the updater calls after a check and after an
+// answer in its window, on the UI thread.
+func (a *App) notifyUpdatePreferences() {
+	autoCheck, autoDownload := updater.AutomaticChecks(), updater.AutomaticDownloads()
+	a.updateMu.Lock()
+	fn := a.updateListener
+	a.updateMu.Unlock()
+	if fn != nil {
+		fn(autoCheck, autoDownload)
+	}
 }
 
 func (a *App) AutoScanOnLaunch() bool {

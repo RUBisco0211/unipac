@@ -79,6 +79,9 @@ type Service interface {
 	SetAutoDownloadUpdates(on bool)
 	// CheckForUpdates opens the update window, as the app menu's item does.
 	CheckForUpdates()
+	// SetUpdateListener registers the function told when the updater's choices
+	// change, in its window as well as in the page, on the UI thread.
+	SetUpdateListener(fn func(autoCheck, autoDownload bool))
 	LogLevel() string
 	LogLevels() []string
 	SetLogLevel(level string) error

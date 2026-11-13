@@ -203,6 +203,9 @@ func New(service inventory.Service) *UI {
 	u.settings.OnSetAutoCheck = u.SetAutoCheckUpdates
 	u.settings.OnSetAutoDownload = u.SetAutoDownloadUpdates
 	u.settings.OnCheckUpdates = u.CheckForUpdates
+	// The update window offers the same two choices, so the page is told when
+	// they change rather than owning them.
+	service.SetUpdateListener(u.applyUpdatePreferences)
 	holds := func() bool { return u.settings.HoldToConfirm }
 	u.installed.HoldsToConfirm = holds
 	u.outdated.HoldsToConfirm = holds
@@ -1189,6 +1192,17 @@ func (u *UI) SetAutoDownloadUpdates(on bool) {
 // build cannot update itself.
 func (u *UI) CheckForUpdates() {
 	u.svc.CheckForUpdates()
+}
+
+// applyUpdatePreferences is what the updater calls when its choices change, in
+// its own window as well as here; it runs on the UI thread.
+func (u *UI) applyUpdatePreferences(autoCheck, autoDownload bool) {
+	if u.settings == nil || !u.settings.SetUpdatePreferences(autoCheck, autoDownload) {
+		return
+	}
+	if u.settingsShell != nil {
+		u.settingsShell.Window().Invalidate()
+	}
 }
 
 // OpenPath opens a file or folder in the desktop's own application, which is how

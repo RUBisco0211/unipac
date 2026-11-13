@@ -819,6 +819,18 @@ func (s *View) updatesDescription() string {
 	return locales.AboutUpdatesUnavailable()
 }
 
+// SetUpdatePreferences puts the updater's choices into the rows after they changed
+// elsewhere — its own window offers the same two switches — and reports whether
+// either moved, so the shell asks for a frame only when one did. It runs on the
+// UI thread.
+func (s *View) SetUpdatePreferences(autoCheck, autoDownload bool) bool {
+	if s.autoCheck == autoCheck && s.autoDownload == autoDownload {
+		return false
+	}
+	s.autoCheck, s.autoDownload = autoCheck, autoDownload
+	return true
+}
+
 // checkUpdatesAction asks now instead of waiting for the background check. The
 // row's title names the action and the button is its short verb, on the row's
 // trailing edge where every other control in this category is.
