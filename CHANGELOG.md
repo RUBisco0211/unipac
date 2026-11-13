@@ -4,6 +4,18 @@ The section of a version is the release notes of its GitHub release, which the
 update window shows: `mygo build` reads it when it publishes an update, so a
 version without a section cannot be released.
 
+## 0.4.0
+
+- UniPac updates itself: ten seconds after launch, then once a day, it asks the
+  release feed for a newer version, checks the archive against the app's own
+  signing key, and offers to install it. **Check for Updates…** in the app menu
+  checks at once, and the release notes you read there are this section.
+- Installing downloads only what changed since the version you run when the
+  release has a delta, and the whole app otherwise; the new version runs after a
+  restart, or at the next launch.
+- One line installs UniPac, and checks the archive before it does:
+  `curl -fsSL https://github.com/RUBisco0211/unipac/releases/latest/download/install.sh | sh`
+
 ## 0.3.0
 
 - One page per package, opened from any of the three tables, with its own
