@@ -1792,14 +1792,14 @@ func (msgs Messages) AboutVersion() string {
 	return Catalog.Format(msgs.locale, "aboutVersion", nil)
 }
 
-// AboutRuntime says "Built with"
+// AboutGo says "Go"
 // in the language the app shows.
-func AboutRuntime() string { return In(i18n.Locale()).AboutRuntime() }
+func AboutGo() string { return In(i18n.Locale()).AboutGo() }
 
-// AboutRuntime says "Built with"
+// AboutGo says "Go"
 // in the language of msgs.
-func (msgs Messages) AboutRuntime() string {
-	return Catalog.Format(msgs.locale, "aboutRuntime", nil)
+func (msgs Messages) AboutGo() string {
+	return Catalog.Format(msgs.locale, "aboutGo", nil)
 }
 
 // AboutDataDir says "Data folder"

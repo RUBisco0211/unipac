@@ -248,7 +248,7 @@
   "toastHistoryCleared": "Task history cleared",
   "settingsAbout": "About",
   "aboutVersion": "Version",
-  "aboutRuntime": "Built with",
+  "aboutGo": "Go",
   "aboutDataDir": "Data folder",
   "aboutOpen": "Open {folder}",
   "aboutOpenAction": "Open",

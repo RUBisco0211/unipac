@@ -745,7 +745,7 @@ func (s *View) aboutItems() []components.SettingsItem {
 	items = append(items, s.updateItems()...)
 	items = append(items, components.SettingsItem{
 		ID:       "runtime",
-		Title:    locales.AboutRuntime(),
+		Title:    locales.AboutGo(),
 		Keywords: []string{"go", "runtime", "built"},
 		Build:    func(c *ui.Context) { factValue(c, parts.OrDash(s.about.Go)) },
 	})
@@ -930,7 +930,7 @@ func (s *View) diagnostics() string {
 		b.WriteString(label + ": " + value + "\n")
 	}
 	line("UniPac", s.about.Version)
-	line(locales.AboutRuntime(), s.about.Go)
+	line(locales.AboutGo(), s.about.Go)
 	for _, module := range s.about.Modules {
 		name, version, _ := strings.Cut(module, " ")
 		line(name, version)

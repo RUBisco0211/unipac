@@ -44,7 +44,7 @@ func settingsFixture() *View {
 		autoCheck:      true,
 		about: inventory.About{
 			Version:    "0.2.0",
-			Go:         "go1.27.3",
+			Go:         "1.27.3",
 			Modules:    []string{"MyGo 0.7.4", "Onevra 2026.16"},
 			DataDir:    "/Users/me/Library/Application Support/com.rubisco.unipac",
 			Repository: "https://github.com/RUBisco0211/unipac",
@@ -367,7 +367,9 @@ func TestAboutShowsTheBuild(t *testing.T) {
 
 	for _, want := range []string{
 		"0.2.0",
-		"go1.27.3",
+		// The row is titled Go and carries the version alone, so the runtime's
+		// "go" prefix is not repeated beside it.
+		locales.AboutGo(), "1.27.3",
 		"MyGo", "0.7.4",
 		"Onevra", "2026.16",
 		s.about.DataDir,
@@ -520,6 +522,27 @@ func TestAboutWithoutUpdates(t *testing.T) {
 	for _, gone := range []string{locales.AboutAutoCheck(), locales.AboutAutoDownload()} {
 		if tt.HasText(gone) {
 			t.Errorf("%q is offered in a build that cannot update", gone)
+		}
+	}
+}
+
+// An updatable build says nothing about copies that cannot update themselves,
+// and offers both switches: what a development build shows stays in the
+// development build.
+func TestAboutWithUpdatesSaysNothingAboutOtherCopies(t *testing.T) {
+	s := settingsFixture()
+	if !s.updatesEnabled {
+		t.Fatal("the fixture is not an updatable build")
+	}
+	tt := render(t, s.Build, 1200, 900)
+	choose(t, tt, locales.SettingsAbout())
+
+	if tt.HasText(locales.AboutUpdatesUnavailable()) {
+		t.Errorf("an updatable build says it cannot update itself: %v", tt.Texts())
+	}
+	for _, want := range []string{locales.AboutAutoCheck(), locales.AboutAutoDownload()} {
+		if !tt.HasText(want) {
+			t.Errorf("%q is missing from an updatable build: %v", want, tt.Texts())
 		}
 	}
 }

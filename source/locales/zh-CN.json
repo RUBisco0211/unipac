@@ -203,7 +203,7 @@
   "toastHistoryCleared": "任务历史已清空",
   "settingsAbout": "关于",
   "aboutVersion": "版本",
-  "aboutRuntime": "构建用",
+  "aboutGo": "Go",
   "aboutDataDir": "数据目录",
   "aboutOpen": "打开{folder}",
   "aboutOpenAction": "打开",

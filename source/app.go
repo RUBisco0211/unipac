@@ -231,8 +231,10 @@ func (a *App) About() inventory.About {
 	about := inventory.About{
 		// The build links the manifest's version in: `mygo dev` and `mygo build`
 		// pass it, so there is no second copy to keep in step.
-		Version:    mygo.App.Version(),
-		Go:         runtime.Version(),
+		Version: mygo.App.Version(),
+		// The row is titled "Go", so the value is the version alone: the
+		// runtime's own "go" prefix would read as "Go go1.27.3".
+		Go:         strings.TrimPrefix(runtime.Version(), "go"),
 		DataDir:    util.AppRoot,
 		Repository: appRepository,
 	}
