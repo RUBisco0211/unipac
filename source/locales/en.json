@@ -30,7 +30,7 @@
   "actionsUninstall": "Uninstall",
   "actionsUpdating": "Updating…",
   "actionsUninstalling": "Uninstalling…",
-  "actionSelectRow": "Select a package first",
+  "actionSelectPackages": "Select packages first",
   "actionUnsupported": "This manager does not support that action",
   "actionManagerOff": "This manager is turned off",
   "actionWorking": "An operation is already running on this package",

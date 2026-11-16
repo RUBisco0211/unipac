@@ -304,13 +304,32 @@ func TestSelectionTracksVisibleRowsOnly(t *testing.T) {
 	}
 }
 
-func TestBulkBarAppearsWithSelection(t *testing.T) {
+// The bulk actions keep their place in the bar without a selection, disabled,
+// so choosing a row does not move everything beside them.
+func TestBulkActionsStayDisabledWithoutASelection(t *testing.T) {
 	d := fixture()
 	plain := &View{Data: d, AllowRemove: true}
+	ran := 0
+	plain.OnBulkUpdate = func([]manager.Package, flight.Origin) { ran++ }
+	plain.OnBulkRemove = func([]manager.Package, flight.Origin) { ran++ }
 	withoutSelection := render(t, plain.Build, 1000, 500)
-	if withoutSelection.HasText(locales.PackagesBulkUpdate()) {
-		t.Errorf("bulk actions shown without a selection")
+
+	for _, label := range []string{locales.PackagesBulkUpdate(), locales.PackagesBulkUninstall()} {
+		if !withoutSelection.HasText(label) {
+			t.Fatalf("%q is missing from the bar: %v", label, withoutSelection.Texts())
+		}
+		if err := withoutSelection.Click(label); err != nil {
+			t.Fatalf("click %q: %v", label, err)
+		}
+		withoutSelection.Frame()
 	}
+	if ran != 0 {
+		t.Errorf("a disabled bulk action ran %d times", ran)
+	}
+}
+
+func TestBulkBarAppearsWithSelection(t *testing.T) {
+	d := fixture()
 
 	selected := &View{Data: d, AllowRemove: true}
 	selected.Sync()

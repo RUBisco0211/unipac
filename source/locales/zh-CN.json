@@ -30,7 +30,7 @@
   "actionsUninstall": "卸载",
   "actionsUpdating": "正在更新…",
   "actionsUninstalling": "正在卸载…",
-  "actionSelectRow": "请先选中一个软件包",
+  "actionSelectPackages": "请先选择软件包",
   "actionUnsupported": "该管理器不支持此操作",
   "actionManagerOff": "该管理器已关闭",
   "actionWorking": "该软件包已有操作正在执行",

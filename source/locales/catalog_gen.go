@@ -334,14 +334,14 @@ func (msgs Messages) ActionsUninstalling() string {
 	return Catalog.Format(msgs.locale, "actionsUninstalling", nil)
 }
 
-// ActionSelectRow says "Select a package first"
+// ActionSelectPackages says "Select packages first"
 // in the language the app shows.
-func ActionSelectRow() string { return In(i18n.Locale()).ActionSelectRow() }
+func ActionSelectPackages() string { return In(i18n.Locale()).ActionSelectPackages() }
 
-// ActionSelectRow says "Select a package first"
+// ActionSelectPackages says "Select packages first"
 // in the language of msgs.
-func (msgs Messages) ActionSelectRow() string {
-	return Catalog.Format(msgs.locale, "actionSelectRow", nil)
+func (msgs Messages) ActionSelectPackages() string {
+	return Catalog.Format(msgs.locale, "actionSelectPackages", nil)
 }
 
 // ActionUnsupported says "This manager does not support that action"

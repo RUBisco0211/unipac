@@ -466,10 +466,10 @@ func (l *View) toolbar(c *ui.Context) {
 			l.OnRefresh()
 		}
 
+		// The bulk actions stay in the bar without a selection, disabled: a
+		// toolbar that grows two buttons when a row is chosen moves everything
+		// beside them, and the user cannot see what is possible before choosing.
 		selected := l.selectedPackages()
-		if len(selected) == 0 {
-			return
-		}
 
 		// Only packages that can actually be updated go to the manager. A mixed
 		// selection would otherwise update what is already current, and a
@@ -490,15 +490,19 @@ func (l *View) toolbar(c *ui.Context) {
 				l.OnBulkUpdate(updatable, flight.OriginOf(bulkUpdate))
 			}
 		})
+		updateReason := ""
 		switch {
 		case canBulkUpdate:
+		case len(selected) == 0:
+			updateReason = locales.ActionSelectPackages()
 		case l.allManagersOff(selected):
-			parts.ActionTooltip(c, updateSlot, canBulkUpdate, locales.ActionManagerOff())
+			updateReason = locales.ActionManagerOff()
 		case l.Data.AnyRunning(selected):
-			parts.ActionTooltip(c, updateSlot, canBulkUpdate, locales.ActionWorking())
+			updateReason = locales.ActionWorking()
 		default:
-			parts.ActionTooltip(c, updateSlot, canBulkUpdate, locales.ActionUpToDate())
+			updateReason = locales.ActionUpToDate()
 		}
+		parts.ActionTooltip(c, updateSlot, canBulkUpdate, updateReason)
 
 		if !l.AllowRemove {
 			return
@@ -520,9 +524,11 @@ func (l *View) toolbar(c *ui.Context) {
 				l.bulkOpen = true
 			}
 		})
-		if !canBulkRemove {
-			parts.ActionTooltip(c, removeSlot, canBulkRemove, locales.ActionWorking())
+		removeReason := locales.ActionWorking()
+		if len(selected) == 0 {
+			removeReason = locales.ActionSelectPackages()
 		}
+		parts.ActionTooltip(c, removeSlot, canBulkRemove, removeReason)
 	})
 }
 
