@@ -5,6 +5,16 @@ GitHub release's notes, which the update window shows, and `mygo build` reads it
 when it publishes an update, so a version without a section cannot be released.
 It is written when the version is cut, and it lists what that version ships.
 
+## 0.4.2 — 2026-11-16
+
+- The tasks page's console is a dock along the bottom edge, so the table has the
+  window's whole width and a log line no longer wraps in a narrow column. The
+  dock folds to its header, and copies the command a task ran or the output it
+  holds.
+- Small UI adjustments: dialogs sit in the middle of the window, a package's page
+  can be selected and copied, the bulk actions stay visible without a selection,
+  and an update's two versions get a line each.
+
 ## 0.4.1 — 2026-11-13
 
 - Settings › About carries the app's own updater, beside the version it changes:
