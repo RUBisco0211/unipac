@@ -120,10 +120,39 @@
   "tasksConsole": "控制台",
   "tasksOutputLoading": "正在加载终端输出…",
   "tasksCancelledByUser": "用户已取消",
-  "tasksResizePanel": "调整控制台宽度",
+  "tasksResizePanel": "调整控制台高度",
   "toastCancelled": "任务已取消",
   "tableStarted": "启动时间",
-  "tableFinished": "结束时间",
+  "durationSeconds": "{seconds} 秒",
+  "@durationSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutes": "{minutes} 分 {seconds} 秒",
+  "@durationMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHours": "{hours} 小时 {minutes} 分",
+  "@durationHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "searchManagers": "包管理器",
   "searchManagerCount": "{count} 个管理器",
   "@searchManagerCount": {
@@ -161,7 +190,9 @@
   "searchTruncated": "仅显示前 {count} 条结果",
   "searchInstalled": "已安装",
   "commonCopyCommand": "复制命令",
+  "commonCopyOutput": "复制输出",
   "toastCommandCopied": "已复制命令",
+  "toastOutputCopied": "已复制输出",
   "searchUpdateAvailable": "可更新",
   "settingsHoldToConfirm": "长按确认",
   "settingsHoldToConfirmDesc": "有任务在运行时退出、以及卸载时，需要长按按钮而不是单击来确认",

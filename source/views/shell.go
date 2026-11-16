@@ -20,10 +20,10 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/dock"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
-	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/RUBisco0211/unipac/source/views/search"
 	"github.com/RUBisco0211/unipac/source/views/settings"
@@ -176,12 +176,13 @@ func New(service inventory.Service) *UI {
 	u.tasks = &taskspage.View{
 		Data:          u.data,
 		SelectedIndex: -1,
-		Console:       panel.State{Width: 380},
-		OnRetry:       u.RetryTask,
-		OnCancel:      u.CancelTask,
-		OnSelect:      u.loadTaskOutput,
+		// The dock opens to the height of about six rows of output, and its edge
+		// is what changes it. Label names the edge for assistive technology.
+		Console:  dock.State{Height: 240, Label: locales.TasksResizePanel()},
+		OnRetry:  u.RetryTask,
+		OnCancel: u.CancelTask,
+		OnSelect: u.loadTaskOutput,
 	}
-	u.tasks.TitleActions = u.tasks.TitleAction
 	u.tasks.Apply(service.ListTasks())
 	u.knownTasks = taskStates(u.tasks.All())
 	u.settings = settings.New(service, u.data)
@@ -931,11 +932,9 @@ func (u *UI) titleActions() func(*ui.Context) {
 		if u.search != nil {
 			return u.search.TitleActions
 		}
-	case PageTasks:
-		if u.tasks != nil {
-			return u.tasks.TitleActions
-		}
 	}
+	// The tasks page puts nothing there: its console folds from the dock's own
+	// header, which is beside the log it folds.
 	return nil
 }
 
@@ -1098,16 +1097,19 @@ func (u *UI) content(c *ui.Context) {
 	if c.Shortcut(ui.Cmd, ui.KeyComma) && u.openSettings != nil {
 		u.openSettings()
 	}
+	// The console dock is the same kind of one-keystroke panel, on the page that
+	// has one. The title bar carries the same toggle for a user who never learns
+	// the key.
+	if u.page == PageTasks && u.tasks != nil && c.Shortcut(ui.Cmd, ui.KeyJ) {
+		u.tasks.ToggleConsole()
+	}
 	for _, t := range u.data.DrainToasts() {
 		c.AddToast(u.toastFor(t))
 	}
 	u.quitDialog(c)
-	// The tasks page keeps its own top inset: its console surface runs to the
-	// window's top edge, like the sidebar's.
+	// Every page starts under the floating header. The tasks page's console is a
+	// dock at the bottom edge, so it needs no inset of its own.
 	top := sidebar.HeaderHeight(c) + 16
-	if u.page == PageTasks {
-		top = 0
-	}
 	root := ui.Column(c).Fill()
 	root.Children(func() {
 		ui.Column(c).Fill().Padding(top, 0, 0, 0).Children(func() {

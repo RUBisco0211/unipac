@@ -7,11 +7,11 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/core/manager"
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/dock"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
 	"github.com/RUBisco0211/unipac/source/views/list"
-	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/settings"
 	taskspage "github.com/RUBisco0211/unipac/source/views/tasks"
 	"github.com/egoist/mygo/ui"
@@ -479,7 +479,7 @@ func TestOutcomeLabelsFollowTheTaskKind(t *testing.T) {
 // whatever the page showing offers, and only for that page.
 func TestPageTitleActions(t *testing.T) {
 	u := uiWithPages()
-	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, Console: panel.State{Width: 380}}
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, Console: dock.State{Height: 240}}
 	u.installed.TitleActions = func(c *ui.Context) {
 		components.Text(c, "page-action")
 	}
@@ -528,7 +528,7 @@ func uiWithQuitPrompt(t *testing.T, hold bool) (*UI, *quitService, *ui.Tester) {
 	svc := &quitService{pending: 2}
 	u := uiWithPages()
 	u.svc = svc
-	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, Console: panel.State{Width: 380}}
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1, Console: dock.State{Height: 240}}
 	u.settings = &settings.View{HoldToConfirm: hold}
 	quit := 0
 	u.quitApp = func() { quit++ }
@@ -753,6 +753,28 @@ func TestSettingsShortcutOpensTheWindow(t *testing.T) {
 	tt.Frame()
 	if opened != 1 {
 		t.Fatalf("the shortcut opened the window %d times, want 1", opened)
+	}
+}
+
+// Cmd+J folds the tasks page's console dock away and opens it again, from
+// anywhere in the window.
+func TestConsoleShortcutTogglesTheDock(t *testing.T) {
+	u := uiWithPages()
+	u.tasks = &taskspage.View{Data: u.data, SelectedIndex: -1}
+	u.page = PageTasks
+	tt := render(t, func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { u.content(c) })
+	}, 900, 520)
+
+	tt.Key(ui.Cmd, ui.KeyJ)
+	tt.Frame()
+	if !u.tasks.Console.Closed {
+		t.Fatal("the shortcut did not fold the console")
+	}
+	tt.Key(ui.Cmd, ui.KeyJ)
+	tt.Frame()
+	if u.tasks.Console.Closed {
+		t.Error("the shortcut did not open the console again")
 	}
 }
 

@@ -928,11 +928,11 @@ func (msgs Messages) TasksStatusRunning() string {
 	return Catalog.Format(msgs.locale, "tasksStatusRunning", nil)
 }
 
-// TasksStatusCompleted says "Succeeded"
+// TasksStatusCompleted says "Done"
 // in the language the app shows.
 func TasksStatusCompleted() string { return In(i18n.Locale()).TasksStatusCompleted() }
 
-// TasksStatusCompleted says "Succeeded"
+// TasksStatusCompleted says "Done"
 // in the language of msgs.
 func (msgs Messages) TasksStatusCompleted() string {
 	return Catalog.Format(msgs.locale, "tasksStatusCompleted", nil)
@@ -1168,11 +1168,11 @@ func (msgs Messages) TasksCancelledByUser() string {
 	return Catalog.Format(msgs.locale, "tasksCancelledByUser", nil)
 }
 
-// TasksResizePanel says "Resize console panel"
+// TasksResizePanel says "Resize console"
 // in the language the app shows.
 func TasksResizePanel() string { return In(i18n.Locale()).TasksResizePanel() }
 
-// TasksResizePanel says "Resize console panel"
+// TasksResizePanel says "Resize console"
 // in the language of msgs.
 func (msgs Messages) TasksResizePanel() string {
 	return Catalog.Format(msgs.locale, "tasksResizePanel", nil)
@@ -1198,14 +1198,38 @@ func (msgs Messages) TableStarted() string {
 	return Catalog.Format(msgs.locale, "tableStarted", nil)
 }
 
-// TableFinished says "Finished"
+// DurationSeconds says "{seconds}s"
 // in the language the app shows.
-func TableFinished() string { return In(i18n.Locale()).TableFinished() }
+func DurationSeconds(seconds int) string { return In(i18n.Locale()).DurationSeconds(seconds) }
 
-// TableFinished says "Finished"
+// DurationSeconds says "{seconds}s"
 // in the language of msgs.
-func (msgs Messages) TableFinished() string {
-	return Catalog.Format(msgs.locale, "tableFinished", nil)
+func (msgs Messages) DurationSeconds(seconds int) string {
+	return Catalog.Format(msgs.locale, "durationSeconds", map[string]any{"seconds": seconds})
+}
+
+// DurationMinutes says "{minutes}m {seconds}s"
+// in the language the app shows.
+func DurationMinutes(minutes int, seconds int) string {
+	return In(i18n.Locale()).DurationMinutes(minutes, seconds)
+}
+
+// DurationMinutes says "{minutes}m {seconds}s"
+// in the language of msgs.
+func (msgs Messages) DurationMinutes(minutes int, seconds int) string {
+	return Catalog.Format(msgs.locale, "durationMinutes", map[string]any{"minutes": minutes, "seconds": seconds})
+}
+
+// DurationHours says "{hours}h {minutes}m"
+// in the language the app shows.
+func DurationHours(hours int, minutes int) string {
+	return In(i18n.Locale()).DurationHours(hours, minutes)
+}
+
+// DurationHours says "{hours}h {minutes}m"
+// in the language of msgs.
+func (msgs Messages) DurationHours(hours int, minutes int) string {
+	return Catalog.Format(msgs.locale, "durationHours", map[string]any{"hours": hours, "minutes": minutes})
 }
 
 // SearchManagers says "Package managers"
@@ -1368,6 +1392,16 @@ func (msgs Messages) CommonCopyCommand() string {
 	return Catalog.Format(msgs.locale, "commonCopyCommand", nil)
 }
 
+// CommonCopyOutput says "Copy output"
+// in the language the app shows.
+func CommonCopyOutput() string { return In(i18n.Locale()).CommonCopyOutput() }
+
+// CommonCopyOutput says "Copy output"
+// in the language of msgs.
+func (msgs Messages) CommonCopyOutput() string {
+	return Catalog.Format(msgs.locale, "commonCopyOutput", nil)
+}
+
 // ToastCommandCopied says "Command copied"
 // in the language the app shows.
 func ToastCommandCopied() string { return In(i18n.Locale()).ToastCommandCopied() }
@@ -1376,6 +1410,16 @@ func ToastCommandCopied() string { return In(i18n.Locale()).ToastCommandCopied()
 // in the language of msgs.
 func (msgs Messages) ToastCommandCopied() string {
 	return Catalog.Format(msgs.locale, "toastCommandCopied", nil)
+}
+
+// ToastOutputCopied says "Output copied"
+// in the language the app shows.
+func ToastOutputCopied() string { return In(i18n.Locale()).ToastOutputCopied() }
+
+// ToastOutputCopied says "Output copied"
+// in the language of msgs.
+func (msgs Messages) ToastOutputCopied() string {
+	return Catalog.Format(msgs.locale, "toastOutputCopied", nil)
 }
 
 // SearchUpdateAvailable says "Update available"

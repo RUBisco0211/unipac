@@ -46,6 +46,25 @@ type ansiStyle struct {
 	reverse   bool
 }
 
+// Plain returns one line of terminal output without its escape sequences: what
+// copying the console writes, since SGR codes pasted into a document are noise.
+func Plain(line string) string {
+	if !strings.ContainsRune(line, 0x1b) {
+		return line
+	}
+	var text strings.Builder
+	for i := 0; i < len(line); {
+		if line[i] != 0x1b {
+			text.WriteByte(line[i])
+			i++
+			continue
+		}
+		next, _, _ := ansiEscape(line, i)
+		i = next
+	}
+	return text.String()
+}
+
 // Spans turns one line of terminal output into styled spans. Escape
 // sequences that only move the cursor or clear the screen are dropped; SGR
 // colors, weights and decorations are kept.

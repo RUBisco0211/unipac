@@ -1,14 +1,17 @@
 package tasks
 
 import (
+	"math"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
+	"github.com/RUBisco0211/unipac/source/views/dock"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/internal/testui"
-	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/egoist/mygo/ui"
 )
 
@@ -21,7 +24,7 @@ func viewFixture() *View {
 	v := &View{
 		Data:          testui.Data(),
 		SelectedIndex: -1,
-		Console:       panel.State{Width: 380},
+		Console:       dock.State{Height: 240},
 		outputFor:     "3",
 		outputSeq:     2,
 		outputReady:   true,
@@ -74,7 +77,7 @@ func TestRunningTaskStatusAnimates(t *testing.T) {
 }
 
 func TestTasksViewEmptyState(t *testing.T) {
-	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	tt := render(t, v.Build, 1000, 560)
 
 	if !tt.HasText(locales.TasksEmpty()) {
@@ -182,7 +185,7 @@ func TestTaskConsoleStates(t *testing.T) {
 		"3": locales.TasksNoOutput(),
 	}
 	for id, want := range cases {
-		v := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+		v := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 		v.Apply(nodes)
 		v.selectedID = id
 		v.outputFor = id
@@ -199,7 +202,7 @@ func TestTaskConsoleStates(t *testing.T) {
 	}
 
 	// A task from the store loads its persisted console on selection.
-	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	v.Apply(nodes)
 	v.selectedID, v.SelectedIndex = "2", 1
 	v.outputFor = "2"
@@ -352,14 +355,14 @@ func TestCancelledTaskShowsCancelledAndRetry(t *testing.T) {
 		Version: "1.0", NewVersion: "1.1", StartedAt: time.Now(),
 	}}
 
-	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	v.Apply(nodes)
 	tt := render(t, v.Build, 1000, 560)
 	if !tt.HasText(locales.TasksStatusCancelled()) {
 		t.Errorf("cancelled badge missing: %v", tt.Texts())
 	}
 
-	selected := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	selected := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	selected.Apply(nodes)
 	selected.selectedID = "9"
 	tt = render(t, selected.Build, 1000, 560)
@@ -375,7 +378,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 		StartedAt: time.Now(),
 	}}
 
-	loading := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	loading := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	loading.Apply(nodes)
 	loading.selectedID = "5"
 	tt := render(t, loading.Build, 1000, 560)
@@ -383,7 +386,7 @@ func TestStoredOutputLoadingState(t *testing.T) {
 		t.Errorf("loading state missing: %v", tt.Texts())
 	}
 
-	loaded := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	loaded := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	loaded.Apply(nodes)
 	loaded.selectedID = "5"
 	loaded.outputFor = "5"
@@ -395,10 +398,12 @@ func TestStoredOutputLoadingState(t *testing.T) {
 	}
 }
 
-func TestTaskTableShowsStartAndFinishTimes(t *testing.T) {
-	start := time.Now().Add(-time.Minute)
+// The started column carries when a task began and how long it took, which is
+// what a task list is read for; the finish time itself is a tooltip.
+func TestTaskTableShowsWhenAndHowLong(t *testing.T) {
+	start := time.Now().Add(-2 * time.Minute)
 	finish := time.Now()
-	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: panel.State{Width: 380}}
+	v := &View{Data: testui.Data(), SelectedIndex: -1, Console: dock.State{Height: 240}}
 	v.Apply([]tasks.Snapshot{{
 		ID: "7", Kind: tasks.KindUpdate, State: tasks.StateSucceeded,
 		ManagerID: "brew", ManagerName: "Homebrew", Package: "timed",
@@ -406,12 +411,15 @@ func TestTaskTableShowsStartAndFinishTimes(t *testing.T) {
 	}})
 	tt := render(t, v.Build, 1280, 560)
 	for _, want := range []string{
-		locales.TableStarted(), locales.TableFinished(),
-		clockLabel(start), clockLabel(finish),
+		locales.TableStarted(), clockLabel(start),
+		locales.DurationMinutes(2, 0),
 	} {
 		if !tt.HasText(want) {
 			t.Errorf("missing %q in %v", want, tt.Texts())
 		}
+	}
+	if tt.HasText(locales.TableStarted() + " ") {
+		t.Errorf("the finish time is a column of its own again: %v", tt.Texts())
 	}
 }
 
@@ -532,71 +540,240 @@ func TestTaskVersionHasATooltip(t *testing.T) {
 	}
 }
 
-// The title bar's toggle closes the console and opens it again; the panel
-// slides, so a frame after the press is still moving.
-func TestConsoleToggleFromTheTitleBar(t *testing.T) {
+// The dock's own chevron folds the console's body away and opens it again; the
+// dock slides, so a frame after the press is still moving. The header stays,
+// naming the task whose console is folded.
+func TestConsoleChevronFoldsTheBody(t *testing.T) {
 	v := viewFixture()
-	build := func(c *ui.Context) {
-		ui.Row(c).Children(func() { v.TitleAction(c) })
-	}
-	bar := render(t, build, 200, 48)
-	bar.Frame()
+	v.selectedID = "3"
+	v.Sync()
 
-	dialog := render(t, v.Build, 1000, 560)
-	dialog.Frame()
-	// The panel's own header is what goes away with it.
-	if !dialog.HasText(locales.TasksConsole()) {
-		t.Fatalf("the console is not there to close: %v", dialog.Texts())
+	dockView := render(t, v.Build, 1000, 560)
+	dockView.Frame()
+	const line = "==> Upgrading typescript"
+	if !dockView.HasText(line) {
+		t.Fatalf("the console is not there to fold: %v", dockView.Texts())
 	}
 
-	if err := bar.Click(locales.TasksConsoleHide()); err != nil {
+	if err := dockView.Click(locales.TasksConsoleHide()); err != nil {
 		t.Fatalf("click: %v", err)
 	}
-	dialog.Frame()
-	if !dialog.FramePending() {
-		t.Error("closing the console started no animation")
+	dockView.Frame()
+	if !dockView.FramePending() {
+		t.Error("folding the console started no animation")
 	}
 	for range 40 {
-		dialog.Advance(30 * time.Millisecond)
+		dockView.Advance(30 * time.Millisecond)
 	}
-	dialog.Frame()
-	if dialog.HasText(locales.TasksConsole()) {
-		t.Errorf("the console is still shown: %v", dialog.Texts())
+	dockView.Frame()
+	if dockView.HasText(line) {
+		t.Errorf("the console's body is still shown: %v", dockView.Texts())
+	}
+	if !dockView.HasText(taskTitle(v.all[0])) {
+		t.Errorf("the folded dock dropped the task's name: %v", dockView.Texts())
 	}
 
-	// The label named the action that will happen next.
-	if err := bar.Click(locales.TasksConsoleShow()); err != nil {
+	// The chevron names the action that will happen next.
+	if err := dockView.Click(locales.TasksConsoleShow()); err != nil {
 		t.Fatalf("click to open: %v", err)
 	}
 	for range 40 {
-		dialog.Advance(30 * time.Millisecond)
+		dockView.Advance(30 * time.Millisecond)
 	}
-	dialog.Frame()
-	if !dialog.HasText(locales.TasksConsole()) {
-		t.Errorf("the console did not come back: %v", dialog.Texts())
+	dockView.Frame()
+	if !dockView.HasText(line) {
+		t.Errorf("the console did not come back: %v", dockView.Texts())
 	}
 }
 
-// Choosing a task opens the console: its console is the reason to choose it.
+// Choosing a task opens the console, since its console is the reason to choose
+// it, but leaves a dock the user folded folded: the header still names the task.
 func TestChoosingATaskOpensTheConsole(t *testing.T) {
 	v := viewFixture()
-	v.ToggleConsole()
-	if !v.Console.Closed {
-		t.Fatal("the console is not closed")
-	}
 	v.Sync()
 	v.SelectedIndex = 1
 	v.choose()
 	if v.Console.Closed {
-		t.Error("choosing a task left the console closed")
+		t.Error("choosing a task left the console folded")
 	}
 
-	// Revealing one from a notification opens it too.
 	v.ToggleConsole()
+	if !v.Console.Closed {
+		t.Fatal("the toggle did not fold the console")
+	}
+	v.Sync()
+	v.SelectedIndex = 0
+	v.choose()
+	if !v.Console.Closed {
+		t.Error("choosing a task undid the user's fold")
+	}
+
+	// Revealing one from a notification opens it: the user asked for the console
+	// by name.
 	if !v.Reveal("3") {
 		t.Fatal("task 3 is missing")
 	}
 	if v.Console.Closed {
-		t.Error("revealing a task left the console closed")
+		t.Error("revealing a task left the console folded")
+	}
+}
+
+func TestSelectAcrossLines(t *testing.T) {
+	v := &View{
+		Data:          nil,
+		SelectedIndex: 0,
+		selectedID:    "1",
+		Console:       dock.State{Height: 260},
+		outputFor:     "1",
+		outputSeq:     1,
+		outputReady:   true,
+		output: tasks.Output{Lines: []tasks.Line{
+			{Text: "first line of output"},
+			{Text: "second line of output"},
+			{Text: "third line of output"},
+		}},
+	}
+	v.Apply([]tasks.Snapshot{{
+		ID: "1", Kind: tasks.KindInstall, State: tasks.StateSucceeded,
+		ManagerID: "npm", ManagerName: "NPM", Package: "demo", StartedAt: time.Now(),
+	}})
+	v.Sync()
+
+	tt := render(t, v.Build, 800, 600)
+	tt.Frame()
+
+	a, ok := tt.Find("first line of output")
+	if !ok {
+		t.Fatalf("first line is missing: %v", tt.Texts())
+	}
+	b, ok := tt.Find("third line of output")
+	if !ok {
+		t.Fatalf("third line is missing: %v", tt.Texts())
+	}
+	// Drag from the start of the first line into the third. The line's box is the
+	// log's whole width, but the floating copy button covers its top-right
+	// corner, so the drag ends on the text rather than at the far edge.
+	tt.Move(a.X+2, a.Y+a.H/2)
+	tt.Press(a.X+2, a.Y+a.H/2)
+	tt.Move(b.X+200, b.Y+b.H/2)
+	tt.Release(b.X+200, b.Y+b.H/2)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyC)
+	tt.Frame()
+
+	got := tt.Clipboard()
+	for _, want := range []string{"first line", "second line", "third line"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("the copied selection is missing %q: %q", want, got)
+		}
+	}
+}
+
+// The dock copies the two things a console is copied for: the command the task
+// ran, from the header, and the output, from the log's corner — without the
+// terminal's escape sequences, which are noise in whatever it is pasted into.
+func TestConsoleCopyActions(t *testing.T) {
+	v := viewFixture()
+	v.selectedID = "3"
+	v.Sync()
+
+	tt := render(t, v.Build, 1000, 560)
+	tt.Frame()
+	if err := tt.Click(locales.CommonCopyCommand()); err != nil {
+		t.Fatalf("copy command: %v", err)
+	}
+	tt.Frame()
+	if got := tt.Clipboard(); got != "brew upgrade typescript" {
+		t.Errorf("the command copied %q", got)
+	}
+
+	if err := tt.Click(locales.CommonCopyOutput()); err != nil {
+		t.Fatalf("copy output: %v", err)
+	}
+	tt.Frame()
+	got := tt.Clipboard()
+	want := "==> Upgrading typescript\n==> Pouring typescript"
+	if got != want {
+		t.Errorf("the output copied %q, want %q", got, want)
+	}
+	if strings.ContainsRune(got, 0x1b) {
+		t.Errorf("the copied output kept its escape sequences: %q", got)
+	}
+}
+
+// The header's controls keep one gap between them whatever the task's state. A
+// state with no cancel or retry used to build an empty slot there, which took
+// the gaps on both its sides and left a wider space after the copy button than
+// between the rest.
+func TestHeaderControlsKeepOneGap(t *testing.T) {
+	now := time.Now()
+	cases := map[string]struct {
+		state tasks.State
+		next  string
+	}{
+		"running":   {tasks.StateRunning, locales.TasksCancel()},
+		"failed":    {tasks.StateFailed, locales.TasksRetry()},
+		"succeeded": {tasks.StateSucceeded, ""},
+	}
+	for name, tc := range cases {
+		v := &View{
+			Data:          testui.Data(),
+			SelectedIndex: -1,
+			selectedID:    "1",
+			Console:       dock.State{Height: 200},
+			outputFor:     "1",
+			outputSeq:     1,
+			outputReady:   true,
+			output:        tasks.Output{Lines: []tasks.Line{{Text: "line"}}},
+		}
+		v.Apply([]tasks.Snapshot{{
+			ID: "1", Kind: tasks.KindUpdate, State: tc.state,
+			ManagerID: "brew", ManagerName: "Homebrew", Package: "typescript",
+			StartedAt: now.Add(-time.Minute), FinishedAt: now,
+			Message: "failed", Command: "brew upgrade typescript",
+		}})
+		tt := render(t, v.Build, 804, 620)
+		tt.Frame()
+
+		labels := []string{locales.CommonCopyCommand(), locales.TasksConsoleHide()}
+		if tc.next != "" {
+			labels = append(labels, tc.next)
+		}
+		var rects []ui.Rect
+		for _, label := range labels {
+			r, ok := tt.Find(label)
+			if !ok {
+				t.Fatalf("%s: %q is missing", name, label)
+			}
+			rects = append(rects, r)
+		}
+		slices.SortFunc(rects, func(a, b ui.Rect) int { return int(a.X - b.X) })
+		for i := 1; i < len(rects); i++ {
+			if gap := rects[i].X - (rects[i-1].X + rects[i-1].W); gap != 8 {
+				t.Errorf("%s: the gap before control %d is %.0f, want 8", name, i, gap)
+			}
+		}
+	}
+}
+
+// The copy button floating over the log keeps the header's trailing edge, so the
+// two columns of controls read as one.
+func TestOutputCopyAlignsWithHeaderControls(t *testing.T) {
+	v := viewFixture()
+	v.selectedID = "3"
+	v.Sync()
+	tt := render(t, v.Build, 1000, 560)
+	tt.Frame()
+
+	header, ok := tt.Find(locales.TasksConsoleHide())
+	if !ok {
+		t.Fatal("the header's fold control is missing")
+	}
+	copied, ok := tt.Find(locales.CommonCopyOutput())
+	if !ok {
+		t.Fatalf("the output's copy button is missing: %v", tt.Texts())
+	}
+	if got, want := copied.X+copied.W, header.X+header.W; math.Abs(float64(got-want)) > 0.5 {
+		t.Errorf("the copy button ends at %.1f, want the header's edge at %.1f", got, want)
 	}
 }

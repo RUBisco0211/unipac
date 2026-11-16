@@ -12,14 +12,13 @@ import (
 	"github.com/RUBisco0211/unipac/source/backend/tasks"
 	"github.com/RUBisco0211/unipac/source/locales"
 	"github.com/RUBisco0211/unipac/source/views/ansi"
+	"github.com/RUBisco0211/unipac/source/views/dock"
 	"github.com/RUBisco0211/unipac/source/views/flight"
 	"github.com/RUBisco0211/unipac/source/views/inventory"
-	"github.com/RUBisco0211/unipac/source/views/panel"
 	"github.com/RUBisco0211/unipac/source/views/parts"
 	"github.com/egoist/mygo/ui"
 	"github.com/oneo-me/onevra/source/components"
 	"github.com/oneo-me/onevra/source/icons/lucide"
-	"github.com/oneo-me/onevra/source/shells/sidebar"
 )
 
 // terminalFont is the console's family: a monospaced face that shows column
@@ -27,13 +26,12 @@ import (
 const terminalFont = "SF Mono, Menlo, Consolas, monospace"
 
 // View is the tasks page: a filterable table of one operation per package,
-// with the chosen task's console in a panel on the trailing edge. The panel is
-// always there; the split divider resizes it.
+// with the chosen task's console in a dock along the bottom edge. The dock's
+// header is always there, naming the task; its edge resizes the console and a
+// press folds it away.
 type View struct {
 	// Data supplies the task gate, so a retry waits like every other task.
 	Data *inventory.Data
-	// TitleActions builds the buttons this page puts in the title bar.
-	TitleActions func(*ui.Context)
 
 	all     []tasks.Snapshot
 	rows    []tasks.Snapshot
@@ -54,9 +52,9 @@ type View struct {
 	table         components.TableVirtualizedState
 	SelectedIndex int
 	selectedID    string
-	// Console is the console's panel: its width, whether it is open and its
+	// Console is the console's dock: its height, whether it is open and its
 	// drag. A page built without it shows the console.
-	Console panel.State
+	Console dock.State
 
 	// output is the selected task's console, loaded on demand from the task
 	// manager. outputSeq is the sequence it corresponds to; outputWanted is the
@@ -133,7 +131,9 @@ func (s *View) Reveal(id string) bool {
 	s.statusFilter = nil
 	s.selectedID = id
 	s.applied.version = -1
-	s.showConsole()
+	// A notification's "show task" asks for the console by name, so it opens a
+	// dock the user folded.
+	s.Console.Expand()
 	return true
 }
 
@@ -511,42 +511,33 @@ func (s *View) managerOptions() []managerChoice {
 
 func (s *View) Build(c *ui.Context) {
 	s.Sync()
-	// The shell's floating header overlays the whole window. The table starts
-	// below it; the console's surface runs to the window's top edge, like the
-	// sidebar's.
-	top := sidebar.HeaderHeight(c) + 16
-	panel.View(c, &s.Console, func(c *ui.Context) {
-		s.tablePane(c, top)
-	}, func(c *ui.Context) {
-		s.consolePane(c, top)
-	})
+	// With no task chosen there is no console to open, so the dock is its header
+	// alone rather than an empty body: the header says what the console would
+	// show and which task it would show it for.
+	var body func(*ui.Context)
+	if _, ok := s.Selected(); ok {
+		body = s.consoleBody
+	}
+	dock.View(c, &s.Console, s.tablePane, s.dockHeader, body)
 }
 
-// ToggleConsole opens or closes the console panel.
+// ToggleConsole opens or folds the console dock.
 func (s *View) ToggleConsole() {
 	s.Console.Toggle()
 }
 
-// showConsole opens the panel, which a chosen task does: its console is the
-// reason to choose it.
+// showConsole opens the dock, which a chosen task does: its console is the
+// reason to choose it. A dock the user folded stays folded, since the header
+// still names the task it holds.
 func (s *View) showConsole() {
 	s.Console.Show()
 }
 
-// TitleAction draws the console's toggle in the title bar, naming what the
-// press will do.
-func (s *View) TitleAction(c *ui.Context) {
-	panel.TitleAction(c, &s.Console, panel.Labels{
-		Show: locales.TasksConsoleShow(),
-		Hide: locales.TasksConsoleHide(),
-	})
-}
-
-// tablePane is the filter bar and the task table.
-func (s *View) tablePane(c *ui.Context, top float32) {
-	ui.Column(c).Fill().MinWidth(0).Padding(top, 0, 0, 0).Children(func() {
+// tablePane is the filter bar and the task table, above the console.
+func (s *View) tablePane(c *ui.Context) {
+	ui.Column(c).Fill().MinWidth(0).Children(func() {
 		s.toolbar(c)
-		// The bar is painted on the table's own box, so it stops where the panel
+		// The bar is painted on the table's own box, so it stops where the dock
 		// begins instead of running under it.
 		body := ui.Box(c).Fill().MinHeight(0)
 		body.Children(func() { s.body(c) })
@@ -709,16 +700,20 @@ func tasksPlaceholder(c *ui.Context, text, hint string) {
 }
 
 func (s *View) columns() []ui.TableColumn {
+	// The table runs the window's whole width above the dock, so the columns
+	// fit side by side at the narrowest window: 540 fixed plus the package's
+	// share of 132 and the table's inset. The finish time is not a column of its
+	// own; the started column carries the duration under it.
 	return []ui.TableColumn{
-		{Title: locales.TableOperation(), ID: "operation", Width: 100, Fixed: true},
-		{Title: locales.TablePackage(), ID: "package", MinWidth: 120},
-		{Title: locales.TableVersion(), ID: "version", Width: 124, Fixed: true},
+		{Title: locales.TableOperation(), ID: "operation", Width: 96, Fixed: true},
+		{Title: locales.TablePackage(), ID: "package", MinWidth: 132},
+		{Title: locales.TableVersion(), ID: "version", Width: 128, Fixed: true},
 		// The manager cell is a mark and a name, so it needs the width a badge did
 		// not: the longest registered name must not clip beside its icon.
 		{Title: locales.TableManager(), ID: "manager", Width: 112, Fixed: true, Align: ui.Center},
-		{Title: locales.TableStatus(), ID: "status", Width: 92, Fixed: true, Align: ui.Center},
-		{Title: locales.TableStarted(), ID: "started", Width: 84, Fixed: true},
-		{Title: locales.TableFinished(), ID: "finished", Width: 84, Fixed: true},
+		// Wide enough for the longest status any language has, "Cancelled".
+		{Title: locales.TableStatus(), ID: "status", Width: 100, Fixed: true, Align: ui.Center},
+		{Title: locales.TableStarted(), ID: "started", Width: 104, Fixed: true},
 	}
 }
 
@@ -751,9 +746,7 @@ func (s *View) cell(c *ui.Context, row, col int) {
 	case 4:
 		s.statusBadge(c, task).AlignSelf(ui.Center)
 	case 5:
-		clockCell(c, task.StartedAt)
-	case 6:
-		clockCell(c, task.FinishedAt)
+		timeCell(c, task)
 	}
 }
 
@@ -770,13 +763,34 @@ func clockLabel(at time.Time) string {
 	return at.Format("15:04:05")
 }
 
-func clockCell(c *ui.Context, at time.Time) {
-	label := clockLabel(at)
-	text := components.Text(c, label).SingleLine().TextColor(c.Theme().TextMuted)
-	if at.IsZero() {
+// timeCell is when the task started, and how long it took under it: the two
+// answers a started column is read for. The tooltip has both timestamps in full,
+// down to the second, which the column's compact form drops.
+func timeCell(c *ui.Context, task tasks.Snapshot) {
+	t := c.Theme()
+	if task.StartedAt.IsZero() {
+		components.Text(c, "—").TextColor(t.TextMuted)
 		return
 	}
-	components.Tooltip(c, text, at.Format("2006-01-02 15:04:05"))
+	cell := ui.Column(c).Gap(1).Children(func() {
+		components.Text(c, clockLabel(task.StartedAt)).SingleLine()
+		components.Text(c, tookLabelOrDash(task)).SingleLine().FontSize(11).
+			TextColor(t.TextMuted)
+	})
+	full := task.StartedAt.Format("2006-01-02 15:04:05")
+	if !task.FinishedAt.IsZero() {
+		full += " → " + task.FinishedAt.Format("2006-01-02 15:04:05")
+	}
+	components.Tooltip(c, cell, full)
+}
+
+// tookLabelOrDash is how long a task ran, or a dash for one that has not
+// finished and is not running: a queued task has no duration yet.
+func tookLabelOrDash(task tasks.Snapshot) string {
+	if took := taskDuration(task); took != "" {
+		return took
+	}
+	return "—"
 }
 
 func (s *View) operationCell(c *ui.Context, task tasks.Snapshot) {
@@ -799,11 +813,14 @@ func versionCell(c *ui.Context, task tasks.Snapshot) {
 	switch task.Kind {
 	case tasks.KindUpdate:
 		if old != "" && new != "" && old != new {
-			ui.Row(c).Gap(4).AlignItems(ui.Center).Children(func() {
+			// Two lines, one per version: the cell is as tall as the package cell
+			// beside it anyway, and each version gets the whole column instead of
+			// the pair sharing one line and losing its end.
+			cell := ui.Column(c).Gap(1).Children(func() {
 				components.Tooltip(c, components.Text(c, old).SingleLine().TextColor(t.TextMuted), old)
-				components.Text(c, "→").TextColor(t.TextMuted)
-				components.Tooltip(c, components.Text(c, new).SingleLine().TextColor(t.Accent), new)
+				components.Tooltip(c, components.Text(c, "→ "+new).SingleLine().TextColor(t.Accent), new)
 			})
+			components.Tooltip(c, cell, old+" → "+new)
 			return
 		}
 		if new == "" {
@@ -864,91 +881,106 @@ func runningBadge(c *ui.Context) ui.Element {
 	return pill
 }
 
-// consolePane is the always-visible console panel.
-func (s *View) consolePane(c *ui.Context, top float32) {
+// dockHeader is the dock's one row: what the console below is about, and the
+// controls that act on it. It stays when the body is folded, so a folded dock
+// still names its task and offers the press that opens it again.
+func (s *View) dockHeader(c *ui.Context) {
 	t := c.Theme()
-	ui.Column(c).FillHeight().Background(t.Text.Alpha(0.03)).Children(func() {
+	ui.Row(c).FillWidth().FillHeight().AlignItems(ui.Center).Gap(t.Space(2)).
+		Padding(0, t.Space(4)).Children(func() {
 		task, ok := s.Selected()
 		if !ok {
-			ui.Column(c).Shrink(0).Padding(top+2, t.Space(4), t.Space(2), t.Space(4)).Children(func() {
-				components.Text(c, locales.TasksConsole()).FontSize(13).Bold()
-			})
-			ui.Box(c).FillWidth().Height(1).Shrink(0).Background(t.Border)
-			ui.Column(c).Fill().Center().Padding(20).Children(func() {
-				components.Text(c, locales.TasksSelectTask()).FontSize(12).TextColor(t.TextMuted).Wrap()
-			})
+			components.Text(c, locales.TasksConsole()).FontSize(12.5).Bold().Shrink(0)
+			components.Text(c, locales.TasksSelectTask()).FontSize(11.5).
+				TextColor(t.TextMuted).SingleLine().Grow(1).MinWidth(0)
 			return
 		}
-
-		ui.Column(c).Shrink(0).Gap(t.Space(1)).
-			Padding(top+2, t.Space(4), t.Space(2), t.Space(4)).Children(func() {
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Start).Children(func() {
-				ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-					components.Text(c, taskTitle(task)).FontSize(13).Bold().SingleLine()
-					components.Text(c, taskSubtitle(task)).FontSize(11.5).
-						SingleLine().TextColor(t.TextMuted)
-				})
-				s.panelActions(c, task)
-			})
-			ui.Row(c).Gap(t.Space(2)).AlignItems(ui.Center).Children(func() {
-				s.statusBadge(c, task).AlignSelf(ui.Center)
-				if message := parts.TaskMessage(task); message != "" {
-					text := components.Text(c, message).FontSize(11.5).
-						SingleLine().MinWidth(0).Grow(1)
-					if task.State == tasks.StateFailed {
-						text.TextColor(t.Danger)
-					} else {
-						text.TextColor(t.TextMuted)
-					}
-					components.Tooltip(c, text, message)
-				}
-			})
-		})
-
-		ui.Box(c).FillWidth().Height(1).Shrink(0).Background(t.Border)
-
-		if task.Command != "" {
-			commandBlock(c, task.Command)
+		components.Text(c, taskTitle(task)).FontSize(12.5).Bold().SingleLine().Shrink(0)
+		s.statusBadge(c, task).AlignSelf(ui.Center)
+		if message := parts.TaskMessage(task); message != "" {
+			text := components.Text(c, message).FontSize(11.5).
+				SingleLine().Grow(1).MinWidth(0)
+			if task.State == tasks.StateFailed {
+				text.TextColor(t.Danger)
+			} else {
+				text.TextColor(t.TextMuted)
+			}
+			components.Tooltip(c, text, message)
+		} else {
+			if took := taskDuration(task); took != "" {
+				components.Text(c, took).FontSize(11.5).
+					TextColor(t.TextMuted).Shrink(0).Unselectable()
+			}
+			ui.Spacer(c)
 		}
-
-		ui.Box(c).FillWidth().Height(1).Shrink(0).Background(t.Border.Alpha(0.6))
-		ui.Box(c).Fill().MinHeight(0).Children(func() {
-			s.consoleBody(c, task)
-		})
+		s.copyCommand(c, task)
+		s.panelActions(c, task)
+		s.consoleToggle(c)
 	})
 }
 
+// consoleToggle folds the body away and opens it again: the dock's own control,
+// beside the one the title bar carries.
+func (s *View) consoleToggle(c *ui.Context) {
+	// The body sits above the header, so folding it moves the dock's top edge
+	// down and opening it moves the edge up: the chevron points where the edge
+	// is about to go.
+	glyph, label := lucide.ChevronDown(), locales.TasksConsoleHide()
+	if s.Console.Closed {
+		glyph, label = lucide.ChevronUp(), locales.TasksConsoleShow()
+	}
+	if components.IconButton(c, glyph, label, components.IconButtonPlain).Clicked() {
+		s.Console.Toggle()
+	}
+}
+
+// panelActions is the one control a task's state offers: cancel while it runs,
+// retry when it failed or was cancelled. A state with neither builds nothing at
+// all — an empty slot would still take the gaps either side of it, and the
+// header would show a wider space after the copy button than between the rest.
 func (s *View) panelActions(c *ui.Context, task tasks.Snapshot) {
-	ui.Row(c).Gap(2).Shrink(0).AlignItems(ui.Center).Children(func() {
-		switch task.State {
-		case tasks.StateQueued, tasks.StateRunning:
-			cancel := components.IconButton(c, lucide.CircleStop(), locales.TasksCancel(), components.IconButtonPlain)
-			cancel.TextColor(c.Theme().Danger)
-			if cancel.Clicked() && s.OnCancel != nil {
-				s.OnCancel(task)
-			}
-		case tasks.StateFailed, tasks.StateCancelled:
-			busy := s.busy(task)
-			slot := parts.ActionSlot(c)
-			slot.Children(func() {
-				retry := components.Button(c, locales.TasksRetry(), components.ButtonOutline)
-				retry.Disabled(busy)
-				if retry.Clicked() && !busy && s.OnRetry != nil {
-					s.OnRetry(task, flight.OriginOf(retry))
-				}
-			})
-			if busy {
-				parts.ActionTooltip(c, slot, false, locales.ActionWorking())
-			}
+	switch task.State {
+	case tasks.StateQueued, tasks.StateRunning:
+		cancel := components.IconButton(c, lucide.Square(), locales.TasksCancel(), components.IconButtonPlain)
+		cancel.TextColor(c.Theme().Danger)
+		if cancel.Clicked() && s.OnCancel != nil {
+			s.OnCancel(task)
 		}
-	})
+	case tasks.StateFailed, tasks.StateCancelled:
+		busy := s.busy(task)
+		slot := parts.ActionSlot(c)
+		slot.Children(func() {
+			retry := components.IconButton(c, lucide.RotateCcw(), locales.TasksRetry(), components.IconButtonPlain)
+			retry.Disabled(busy)
+			if retry.Clicked() && !busy && s.OnRetry != nil {
+				s.OnRetry(task, flight.OriginOf(retry))
+			}
+		})
+		if busy {
+			parts.ActionTooltip(c, slot, false, locales.ActionWorking())
+		}
+	}
 }
 
-func (s *View) consoleBody(c *ui.Context, task tasks.Snapshot) {
+// consoleBody is the dock's body: the output of the chosen task.
+func (s *View) consoleBody(c *ui.Context) {
+	task, ok := s.Selected()
+	if !ok {
+		return
+	}
+	s.outputBody(c, task)
+}
+
+// outputBody is the console's output, or the note that says why there is none.
+// The column is selectable, so every line is one selection: a drag across lines
+// copies them together, which a Selectable per line could not do — each line
+// would be its own selection.
+func (s *View) outputBody(c *ui.Context, task tasks.Snapshot) {
 	t := c.Theme()
-	// No right inset: the console's scrollbar sits on the panel's edge, and the
+	// No right inset: the console's scrollbar sits on the dock's edge, and the
 	// rows keep the text clear of it instead.
-	ui.Column(c).Fill().Padding(t.Space(2), 0, t.Space(2.5), t.Space(4)).Children(func() {
+	ui.Column(c).Fill().MinHeight(0).Selectable().
+		Padding(0, 0, t.Space(2), t.Space(2)).Children(func() {
 		if task.State == tasks.StateQueued {
 			consoleNote(c, locales.TasksQueuedHint())
 			return
@@ -970,7 +1002,7 @@ func (s *View) consoleBody(c *ui.Context, task tasks.Snapshot) {
 		}
 		if output.Truncated {
 			components.Text(c, locales.TasksOutputTruncated()).FontSize(11).
-				TextColor(t.TextMuted).Padding(0, 0, t.Space(1), t.Space(1))
+				TextColor(t.TextMuted).Padding(0, 0, t.Space(1), t.Space(2))
 		}
 		s.log.FollowEnd = true
 		components.List(c, &s.log, len(output.Lines), func(row int) {
@@ -978,10 +1010,48 @@ func (s *View) consoleBody(c *ui.Context, task tasks.Snapshot) {
 			ui.Box(c).FillWidth().Padding(t.Space(0.5), t.Space(2)).Children(func() {
 				ui.RichText(c, ansi.Spans(line.Text, t)...).
 					Font(terminalFont).FontSize(11.5).
-					TextColor(t.Text.Alpha(0.9)).Selectable()
+					TextColor(t.Text.Alpha(0.9))
 			})
 		}).Fill()
+
+		// Over the log's top corner rather than in a row of its own: a bar above
+		// the output would take a line of it, and the log is the reason the dock
+		// is open. It draws no face of its own — the output behind it is the
+		// point, and a tray there would cover more of it than the glyph does.
+		// The same inset the header's controls keep, so the two columns of
+		// buttons line up on their trailing edge; down from the divider so it
+		// does not sit on the line.
+		copied := components.IconButton(c, lucide.Copy(), locales.CommonCopyOutput(), components.IconButtonPlain).
+			Absolute().Top(t.Space(1)).Right(t.Space(4))
+		if copied.Clicked() {
+			c.WriteClipboard(outputText(output))
+			c.Toast(locales.ToastOutputCopied())
+		}
 	})
+}
+
+// copyCommand copies what the task ran. The command is not drawn beside the log:
+// the task's row in the table already carries it, and a line of it above the
+// output was one more thing to read before the lines that matter.
+func (s *View) copyCommand(c *ui.Context, task tasks.Snapshot) {
+	if task.Command == "" {
+		return
+	}
+	button := components.IconButton(c, lucide.SquareTerminal(), locales.CommonCopyCommand(), components.IconButtonPlain)
+	if button.Clicked() {
+		c.WriteClipboard(task.Command)
+		c.Toast(locales.ToastCommandCopied())
+	}
+}
+
+// outputText is the console as the clipboard gets it: every line, without the
+// terminal's escape sequences.
+func outputText(output tasks.Output) string {
+	lines := make([]string, len(output.Lines))
+	for i, line := range output.Lines {
+		lines[i] = ansi.Plain(line.Text)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *View) taskOutput(task tasks.Snapshot) tasks.Output {
@@ -1033,30 +1103,6 @@ func (s *View) FinishOutput(id string, request int, output tasks.Output) (reload
 	return s.outputWanted > s.outputSeq
 }
 
-// commandBlock shows the command a task ran, as a block to read and copy rather
-// than a line to scroll past. The executable is not shown beside it: the command
-// already names it, and a path is what copying the command avoids typing.
-func commandBlock(c *ui.Context, command string) {
-	t := c.Theme()
-	ui.Row(c).Shrink(0).Padding(t.Space(1), t.Space(4), t.Space(2), t.Space(4)).Children(func() {
-		ui.Row(c).FillWidth().Gap(t.Space(1)).AlignItems(ui.Start).
-			Padding(t.Space(1.5), t.Space(2)).Radius(t.Radius).
-			Background(t.Text.Alpha(0.04)).Border(1, t.Border.Alpha(0.6)).Children(func() {
-			ui.Column(c).Grow(1).MinWidth(0).Gap(1).Children(func() {
-				for _, line := range strings.Split(command, "\n") {
-					components.Text(c, line).Font(terminalFont).FontSize(11.5).
-						TextColor(t.Text).Selectable().Wrap()
-				}
-			})
-			copied := components.IconButton(c, lucide.Copy(), locales.CommonCopyCommand(), components.IconButtonPlain)
-			if copied.Clicked() {
-				c.WriteClipboard(command)
-				c.Toast(locales.ToastCommandCopied())
-			}
-		})
-	})
-}
-
 func consoleNote(c *ui.Context, text string) {
 	t := c.Theme()
 	ui.Column(c).Fill().Center().Padding(12).Children(func() {
@@ -1068,16 +1114,38 @@ func taskTitle(task tasks.Snapshot) string {
 	return parts.Operation(task.Kind) + " · " + task.Package
 }
 
-func taskSubtitle(task tasks.Snapshot) string {
-	parts := make([]string, 0, 3)
-	if task.ManagerName != "" {
-		parts = append(parts, task.ManagerName)
+// taskDuration is how long a task ran, or has been running: a running task
+// counts to now, which the frame its status badge keeps asking for refreshes.
+func taskDuration(task tasks.Snapshot) string {
+	if task.StartedAt.IsZero() {
+		return ""
 	}
-	parts = append(parts, clockLabel(task.StartedAt))
-	if !task.FinishedAt.IsZero() {
-		parts = append(parts, "→", clockLabel(task.FinishedAt))
+	end := task.FinishedAt
+	if end.IsZero() {
+		if task.State != tasks.StateRunning {
+			return ""
+		}
+		end = time.Now()
 	}
-	return strings.Join(parts, " ")
+	if end.Before(task.StartedAt) {
+		return ""
+	}
+	return tookLabel(end.Sub(task.StartedAt))
+}
+
+// tookLabel is a span of time as short as the column that holds it: seconds
+// under a minute, minutes under an hour, and hours above that. The minutes of an
+// hour and the seconds of a minute are dropped when they are zero.
+func tookLabel(d time.Duration) string {
+	seconds := int(d / time.Second)
+	switch {
+	case seconds < 60:
+		return locales.DurationSeconds(seconds)
+	case seconds < 3600:
+		return locales.DurationMinutes(seconds/60, seconds%60)
+	default:
+		return locales.DurationHours(seconds/3600, (seconds%3600)/60)
+	}
 }
 
 func statusLabel(state tasks.State) string {

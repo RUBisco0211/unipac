@@ -134,7 +134,7 @@
   "tasksKindUpdate": "Update",
   "tasksKindUninstall": "Uninstall",
   "tasksStatusRunning": "Running",
-  "tasksStatusCompleted": "Succeeded",
+  "tasksStatusCompleted": "Done",
   "tasksStatusFailed": "Failed",
   "tasksStatusQueued": "Waiting",
   "tasksRetry": "Retry",
@@ -165,10 +165,39 @@
   "tasksConsole": "Console",
   "tasksOutputLoading": "Loading console output…",
   "tasksCancelledByUser": "Cancelled by user",
-  "tasksResizePanel": "Resize console panel",
+  "tasksResizePanel": "Resize console",
   "toastCancelled": "Task cancelled",
   "tableStarted": "Started",
-  "tableFinished": "Finished",
+  "durationSeconds": "{seconds}s",
+  "@durationSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "durationMinutes": "{minutes}m {seconds}s",
+  "@durationMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      },
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "durationHours": "{hours}h {minutes}m",
+  "@durationHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      },
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
   "searchManagers": "Package managers",
   "searchManagerCount": "{count} managers",
   "@searchManagerCount": {
@@ -206,7 +235,9 @@
   "searchTruncated": "Showing the first {count} matches",
   "searchInstalled": "Installed",
   "commonCopyCommand": "Copy command",
+  "commonCopyOutput": "Copy output",
   "toastCommandCopied": "Command copied",
+  "toastOutputCopied": "Output copied",
   "searchUpdateAvailable": "Update available",
   "settingsHoldToConfirm": "Hold to confirm",
   "settingsHoldToConfirmDesc": "Confirm quitting with running tasks, and uninstalling, by holding the button instead of clicking it",

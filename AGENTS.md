@@ -44,7 +44,7 @@ Load both before writing or reviewing UI code.
   no background work inside them.
 - `views/` is one package per page (`list`, `search`, `settings`, `tasks`) plus
   the shared packages `inventory` (the `Service` interface and shared state),
-  `parts`, `panel` (a collapsible side panel), `ansi` and `flight`. Pages never
+  `parts`, `dock` (a console dock along the bottom edge), `ansi` and `flight`. Pages never
   import each other or `views` itself; the shell owns the wiring and passes
   callbacks to a page's exported fields.
 - Elements expire at the end of a build pass. Keep application state and
