@@ -142,3 +142,45 @@ func TestUnsupportedCapabilities(t *testing.T) {
 		t.Errorf("unsupported list = %q, want %q", got, want)
 	}
 }
+
+func TestPackagePageSummarySelects(t *testing.T) {
+	pkg := manager.Package{Name: "ripgrep", Manager: "brew", Version: "14.1.1"}
+	page := &PackagePage{}
+	page.Show(pkg)
+	// One paragraph that wraps: the summary as a manager sends it.
+	const summary = "ripgrep is a line-oriented search tool that recursively searches the current directory for a regex pattern, respecting .gitignore and skipping hidden and binary files, so it is fast and safe to run in a large repository."
+	page.Apply(pkg, manager.Detail{Summary: summary}, nil)
+	tt := testui.Render(func(c *ui.Context) {
+		page.Build(c, PackagePageOptions{})
+	}, 1024, 740)
+	tt.Frame()
+
+	// One text of two lines: a drag from the first into the second takes both.
+	block, ok := tt.Find(summary)
+	if !ok {
+		t.Fatalf("the summary is missing: %v", tt.Texts())
+	}
+	if block.H < 24 {
+		t.Fatalf("the summary is one line tall (%.0f): it does not wrap", block.H)
+	}
+	tt.Move(block.X+2, block.Y+block.H/4)
+	tt.Press(block.X+2, block.Y+block.H/4)
+	tt.Move(block.X+200, block.Y+block.H*3/4)
+	tt.Release(block.X+200, block.Y+block.H*3/4)
+	tt.Frame()
+	tt.Key(ui.Cmd, ui.KeyC)
+	tt.Frame()
+	if got := tt.Clipboard(); got != summary {
+		t.Errorf("the selection copied %q, want the whole summary", got)
+	}
+
+	// The page's own controls still work: the selection scope does not swallow
+	// the close button.
+	if err := tt.Click(locales.DetailClose()); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	tt.Frame()
+	if page.Open {
+		t.Error("the close button did not close the page")
+	}
+}

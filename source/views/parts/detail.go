@@ -74,7 +74,10 @@ func (p *PackagePage) Build(c *ui.Context, o PackagePageOptions) {
 	}
 	t := c.Theme()
 	Dialog(c, &p.Open, components.DialogOptions{Label: p.pkg.Name}, func(panel ui.Element) {
-		panel.Width(t.Space(140)).Padding(t.Space(5)).Gap(t.Space(4)).Children(func() {
+		// Selectable: the page is read to be copied — the summary into a note, a
+		// license into a report — and one scope covers every paragraph, so a drag
+		// across the summary's lines takes all of them.
+		panel.Width(t.Space(140)).Padding(t.Space(5)).Gap(t.Space(4)).Selectable().Children(func() {
 			header(c, p)
 			summary(c, p, o)
 			ui.Column(c).FillWidth().Children(func() {
