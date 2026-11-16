@@ -363,6 +363,11 @@ Command helpers are backend-only. Views should request operations through `App` 
 - A question about the app's own state is an Onevra `Dialog` built with the
   content, so it follows the theme and can ask for a hold; `mygo.Dialog` with the
   window as `Parent` is for the macOS-only cases, such as a sheet over the window.
+  Every one of them goes through `parts.Dialog`, which blurs the window behind it
+  and centers the panel: Onevra leaves twice as much room below a panel as above
+  it, which read as too high for the app's short questions, so `centerPanel`
+  adds a top margin — a margin of m moves the panel 2m/3, and a quarter of the
+  spare space centers it — using the panel's height from the pass before.
 
 ### Views
 
@@ -375,12 +380,12 @@ together, and nothing has to be found across a 900-line file:
 | `views` | `UI`, `Page`, `New`, `Run`, the sidebar and title bar, navigation, the settings window, the background jobs, quit handling, task notifications and the main window's toasts (bottom right) | every view package below |
 | `views/inventory` | `Service` (the interface `App` satisfies), `Data` (the shared package inventory, manager list, refresh and task gate) | `backend/core/manager`, `backend/tasks` |
 | `views/uiassets` | the views' own embedded assets: the colored brand marks the interface shows beside a manager's name, in the settings sidebar and in the tables, one file per manager ID, decoded once and read by name | — |
-| `views/panel` | a side panel beside a page's content: it slides in from the window's edge, its width is a drag of that edge, and a double click puts it away | `parts` |
+| `views/dock` | a console dock along the bottom of a page: a header row that is always there, a body that opens above it, its height is a drag of its top edge, and a double click folds it away | `parts` |
 | `views/parts` | the presentational pieces the pages share: package table columns and cells, badges, the loading bar, placeholders, dividers, row action slots, and task/kind labels | `manager`, `tasks`, `locales` |
 | `views/list` | the installed and outdated page: query and manager filters, sorting, selection, the bulk bar, per-row actions, and the package page a row click opens | `inventory`, `parts`, `flight` |
 | `views/search` | the search page: the query field, the manager selection, results marked with what is already installed or a newer version, install — or, for a manager that lists versions, a dialog choosing one — or update, and the package page a result opens | `inventory`, `parts`, `flight` |
 | `views/settings` | the settings page: one `components.Settings` surface with the app's settings as categories (appearance, language, startup behavior, log level, the task history clear behind its dialog, About) and one category per registered manager, its facts, its path field, the capability badges, the re-probe section action, and the save state machine | `inventory`, `parts` |
-| `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `panel` | `inventory`, `parts`, `panel`, `ansi`, `flight` |
+| `views/tasks` | the tasks page: one row per package operation, filters, the retry action, and the console in a `dock` | `inventory`, `parts`, `dock`, `ansi`, `flight` |
 | `views/ansi` | SGR parsing for the console: terminal colors, weights and decorations | standard library, `ui` |
 | `views/flight` | the package icon that flies from a pressed control to the tasks button | `locales` |
 | `views/internal/testui` | the fixtures the page tests share: inventory, task list, headless window | `inventory` |
@@ -411,9 +416,11 @@ fixture instead, because anything it imported would have to import it back.
 The installed and outdated pages are the same `list.View` with `OutdatedOnly`
 set, so a change to the table applies to both.
 
-A row click opens the package's own page in a dialog (`parts.PackagePage`), on
+A row click opens the package's own page in a dialog (`parts.PackagePage`) on
 all three tables: installed, outdated and search. The page is the same wherever
-it opens, and the dialog is modal, so the table is read again by closing it.
+it opens, and the dialog is modal, so the table is read again by closing it. Its
+panel is one selection scope: the summary wraps over several lines and a drag
+takes all of them, so what a manager says about a package can be copied out.
 
 On the installed and outdated pages the checkboxes own the selection the bulk
 actions act on, so a plain click is otherwise inert — which is what leaves it free
@@ -683,44 +690,60 @@ their consoles; the clear is queued like any other store write, so it cannot
 overtake an insert that would put a row back.
 
 Its columns are operation, package, version,
-manager, status, started and finished; an update's version cell joins the old and
-new versions with `→`, and the time cells show the clock today or the date for an
-older task, with the full timestamp in a tooltip. A search field matches package,
+manager, status and started; an update's version cell puts the old version over
+the new one with `→` before it, one per line, so neither is lost to the column's
+width the way a single `old → new` line lost its tail, and the started cell shows
+the clock today or the date for an older task, with how long the task took under
+it and both timestamps in full in a tooltip. A search field matches package,
 manager and command, and three multi-selects filter by operation kind, by status
 and by package manager; their option counts follow the other filters and the
 query. Revealing a task from a notification or a toast clears all of them, so a
 task cannot be hidden by its own filters. The install kind uses a download icon.
 
-The console is a `views/panel` on the trailing edge, which the title bar's
-toggle opens and closes and which a chosen task opens. It spans the window's
-height from the top edge like the sidebar, and when no task is chosen it shows a
-"select a task" hint rather than disappearing. Its width is a drag of its edge,
-a double click on that edge puts it away, and the width is a DIP value rather
-than a share, so the window growing leaves the panel as the user sized it. The
-chosen task's header carries the cancel control while it runs and the retry
-control when it failed or was cancelled; retrying starts a new task and leaves
-the old record alone.
+The console is a `views/dock` along the bottom edge, so the table above it has
+the window's whole width: its seven columns did not fit beside a panel, and a
+console reads better wide than tall, since terminal output wraps badly. The dock
+is a header row that is always there and a body that opens above it: the header
+names the chosen task, its status, how long it has run, its message, the cancel
+control while it runs and the retry control when it failed or was cancelled, and
+a chevron that folds the body away. A double click on the dock's edge and
+`Cmd+J` do the same; the title bar carries no toggle, because the control that
+folds the log belongs beside it. A folded dock still shows its header, so
+folding it loses the log and not the task. The body's height is a drag of the
+dock's top edge and a DIP value rather than a share, so the window growing leaves
+the dock as the user sized it. Choosing a task opens the body, but leaves a dock
+the user folded folded; revealing a task from a notification opens it, since that
+press asked for the console by name. Retrying starts a new task and leaves the
+old record alone.
 
 The table is keyed by task ID, so a task keeps its row identity as running ones
 come and go. Its package cell carries the package name over the command, the
 same two-line shape as the package tables, so rows have the same height. A thin
 indeterminate bar sits over the table's top while tasks are queued or running or
 a stored console is loading, like the refresh bar on the package pages; it is
-painted on the table's own box, so it stops where the panel begins. The
+painted on the table's own box, so it stops where the dock begins. The
 console is a `components.List` with `FollowEnd`, which keeps the newest line in
 view until the user scrolls up, and starts at the end when a different task is
-chosen. `views/ansi` parses SGR sequences into colored spans, so
+chosen. The dock's body is one selectable container rather than a selectable
+line: MyGo shares a text selection between the paragraphs of a selectable box,
+so a drag from the first line to the last copies them together, which a
+`Selectable` per line could not do — each line was a selection of its own.
+`views/ansi` parses SGR sequences into colored spans, so
 bold, standard and 256/true colors look as the tool meant them; stderr is not
 tinted by itself. Homebrew, npm and Cargo's action commands ask for color
 (`HOMEBREW_COLOR`, `FORCE_COLOR`, `CARGO_TERM_COLOR`) because they print to a
-pipe; the other adapters' output stays plain. Above the console, the panel shows
-the command the task ran as a block that can be selected and copied, with a
-button that copies it and confirms with a toast; the executable path is stored
-with the task but not shown, since the command already names it.
+pipe; the other adapters' output stays plain. The command a task ran is not drawn beside the log:
+the task's row in the table already carries it, and a line of it above the output
+was one more thing to read before the lines that matter. The header's
+`SquareTerminal` button copies it, and a copy button floating over the log's top
+corner copies the output — every line, with `ansi.Plain` dropping the escape
+sequences, since SGR codes pasted into a document are noise. Both confirm with a
+toast. The executable path is stored with the task but not shown, since the
+command already names it.
 
 Snapshots carry metadata and `OutputSeq`, not the console itself. Choosing a
 task asks `App.TaskOutput` off the UI thread; a live task answers from memory and
-a stored one from `package_task_output`, and the panel shows a loading state until
+a stored one from `package_task_output`, and the dock shows a loading state until
 the lines arrive. The listener reloads only the selected console, and only when
 its sequence changed, so a command printing hundreds of lines cannot copy every
 running task's full output on every frame. A refresh keeps the displayed lines
@@ -839,7 +862,7 @@ because the cells are one line and clip.
 `parts.LoadingBar` paints its sweep on the element it is given rather than adding
 an absolutely positioned one: `Absolute()` places an element against the window,
 not against the box it is built in, so a bar built inside a page ran under a side
-panel.
+panel (the console's dock, now that the panel is gone).
 
 The keyed row list also sets `KeepOffset`: with a `Key` and without it, MyGo
 keeps the row at the top of the viewport in place, so sorting a column would
