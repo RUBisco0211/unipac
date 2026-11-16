@@ -57,9 +57,12 @@ Load both before writing or reviewing UI code.
 - The app updates itself from signed releases. The signing key is made once with
   `go tool mygo keygen` and never regenerated: installed copies accept only
   updates signed with it, so the secret half lives in the repository secret
-  `MYGO_UPDATER_PRIVATE_KEY` and nowhere in the tree. A release's notes are its
-  section of `CHANGELOG.md`, so a version without one cannot be built for
-  release.
+  `MYGO_UPDATER_PRIVATE_KEY` and nowhere in the tree.
+- `CHANGELOG.md` holds one section per released version and nothing else. No
+  `Unreleased` section, and no section that describes what a later version ships:
+  a version's section is that release's notes, which `mygo build` reads and the
+  update window shows. Write it in the change that bumps `version` and tags it, so
+  a version without one cannot be built for release.
 - All user-visible text goes through the catalogs in `locales/`.
 - Tests live in the package they test. Use `package foo_test` when the test only
   touches exported API; do not add a cross-package test directory.

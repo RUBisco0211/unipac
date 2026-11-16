@@ -1,17 +1,9 @@
 # Changelog
 
-A version's section is its GitHub release's notes, which the update window shows:
-`mygo build` reads it when it publishes an update, so a version without a section
-cannot be released. `Unreleased` holds what the next version will say; rename it
-when the version is cut.
-
-## Unreleased
-
-- The update window shows UniPac's icon. A bundle whose icon is an asset catalog
-  carries no `icon.png` unless `resources` copies one in, and the window reads
-  that rather than the catalog.
-- Settings › About follows the updater's switches when the update window changes
-  them, instead of showing what they were at launch.
+One section per released version, and nothing else: a version's section is its
+GitHub release's notes, which the update window shows, and `mygo build` reads it
+when it publishes an update, so a version without a section cannot be released.
+It is written when the version is cut, and it lists what that version ships.
 
 ## 0.4.1 — 2026-11-13
 
@@ -82,4 +74,4 @@ when the version is cut.
 
 - The first release: installed and outdated packages from the package managers it
   discovered, in one window, with a search across them.
-- The window was a WebView with a Vue 3 front end; 0.2.0 replaced it.
+- The window was a WebView with a Vue 3 front end.
